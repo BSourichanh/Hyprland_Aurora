@@ -1,0 +1,93 @@
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "Noto Sans", "FontAwesome", sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 0;
+}
+
+/* Barre Waybar translucide avec effet de verre */
+window#waybar {
+    background: rgba(10, 15, 30, 0.35);
+    color: #e1e4f1;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Espaces de travail */
+#workspaces {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    margin: 3px 4px;
+    padding: 1px 3px;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    margin: 1px 2px;
+    color: #aec4e9;
+    background: transparent;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+}
+
+#workspaces button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #5bc3e9;
+}
+
+#workspaces button.active {
+    background: linear-gradient(45deg, #0db7d4, #7aa2f7);
+    color: #090727;
+    font-weight: 700;
+}
+
+#workspaces button.urgent {
+    background: #f7768e;
+    color: #090727;
+}
+
+/* Horloge centrale translucide */
+#clock {
+    padding: 0 14px;
+    margin: 3px 0;
+    color: #f1f5f9;
+    font-weight: 600;
+    background: rgba(13, 183, 212, 0.12);
+    border: 1px solid rgba(13, 183, 212, 0.28);
+    border-radius: 10px;
+}
+
+/* Modules de droite */
+#pulseaudio, #network, #tray {
+    padding: 0 10px;
+    margin: 3px 2px;
+    color: #e1e4f1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+
+#pulseaudio {
+    color: #a5b4fc;
+}
+
+#network {
+    color: #7dd3fc;
+}
+
+#tray {
+    padding: 0 8px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+    background-color: #f87171;
+}

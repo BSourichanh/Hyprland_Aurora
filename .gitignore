@@ -1,0 +1,7 @@
+# Temporary and backup files
+*.bak
+*-bak
+*~
+
+# Compiled plugin binaries
+dotfiles/hypr/plugins/*.so
