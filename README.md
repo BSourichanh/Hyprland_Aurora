@@ -28,7 +28,7 @@ Les configurations réelles du système dans `~/.config/` pointent directement v
 ## Raccourcis utiles
 
 - Recharger Hyprland & Waybar : <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>R</kbd>
-- Menu Démarrer (Wofi) : Touche <kbd>SUPER</kbd> seule
+- Lanceur d'applications (Wofi) : <kbd>SUPER</kbd> + <kbd>R</kbd>
 - Terminal Kitty : <kbd>SUPER</kbd> + <kbd>Return</kbd> ou <kbd>SUPER</kbd> + <kbd>Q</kbd>
 - Verrouillage écran : <kbd>SUPER</kbd> + <kbd>L</kbd>
 - Explorateur de fichiers : <kbd>SUPER</kbd> + <kbd>E</kbd>
