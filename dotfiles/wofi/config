@@ -1,6 +1,7 @@
 width=500
 height=450
 location=center
+layer=overlay
 show=drun
 prompt=Rechercher une application...
 filter_rate=100
