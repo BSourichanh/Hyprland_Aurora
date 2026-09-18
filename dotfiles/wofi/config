@@ -1,8 +1,6 @@
-width=460
-height=520
-location=bottom_left
-xoffset=12
-yoffset=54
+width=500
+height=450
+location=center
 show=drun
 prompt=Rechercher une application...
 filter_rate=100
