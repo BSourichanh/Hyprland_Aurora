@@ -86,6 +86,7 @@ hyprland_project/
 │   │   ├── hyprlock.conf      # Écran de verrouillage stylisé avec champ de mot de passe dégradé
 │   │   ├── lock.sh            # Script de verrouillage sécurisé avec Safe Cleanup RAII
 │   │   ├── scripts/
+│   │   │   ├── reload.sh      # Rechargement unifié Hyprland & Waybar (SUPER + SHIFT + R)
 │   │   │   └── wofi-toggle.sh # Lanceur Wofi avec gestion de clic extérieur (wait -n, 0% CPU)
 │   │   └── theme-summer/      # Fonds d'écran et ressources graphiques
 │   ├── waybar/
@@ -105,6 +106,19 @@ hyprland_project/
 ├── GEMINI.md                  # Directives d'architecture et consignes de développement
 └── README.md                  # Documentation générale du projet
 ```
+
+### 📖 Documentations Détaillées par Composant
+
+Chaque sous-système dispose de sa propre documentation technique dédiée :
+
+| Composant | Description | Documentation |
+| :--- | :--- | :--- |
+| **Hyprland** | Compositeur Wayland, règles d'affichage, raccourcis, protocole `lock.sh` | [`dotfiles/hypr/README.md`](dotfiles/hypr/README.md) |
+| **Waybar & Spotify** | Barre d'état glassmorphism, calque SVG, helper MPRIS et démon carte GTK3 | [`dotfiles/waybar/README.md`](dotfiles/waybar/README.md) |
+| **Wofi** | Lanceur d'applications, style CSS 17px et fermeture événementielle sans CPU | [`dotfiles/wofi/README.md`](dotfiles/wofi/README.md) |
+| **Kitty** | Émulateur de terminal, translucidité 0.85 et palette Tokyo Night | [`dotfiles/kitty/README.md`](dotfiles/kitty/README.md) |
+| **Lucy Theme & Shaders** | Modèle, textures TEXV0005, masque subpixel et shaders Blackwall GPU | [`ressource/README.md`](ressource/README.md) |
+| **Scripts & CLI** | Outil d'administration `wallpaper_tool.py`, packaging, sync et audit | [`scripts/README.md`](scripts/README.md) |
 
 ---
 
