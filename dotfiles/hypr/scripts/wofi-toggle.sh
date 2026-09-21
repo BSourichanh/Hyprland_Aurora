@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Bascule rapide et légère pour Wofi avec détection de clic extérieur événementielle (0% CPU)
 
 # Si wofi est déjà ouvert, le fermer immédiatement (toggle)
 if pgrep -x "wofi" > /dev/null; then
@@ -7,7 +8,7 @@ if pgrep -x "wofi" > /dev/null; then
     exit 0
 fi
 
-# Nettoyer tout slurp orphelin
+# Nettoyer tout résidu précédent
 pkill -x "slurp" 2>/dev/null
 
 # 1. Lancer l'overlay transparent en arrière-plan pour capturer le clic extérieur
@@ -18,22 +19,8 @@ SLURP_PID=$!
 wofi --show drun &
 WOFI_PID=$!
 
-# 3. Boucle de surveillance active
-while true; do
-    # Si wofi s'est fermé normalement (lancement d'appli ou Échap)
-    if ! kill -0 "$WOFI_PID" 2>/dev/null; then
-        kill "$SLURP_PID" 2>/dev/null
-        break
-    fi
+# Filet de sécurité : garantir la mort des deux sous-processus quoi qu'il arrive
+trap 'kill "$WOFI_PID" "$SLURP_PID" 2>/dev/null; wait "$WOFI_PID" "$SLURP_PID" 2>/dev/null' EXIT INT TERM
 
-    # Si slurp s'est arrêté (clic détecté en dehors de wofi)
-    if ! kill -0 "$SLURP_PID" 2>/dev/null; then
-        kill "$WOFI_PID" 2>/dev/null
-        break
-    fi
-
-    sleep 0.05
-done
-
-wait "$WOFI_PID" 2>/dev/null
-wait "$SLURP_PID" 2>/dev/null
+# 3. Attente événementielle au niveau noyau (zéro boucle active, zéro utilisation CPU)
+wait -n "$WOFI_PID" "$SLURP_PID" 2>/dev/null

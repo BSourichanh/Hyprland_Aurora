@@ -2,6 +2,12 @@
 *.bak
 *-bak
 *~
+__pycache__/
+*.pyc
+
+# Submodule / external build directories
+linux-wallpaperengine/
 
 # Compiled plugin binaries
 dotfiles/hypr/plugins/*.so
+

@@ -1,12 +1,15 @@
 window {
     margin: 0px;
-    background-color: rgba(9, 7, 39, 0.88);
-    border: 2px solid #0db7d4;
+    border: 2px solid transparent;
     border-radius: 17px;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.88), rgba(10, 15, 30, 0.88)), 
+                      linear-gradient(135deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     font-family: "Noto Sans", sans-serif;
     font-size: 14px;
     color: #e1e4f1;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 240, 255, 0.20);
 }
 
 #input {
@@ -20,8 +23,8 @@ window {
 }
 
 #input:focus {
-    border: 1.5px solid #0db7d4;
-    box-shadow: 0 0 8px rgba(13, 183, 212, 0.5);
+    border: 1.5px solid #00f0ff;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
 }
 
 #inner-box {
@@ -52,7 +55,7 @@ window {
 }
 
 #entry:selected {
-    background: linear-gradient(45deg, #0db7d4, #7aa2f7);
+    background: linear-gradient(45deg, #00f0ff, #7aa2f7);
     color: #090727;
     font-weight: bold;
 }

@@ -10,6 +10,7 @@
         "hyprland/workspaces"
     ],
     "modules-center": [
+        "group/spotify-player",
         "clock"
     ],
     "modules-right": [
@@ -20,13 +21,37 @@
     "hyprland/workspaces": {
         "format": "{name}",
         "on-click": "activate",
-        "all-outputs": true,
+        "all-outputs": false,
         "sort-by-number": true
+    },
+    "mpris": {
+        "player": "spotify",
+        "format": "<span color='#00f0ff'>{player_icon}</span>  {dynamic}",
+        "format-paused": "<span color='#94a3b8'>{player_icon}</span>  <i>{dynamic}</i>",
+        "format-stopped": "",
+        "player-icons": {
+            "default": "\uf1bc"
+        },
+        "dynamic-order": [
+            "title",
+            "artist"
+        ],
+        "dynamic-separator": " \u2022 ",
+        "dynamic-len": 28,
+        "max-length": 32,
+        "ellipsis": "\u2026",
+        "tooltip": true,
+        "tooltip-format": "{title} \u2022 {artist} ({album})\n\nClic gauche : Carte d\u00e9roulante\nClic droit : Lecture / Pause\nClic milieu : Piste suivante\nMolette : Avancer / Reculer (5s)",
+        "on-click": "~/.config/waybar/scripts/spotify-card.py toggle",
+        "on-click-right": "playerctl -p spotify play-pause",
+        "on-click-middle": "playerctl -p spotify next",
+        "on-scroll-up": "playerctl -p spotify position 5+",
+        "on-scroll-down": "playerctl -p spotify position 5-"
     },
     "clock": {
         "locale": "fr_FR.UTF-8",
-        "format": "  {:%H:%M  •  %A %d %B}",
-        "format-alt": "  {:%d/%m/%Y}",
+        "format": "<span color='#00f0ff'>\uf017</span>  {:%H:%M  \u2022  %A %d %B}",
+        "format-alt": "<span color='#00f0ff'>\uf133</span>  {:%d/%m/%Y}",
         "tooltip-format": "<big>{:%B %Y}</big>\n<tt><small>{calendar}</small></tt>",
         "calendar": {
             "mode": "month",
@@ -34,7 +59,7 @@
             "weeks-pos": "right",
             "on-scroll": 1,
             "format": {
-                "months": "<span color='#0db7d4'><b>{}</b></span>",
+                "months": "<span color='#00f0ff'><b>{}</b></span>",
                 "days": "<span color='#e1e4f1'><b>{}</b></span>",
                 "weekdays": "<span color='#7aa2f7'><b>{}</b></span>",
                 "today": "<span color='#ff6699'><b><u>{}</u></b></span>"
@@ -42,21 +67,56 @@
         }
     },
     "pulseaudio": {
-        "format": "{icon}  {volume}%",
-        "format-muted": "  Muet",
+        "format": "<span color='#00f0ff'>{icon}</span>  {volume}%",
+        "format-muted": "<span color='#64748b'>\uf026</span>  Muet",
         "format-icons": {
-            "default": ["", "", ""]
+            "default": [
+                "\uf026",
+                "\uf027",
+                "\uf028"
+            ]
         },
         "on-click": "pavucontrol"
     },
     "network": {
-        "format-wifi": "  {essid}",
-        "format-ethernet": "  Connecté",
-        "format-disconnected": "⚠  Déconnecté",
+        "format-wifi": "<span color='#00f0ff'>\uf1eb</span>  {essid}",
+        "format-ethernet": "<span color='#00f0ff'>\uf0e8</span>  Connect\u00e9",
+        "format-disconnected": "<span color='#f87171'>\u26a0</span>  D\u00e9connect\u00e9",
         "tooltip-format": "{ifname} : {ipaddr}"
     },
     "tray": {
         "icon-size": 16,
         "spacing": 8
+    },
+    "group/spotify-player": {
+        "orientation": "horizontal",
+        "modules": [
+            "mpris",
+            "custom/spotify-prev",
+            "custom/spotify-play-pause",
+            "custom/spotify-next"
+        ],
+        "spacing": 0
+    },
+    "custom/spotify-prev": {
+        "exec": "~/.config/waybar/scripts/spotify.py --prev",
+        "return-type": "json",
+        "interval": 2,
+        "tooltip": false,
+        "on-click": "playerctl -p spotify previous"
+    },
+    "custom/spotify-play-pause": {
+        "exec": "~/.config/waybar/scripts/spotify.py --play-pause",
+        "return-type": "json",
+        "interval": 1,
+        "tooltip": false,
+        "on-click": "playerctl -p spotify play-pause"
+    },
+    "custom/spotify-next": {
+        "exec": "~/.config/waybar/scripts/spotify.py --next",
+        "return-type": "json",
+        "interval": 2,
+        "tooltip": false,
+        "on-click": "playerctl -p spotify next"
     }
 }

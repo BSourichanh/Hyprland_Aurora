@@ -7,20 +7,28 @@
     min-height: 0;
 }
 
-/* Barre Waybar translucide avec effet de verre */
+/* Barre Waybar translucide avec dégradé vectoriel continu */
 window#waybar {
-    background: rgba(10, 15, 30, 0.35);
+    background-color: transparent;
+    background-image: url('bar-bg.svg');
+    background-repeat: no-repeat;
+    background-size: 1900px 34px;
+    background-position: center;
+    border: none;
+    border-radius: 17px;
     color: #e1e4f1;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 14px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.35), 0 0 24px rgba(0, 240, 255, 0.16);
 }
 
 /* Espaces de travail */
 #workspaces {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(10, 15, 30, 0.65);
+    border: 2px solid transparent;
     border-radius: 10px;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.65), rgba(10, 15, 30, 0.65)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     margin: 3px 4px;
     padding: 1px 3px;
 }
@@ -28,26 +36,40 @@ window#waybar {
 #workspaces button {
     padding: 0 8px;
     margin: 1px 2px;
-    color: #aec4e9;
+    color: #7a8fae;
     background: transparent;
+    border: 1.5px solid transparent;
     border-radius: 8px;
     transition: all 0.2s ease-in-out;
 }
 
 #workspaces button:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #5bc3e9;
+    background: rgba(255, 255, 255, 0.12);
+    color: #00f0ff;
 }
 
+/* Workspace affiché à l'écran (sur moniteur non focus) */
+#workspaces button.visible {
+    background: rgba(0, 240, 255, 0.15);
+    border: 1.5px solid rgba(0, 240, 255, 0.65);
+    color: #00f0ff;
+    font-weight: 600;
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.25);
+}
+
+/* Workspace actif / avec le focus clavier */
 #workspaces button.active {
-    background: linear-gradient(45deg, #0db7d4, #7aa2f7);
+    background: linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    border: 1.5px solid transparent;
     color: #090727;
     font-weight: 700;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.55);
 }
 
 #workspaces button.urgent {
-    background: #f7768e;
-    color: #090727;
+    background: #f43f5e;
+    color: #ffffff;
+    font-weight: 700;
 }
 
 /* Horloge centrale translucide */
@@ -56,9 +78,12 @@ window#waybar {
     margin: 3px 0;
     color: #f1f5f9;
     font-weight: 600;
-    background: rgba(13, 183, 212, 0.12);
-    border: 1px solid rgba(13, 183, 212, 0.28);
+    border: 2px solid transparent;
     border-radius: 10px;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.70), rgba(10, 15, 30, 0.70)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
 }
 
 /* Modules de droite */
@@ -66,9 +91,12 @@ window#waybar {
     padding: 0 10px;
     margin: 3px 2px;
     color: #e1e4f1;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 2px solid transparent;
     border-radius: 10px;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.70), rgba(10, 15, 30, 0.70)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
 }
 
 #pulseaudio {
@@ -91,3 +119,87 @@ window#waybar {
     -gtk-icon-effect: highlight;
     background-color: #f87171;
 }
+
+/* Conteneur Spotify Mini-Player */
+#spotify-player {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+/* Module Media Spotify (MPRIS Titre & Artiste) */
+#mpris {
+    padding: 0 6px 0 12px;
+    margin: 3px 0;
+    color: #f1f5f9;
+    font-weight: 600;
+    border: 2px solid transparent;
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.70), rgba(10, 15, 30, 0.70)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    transition: all 0.2s ease-in-out;
+}
+
+#mpris:hover {
+    background-image: linear-gradient(rgba(20, 30, 60, 0.85), rgba(20, 30, 60, 0.85)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+}
+
+#mpris.paused {
+    color: #94a3b8;
+}
+
+/* Boutons de contrôle (Précédent, Lecture/Pause, Suivant) */
+#custom-spotify-prev,
+#custom-spotify-play-pause {
+    padding: 0 6px;
+    margin: 3px 0;
+    color: #7aa2f7;
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
+    border-left: none;
+    border-right: none;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.70), rgba(10, 15, 30, 0.70)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    transition: all 0.2s ease-in-out;
+}
+
+#custom-spotify-next {
+    padding: 0 12px 0 6px;
+    margin: 3px 0;
+    color: #7aa2f7;
+    border: 2px solid transparent;
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.70), rgba(10, 15, 30, 0.70)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    transition: all 0.2s ease-in-out;
+}
+
+#custom-spotify-prev:hover,
+#custom-spotify-play-pause:hover,
+#custom-spotify-next:hover {
+    color: #00f0ff;
+    background-image: linear-gradient(rgba(20, 30, 60, 0.85), rgba(20, 30, 60, 0.85)),
+                      linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+}
+
+#mpris.stopped,
+#custom-spotify-prev.stopped,
+#custom-spotify-play-pause.stopped,
+#custom-spotify-next.stopped {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+
