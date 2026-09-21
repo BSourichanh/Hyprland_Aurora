@@ -1,0 +1,419 @@
+{
+  "camera": {
+    "center": "0.00000 0.00000 -1.00000",
+    "eye": "0.00000 0.00000 0.00000",
+    "up": "0.00000 1.00000 0.00000"
+  },
+  "general": {
+    "ambientcolor": "0.30000 0.30000 0.30000",
+    "bloom": true,
+    "bloomhdrfeather": 0.1,
+    "bloomhdriterations": 8,
+    "bloomhdrscatter": 1.619,
+    "bloomhdrstrength": 4.0799999,
+    "bloomhdrthreshold": 1.0,
+    "bloomstrength": 10.0,
+    "bloomthreshold": 0.57999998,
+    "bloomtint": "1.00000 1.00000 1.00000",
+    "camerafade": true,
+    "cameraparallax": false,
+    "cameraparallaxamount": 0.5,
+    "cameraparallaxdelay": 0.1,
+    "cameraparallaxmouseinfluence": 0.5,
+    "camerapreview": true,
+    "camerashake": false,
+    "camerashakeamplitude": 0.5,
+    "camerashakeroughness": 1.0,
+    "camerashakespeed": 3.0,
+    "clearcolor": "0.70000 0.70000 0.70000",
+    "clearenabled": true,
+    "farz": 10000.0,
+    "fov": 50.0,
+    "gravitydirection": "0.00000 -1.00000 0.00000",
+    "gravitystrength": 1.0,
+    "hdr": true,
+    "nearz": 0.0099999998,
+    "orthogonalprojection": {
+      "height": 1080,
+      "width": 1920
+    },
+    "perspectiveoverridefov": 90.0,
+    "skylightcolor": "0.30000 0.30000 0.30000",
+    "winddirection": "0.70700 0.70700 0.00000",
+    "windenabled": false,
+    "windstrength": 1.0,
+    "zoom": 1.0
+  },
+  "objects": [
+    {
+      "angles": "0.00000 -0.00000 0.39537",
+      "disablepropagation": false,
+      "id": 100,
+      "instanceoverride": {
+        "brightness": 1.17,
+        "colorn": "1.00000 0.00000 0.00000",
+        "id": 105,
+        "rate": 0.28999999
+      },
+      "name": "Blow Torch",
+      "origin": "1133.91931 757.61963 0.00000",
+      "particle": "particles/workshop/2089227512/blow_torch.json",
+      "scale": "0.54539 0.54539 1.09078",
+      "solid": true
+    },
+    {
+      "angles": "0.00000 -0.00000 0.39537",
+      "disablepropagation": false,
+      "id": 109,
+      "instanceoverride": {
+        "brightness": 1.1,
+        "colorn": "1.00000 0.00000 0.00000",
+        "id": 111,
+        "rate": 0.28999999
+      },
+      "name": "Blow Torch",
+      "origin": "775.23340 671.10413 0.00000",
+      "particle": "particles/workshop/2089227512/blow_torch.json",
+      "scale": "0.57388 0.57388 1.14775",
+      "solid": true
+    },
+    {
+      "brightness": 1.0700001,
+      "castshadow": false,
+      "clampuvs": true,
+      "colorBlendMode": 30,
+      "disablepropagation": false,
+      "effects": [
+        {
+          "file": "effects/blackwall/effect.json",
+          "id": 9001,
+          "name": "Blackwall",
+          "passes": [
+            {
+              "id": 9002,
+              "textures": [
+                null,
+                "masks/blackwall_mask"
+              ]
+            }
+          ],
+          "visible": true
+        },
+        {
+          "file": "effects/workshop/2798696916/sharpen_filter/effect.json",
+          "id": 21,
+          "name": "",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "Radius": 1.0,
+                "Strength": 1.0
+              },
+              "id": 22
+            }
+          ],
+          "visible": true
+        },
+        {
+          "file": "effects/waterwaves/effect.json",
+          "id": 141,
+          "name": "",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "direction": 0.0,
+                "exponent": 1.08,
+                "scale": 12.83,
+                "speed": 3.21,
+                "strength": 0.039999999
+              },
+              "id": 142,
+              "textures": [
+                null,
+                "masks/waterwaves_mask_709485fd"
+              ]
+            }
+          ],
+          "visible": true
+        },
+        {
+          "file": "effects/shine/effect.json",
+          "id": 427,
+          "name": "",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "noiseamount": 0.40000001,
+                "noisescale": 3.0,
+                "noisespeed": 0.15000001,
+                "raythreshold": 0
+              },
+              "id": 428,
+              "textures": [
+                null,
+                "masks/shine_downsample2_mask_b309bcdf",
+                null
+              ]
+            },
+            {
+              "combos": {
+                "EDGES": 5,
+                "SAMPLES": 3
+              },
+              "constantshadervalues": {
+                "color": "1 1 1",
+                "direction": 0.0,
+                "rayintensity": 0.03,
+                "raylength": 0.0099999998,
+                "speed": 0.0
+              },
+              "id": 429
+            },
+            {
+              "constantshadervalues": {
+                "scale": "1 1"
+              },
+              "id": 430
+            },
+            {
+              "combos": {
+                "VERTICAL": 1
+              },
+              "constantshadervalues": {
+                "scale": "1 1"
+              },
+              "id": 431
+            },
+            {
+              "combos": {
+                "BLENDMODE": 31
+              },
+              "id": 432
+            }
+          ],
+          "visible": true
+        },
+        {
+          "file": "effects/shake/effect.json",
+          "id": 711,
+          "name": "",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "bounds": "0 1",
+                "friction": "1 1",
+                "speed": 1.0,
+                "strength": 0.1
+              },
+              "id": 712,
+              "textures": [
+                null,
+                "masks/shake_mask_3afcccf8"
+              ]
+            }
+          ],
+          "visible": true
+        },
+        {
+          "file": "effects/blur/effect.json",
+          "id": 757,
+          "name": "",
+          "passes": [
+            {
+              "id": 758
+            },
+            {
+              "constantshadervalues": {
+                "scale": "2 2"
+              },
+              "id": 759
+            },
+            {
+              "combos": {
+                "VERTICAL": 1
+              },
+              "constantshadervalues": {
+                "scale": "2 2"
+              },
+              "id": 760
+            },
+            {
+              "constantshadervalues": {
+                "compositecolor": "1 1 1"
+              },
+              "id": 761,
+              "textures": [
+                null,
+                "masks/blur_combine_mask_3232a97f",
+                null
+              ]
+            }
+          ],
+          "visible": false
+        },
+        {
+          "file": "effects/workshop/2798319181/bokeh_blur/effect.json",
+          "id": 876,
+          "name": "",
+          "passes": [
+            {
+              "id": 877
+            },
+            {
+              "id": 878
+            },
+            {
+              "combos": {
+                "BLENDMODE": 12,
+                "PRECISE": 1,
+                "QUALITY": 0
+              },
+              "constantshadervalues": {
+                "Aperture": 1.0
+              },
+              "id": 879
+            },
+            {
+              "combos": {
+                "BLENDMODE": 12,
+                "PRECISE": 1,
+                "QUALITY": 0,
+                "VERTICAL": 1
+              },
+              "constantshadervalues": {
+                "Aperture": 1.0,
+                "Opacity": 1.0
+              },
+              "id": 880
+            },
+            {
+              "combos": {
+                "QUALITY": 0
+              },
+              "constantshadervalues": {
+                "Aperture": 1.0,
+                "Gamma": 1.0,
+                "Highlights": 1.0
+              },
+              "id": 881
+            },
+            {
+              "combos": {
+                "BLENDMODE": 12,
+                "QUALITY": 0
+              },
+              "constantshadervalues": {
+                "Aperture": 1.0
+              },
+              "id": 882
+            },
+            {
+              "combos": {
+                "BLENDMODE": 12,
+                "QUALITY": 0,
+                "VERTICAL": 1
+              },
+              "constantshadervalues": {
+                "Aperture": 1.0,
+                "Opacity": 1.0
+              },
+              "id": 883
+            }
+          ],
+          "visible": false
+        },
+        {
+          "file": "effects/waterwaves/effect.json",
+          "id": 130,
+          "name": "",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "direction": 0.0,
+                "exponent": 1.0,
+                "scale": 21.379999,
+                "speed": 2.1500001,
+                "strength": 0.039999999
+              },
+              "id": 131,
+              "textures": [
+                null,
+                "masks/waterwaves_mask_a3e5d81d"
+              ]
+            }
+          ],
+          "visible": true
+        },
+        {
+          "file": "effects/workshop/2801687435/edge_glow/effect.json",
+          "id": 698,
+          "name": "",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "Background alpha": 1.0,
+                "Background brightness": 1.0,
+                "Background tint": "1 1 1",
+                "Edge alpha": 1.0,
+                "Edge brightness": 1.0,
+                "Edge color": "0 0 0",
+                "Opacity": 1.0,
+                "ui_editor_properties_detection_multiply": 5,
+                "ui_editor_properties_detection_size": 0.039999999,
+                "ui_editor_properties_detection_threshold": 0.0
+              },
+              "id": 699
+            }
+          ],
+          "visible": false
+        }
+      ],
+      "id": 17,
+      "image": "models/Dise\u00f1o sin t\u00edtulo.json",
+      "name": "Dise\u00f1o sin t\u00edtulo",
+      "origin": "960.00000 540.00000 0.00000",
+      "size": "1920.00000 1080.00000"
+    },
+    {
+      "castshadow": false,
+      "clampuvs": true,
+      "disablepropagation": false,
+      "effects": [
+        {
+          "file": "effects/workshop/2125458920/shake/effect.json",
+          "id": 1366,
+          "name": "Shake_Glitch_3",
+          "passes": [
+            {
+              "constantshadervalues": {
+                "bounds": "0.5 0.6",
+                "friction": "10 10",
+                "speed": 5,
+                "strength": 0.1
+              },
+              "id": 1367,
+              "textures": [
+                null,
+                "workshop/2125458920/shake_mask_glitch3",
+                null
+              ]
+            }
+          ],
+          "visible": {
+            "script": "'use strict';\n// Please note: Do not remove this line or asset references may break.\nexport let __workshopId = '2125458920';\n\nexport var scriptProperties = createScriptProperties()\n\t.addSlider({\n\t\tname: 'glitchInterval',\n\t\tlabel: 'Glitch Interval',\n\t\tvalue: 8,\n\t\tmin: 0,\n\t\tmax: 100,\n\t\tinteger: false\n\t})\n\t.addSlider({\n\t\tname: 'glitchDuration',\n\t\tlabel: 'Glitch Duration (Needs to be lower than Interval)',\n\t\tvalue: 0.25,\n\t\tmin: 0.1,\n\t\tmax: 100,\n\t\tinteger: false\n\t})\n\t.finish();\n\n\n\nexport function init(value) {\n\tthisScene.getLayer('Fullscreen').getEffect('Shake_Glitch_3').visible = false;\n}\n\n/**\n * @param {Boolean} value (for property 'visible')\n */\nexport function update(value) {\n\tif (engine.runtime % scriptProperties.glitchInterval < scriptProperties.glitchDuration){\n\tthisScene.getLayer('Fullscreen').getEffect('Shake_Glitch_3').visible = true;\n\t}\n\telse {\n\tthisScene.getLayer('Fullscreen').getEffect('Shake_Glitch_3').visible = false;\n} \n}\n\n\n\n\n",
+            "scriptproperties": {
+              "glitchDuration": 1.9,
+              "glitchInterval": 10.81
+            },
+            "value": true
+          }
+        }
+      ],
+      "id": 1355,
+      "image": "models/util/fullscreenlayer.json",
+      "name": "Fullscreen",
+      "parallaxDepth": "0.00000 0.00000"
+    }
+  ],
+  "version": 5
+}

@@ -132,12 +132,24 @@ Tous les composants de l'interface doivent rigoureusement respecter ces constant
      - **Niveau 2 (Blocs rectangulaires 2D)** : Découpage en grille $14 \times 32$ avec décalages $X$ et $Y$ indépendants simulant la corruption de paquets de mémoire.
      - **Niveau 3 (Micro-bandes)** : Lignes ultra-fines (hauteur 1/140e, largeur 3% à 18%) pour les saccades haute fréquence.
    - **Rythme Temporel** : Cycle de 3.6s avec impulsion `smoothstep` (3.1s à 3.55s) et micro-saccades pseudo-aléatoires (`hash11`).
-4. **Dossier de Ressources Dédié (`ressource/`)** :
+4. **Animation d'Arrière-Plan Blackwall (`blackwall.frag` & `blackwall_mask.tex`)** :
+   - **Architecture & Performance GPU** :
+     - Remplacement des systèmes de particules enfants non supportés sous `linux-wallpaperengine` par une passe GLSL native 60 FPS (`effects/blackwall/effect.json`).
+     - **Fast-Path GPU Zero-Overhead** : Court-circuit `if (mask <= 0.001) { gl_FragColor = orig; return; }` dans `blackwall.frag` évitant le calcul du treillis cybernétique et des flux de code sur ~65% des pixels de l'écran (corps, visage, cheveux de Lucy).
+     - **Vectorisation des Glyphes & Distances sans Racine** : Calcul 4-canaux `vec4` et `dot()` (vs `length()`), réduisant la charge arithmétique globale.
+     - **Masque Subpixel Haute Résolution** : Détourage mathématique du gradient de fond ($R_{bg} = y \times \frac{170}{1079}$, $B_{bg} = y \times \frac{88}{1079}$) avec préservation de la fente cou/dos et nettoyage des patchs opaques interdigitaux.
+   - **Composants Visuels Blackwall (Cyberpunk 2077)** :
+     - **Abîme cramoisi & respiration IA** : Fond sombre avec ondes de pulsation basse fréquence simulant l'énergie de la barrière.
+     - **Grille cybernétique en partition** : Treillis de pare-feu rouge sang (`#ff003c`) pulsant dynamiquement.
+     - **Double flux de code numérique (Layer A & B)** : Flux rapide dense en arrière-plan et flux principal au premier plan avec têtes d'étincelles cyan / blanches et micro-jitter de corruption.
+     - **Lueur volumétrique (Rim Glow)** : Rétro-éclairage néon rouge soulignant le contour de Lucy.
+5. **Dossier de Ressources Dédié (`ressource/`)** :
    - Dossier miroir sous `hyprland_project/ressource/` (et alias `resources/`) :
      - `lucy.png` : Artwork maître haute résolution $1920 \times 1080$ extrait sans perte du conteneur binaire `TEXV0005`.
      - `lucy_model.json` & `lucy_material.json` : Descripteurs de modèle et matériau Wallpaper Engine.
      - `lucy.tex` : Conteneur de texture binaire d'origine.
      - `preview.gif` : Vignette animée officielle.
+     - `blackwall/` : Shaders (`blackwall.vert`, `blackwall.frag`), matériaux et masque haute fidélité (`blackwall_mask.tex`).
 
 ---
 
@@ -152,6 +164,7 @@ hyprland_project/
 │   └── kitty/                # Terminal Kitty (transparence 0.85, palette Tokyo Night)
 ├── linux-wallpaperengine/     # Dépôt source / utilitaires du moteur Wallpaper Engine
 ├── ressource/                # Modèle, textures et assets graphiques de Lucy (Cyberpunk)
+├── scripts/                  # CLI d'administration, packaging TEX, masquage et audit liens
 ├── GEMINI.md                 # Directives d'architecture et consignes projet
 └── README.md                 # Documentation générale
 ```
@@ -199,6 +212,13 @@ pgrep -fl "linux-wallpaper"                # Vérifier les processus actifs et m
 hyprctl layers | grep -A 5 "Layer level"   # Vérifier l'ordre des couches (swaybg = 0, wallpaper = 1, waybar = 2)
 pkill -f linux-wallpaperengine             # Arrêter le moteur de rendu dynamique
 linux-wallpaper-engine                     # Lancer le gestionnaire en arrière-plan (systray)
+
+# Outillage Dédié Lucy / Wallpaper Engine (scripts/wallpaper_tool.py)
+./scripts/wallpaper_tool.py status         # Vérifier l'état des processus et moniteurs
+./scripts/wallpaper_tool.py sync           # Synchroniser shaders & assets vers Steam Workshop
+./scripts/wallpaper_tool.py mask           # Régénérer le masque Blackwall et compiler le .tex
+./scripts/wallpaper_tool.py restart        # Redémarrage déterministe multi-écrans (DP-1 / DP-2)
+./scripts/wallpaper_tool.py check-links    # Audit d'intégrité des hard links dotfiles/ ~/.config/
 
 # Tests & Validation
 bash -n dotfiles/hypr/scripts/wofi-toggle.sh

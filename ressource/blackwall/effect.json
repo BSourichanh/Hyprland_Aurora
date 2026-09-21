@@ -1,0 +1,19 @@
+{
+	"dependencies" : 
+	[
+		"materials/effects/blackwall.json",
+		"shaders/effects/blackwall.frag",
+		"shaders/effects/blackwall.vert"
+	],
+	"editable" : false,
+	"group" : "localeffects",
+	"name" : "Blackwall",
+	"passes" : 
+	[
+		{
+			"material" : "materials/effects/blackwall.json"
+		}
+	],
+	"replacementkey" : "blackwall",
+	"version" : 1
+}

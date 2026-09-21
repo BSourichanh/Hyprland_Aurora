@@ -100,7 +100,8 @@ hyprland_project/
 │   │   └── style.css          # Style Wofi avec bordure dégradée 17px
 │   └── kitty/
 │       └── kitty.conf         # Configuration du terminal Kitty (transparence 0.85, Tokyo Night)
-├── ressource/                 # Modèle, textures et assets graphiques Wallpaper Engine
+├── ressource/                 # Modèle, shaders Blackwall et textures Wallpaper Engine (Lucy)
+├── scripts/                   # Outils CLI (wallpaper_tool.py : pack/unpack, mask, sync, audit)
 ├── GEMINI.md                  # Directives d'architecture et consignes de développement
 └── README.md                  # Documentation générale du projet
 ```
@@ -154,6 +155,20 @@ hyprbar reload   # Rechargement à chaud de la configuration CSS
 hyprbar toggle   # Masquer / Afficher la barre
 hyprbar stop     # Arrêter la barre et la carte Spotify
 hyprbar status   # Vérifier l'état et les PIDs actifs
+```
+
+---
+
+## 🛠️ Utilitaire CLI `scripts/wallpaper_tool.py`
+
+CLI dédié à la maintenance du fond d'écran dynamique Lucy (Cyberpunk), aux shaders Blackwall et à l'intégrité du dépôt :
+
+```bash
+./scripts/wallpaper_tool.py status       # Affiche l'état des processus DP-1 / DP-2
+./scripts/wallpaper_tool.py mask         # Régénère le masque de détourage subpixel & compile le .tex
+./scripts/wallpaper_tool.py sync         # Déploie shaders et assets vers le dossier Steam Workshop
+./scripts/wallpaper_tool.py restart      # Redémarre proprement les instances par écran
+./scripts/wallpaper_tool.py check-links  # Valide les hard links dotfiles/ <-> ~/.config/
 ```
 
 ---
