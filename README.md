@@ -2,9 +2,17 @@
 
 Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux / Wayland, basée sur le thème **Hybrid Summer** (effet *glassmorphism*, bordures néon en dégradé continu et coins arrondis à 17px).
 
+<p align="center">
+  <img src="assets/desktop_preview.png" alt="Aperçu du bureau Hyprland" width="100%" />
+</p>
+
 ---
 
 ## 🎨 Identité Visuelle & Thème
+
+<p align="center">
+  <img src="ressource/preview.gif" alt="Fond d'écran animé Lucy" width="70%" />
+</p>
 
 - **Palette de couleurs principale** :
   - Cyan électrique lumineux : `#00f0ff`
@@ -21,6 +29,11 @@ Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux 
 ## 🚀 Fonctionnalités Clés
 
 ### 1. Hyprbar (Waybar personnalisée)
+
+<p align="center">
+  <img src="assets/waybar_preview.png" alt="Waybar translucide avec dégradé continu" width="100%" />
+</p>
+
 - **Fond translucide dépoli** : Utilisation d'un calque SVG vectoriel (`bar-bg.svg`) à 20% d'opacité combiné au flou de composition Hyprland, préservant la netteté des arrondis et le dégradé continu de 2px.
 - **Bulles de modules dégradées** : Espaces de travail, lecteur Spotify unifié, horloge, contrôleur audio, statut réseau et zone de notification partagent le même encadrement néon glassmorphism.
 - **Helper MPRIS modulaire (`spotify.py`)** :
@@ -28,6 +41,11 @@ Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux 
   - **Facade D-Bus** : Requêtes directes avec fail-safe timeouts (80 ms) pour garantir la fluidité absolue de la barre.
 
 ### 2. Carte Déroulante Spotify (`spotify-card.py`)
+
+<p align="center">
+  <img src="assets/spotify_card_preview.png" alt="Carte déroulante Spotify" width="45%" />
+</p>
+
 - **Affichage au survol ou au clic** : Déroule instantanément une carte glassmorphism sous le mini-lecteur Waybar.
 - **Architecture logicielle & Design Patterns** :
   - **Repository Pattern (`TrackRepository`)** : Gestion thread-safe (`threading.Lock`) et persistance atomique (`tempfile` + `os.replace`) des titres likés et masqués, éliminant tout risque de corruption de données.
@@ -41,6 +59,11 @@ Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux 
   - ** Masquer** : Passe immédiatement à la piste suivante et met le morceau sur liste noire.
 
 ### 3. Lanceur d'Applications Wofi (`wofi-toggle.sh` & `style.css`)
+
+<p align="center">
+  <img src="assets/wofi_preview.png" alt="Lanceur d'applications Wofi" width="50%" />
+</p>
+
 - **Détection de clic extérieur événementielle** : Utilisation de `wait -n` au niveau du noyau Linux (0% de CPU pendant l'ouverture).
 - **Style assorti** : Bordure en dégradé continu 135deg avec coins arrondis à 17px et ombre portée cyan néon.
 
