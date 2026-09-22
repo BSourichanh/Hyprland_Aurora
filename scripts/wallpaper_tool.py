@@ -6,6 +6,7 @@ Steam workshop synchronization, dotfiles hard link audits, and process managemen
 """
 
 import argparse
+import json
 import math
 import os
 import shutil
@@ -28,6 +29,7 @@ CONFIG_DIR = Path(os.path.expanduser("~/.config"))
 WORKSHOP_DIR = Path(os.path.expanduser(
     "~/.steam/steam/steamapps/workshop/content/431960/3566437475"
 ))
+RENDERER_CONFIG_PATH = DOTFILES_DIR / "hypr" / "wallpaper_renderer.json"
 
 
 # ============================================================================
@@ -297,19 +299,80 @@ def audit_hardlinks() -> bool:
 
 
 # ============================================================================
-# 5. GESTION DES PROCESSUS D'ARRIÈRE-PLAN
+# 5. GESTION DU MOTEUR DE RENDU (GPU VS CPU) & PROCESSUS
 # ============================================================================
 
-def restart_wallpapers():
-    """Safely terminates and restarts linux-wallpaperengine across dual monitors."""
+def load_renderer_config() -> dict:
+    """Loads renderer configuration (gpu vs cpu, target FPS)."""
+    default_cfg = {"renderer": "gpu", "fps_gpu": 30, "fps_cpu": 20}
+    if RENDERER_CONFIG_PATH.exists():
+        try:
+            with open(RENDERER_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    default_cfg.update(data)
+        except Exception:
+            pass
+    return default_cfg
+
+
+def save_renderer_config(cfg: dict):
+    """Saves renderer configuration to wallpaper_renderer.json."""
+    RENDERER_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(RENDERER_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+
+
+def detect_process_renderer(pid: str) -> str:
+    """Detects whether a running process is executing on GPU or CPU (LLVMpipe)."""
+    env_file = Path(f"/proc/{pid}/environ")
+    if env_file.exists():
+        try:
+            for e in env_file.read_bytes().split(b"\x00"):
+                if e in (b"LIBGL_ALWAYS_SOFTWARE=1", b"GALLIUM_DRIVER=llvmpipe"):
+                    return "CPU (Mesa LLVMpipe)"
+        except Exception:
+            pass
+
+    fd_dir = Path(f"/proc/{pid}/fd")
+    if fd_dir.exists():
+        try:
+            for fd in fd_dir.iterdir():
+                if fd.is_symlink() and "renderD128" in os.readlink(fd):
+                    return "GPU (Intel UHD 630)"
+        except Exception:
+            pass
+    return "GPU (Matériel)"
+
+
+def restart_wallpapers(renderer: str = None, fps: int = None):
+    """Safely terminates and restarts linux-wallpaperengine across dual monitors with GPU/CPU selection."""
     subprocess.run(["pkill", "-f", "linux-wallpaperengine"], check=False)
     assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
+
+    cfg = load_renderer_config()
+    if renderer:
+        cfg["renderer"] = renderer.lower()
+        save_renderer_config(cfg)
+
+    current_renderer = cfg.get("renderer", "gpu").lower()
+    if fps is None:
+        fps = cfg.get("fps_cpu", 20) if current_renderer == "cpu" else cfg.get("fps_gpu", 30)
+
+    env = os.environ.copy()
+    if current_renderer == "cpu":
+        env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+        env["GALLIUM_DRIVER"] = "llvmpipe"
+    else:
+        env.pop("LIBGL_ALWAYS_SOFTWARE", None)
+        env.pop("GALLIUM_DRIVER", None)
 
     cmd_base = [
         "linux-wallpaperengine",
         "--bg", str(WORKSHOP_DIR),
         "--volume", "100",
-        "--fps", "30",
+        "--fps", str(fps),
         "--disable-parallax",
         "--scaling", "fill",
         "--assets-dir", str(assets_dir),
@@ -319,15 +382,45 @@ def restart_wallpapers():
         cmd = ["nohup", "linux-wallpaperengine", "--screen-root", screen] + cmd_base[1:]
         subprocess.Popen(
             cmd,
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-    print("✓ Moteurs Wallpaper Engine relancés sur DP-1 et DP-2.")
+    mode_label = "CPU (Mesa LLVMpipe)" if current_renderer == "cpu" else "GPU (Intel UHD 630)"
+    print(f"✓ Moteurs Wallpaper Engine relancés sur DP-1 et DP-2 en mode [{mode_label}] @ {fps} FPS.")
+
+
+def set_renderer_command(mode: str = None):
+    """CLI handler for viewing or setting the renderer mode (gpu or cpu)."""
+    cfg = load_renderer_config()
+    if not mode:
+        current = cfg.get("renderer", "gpu").upper()
+        label = "Matériel (Intel UHD 630)" if current == "GPU" else "Logiciel (Mesa LLVMpipe)"
+        print(f"Mode de rendu configuré pour Lucy : [{current}] — {label}")
+        print(f"  • Cadences cibles : GPU={cfg.get('fps_gpu', 30)} FPS | CPU={cfg.get('fps_cpu', 20)} FPS")
+        print("\nPour basculer :")
+        print("  ./scripts/wallpaper_tool.py renderer gpu")
+        print("  ./scripts/wallpaper_tool.py renderer cpu")
+        return
+
+    mode = mode.lower()
+    if mode not in ("gpu", "cpu"):
+        sys.exit(f"✗ Mode invalide '{mode}'. Choisissez 'gpu' ou 'cpu'.")
+
+    cfg["renderer"] = mode
+    save_renderer_config(cfg)
+    print(f"✓ Configuration enregistrée : [{mode.upper()}]")
+    restart_wallpapers(renderer=mode)
 
 
 def show_status():
     """Displays running state of Wallpaper Engine processes, monitors and Wayland layers."""
+    cfg = load_renderer_config()
+    current_mode = cfg.get("renderer", "gpu").upper()
+    mode_desc = "Accélération Matérielle (Intel UHD 630)" if current_mode == "GPU" else "Rendu Logiciel (Mesa LLVMpipe)"
+
+    print(f"=== Moteur Lucy : Mode Configuré [{current_mode}] ({mode_desc}) ===")
     print("=== État des Processus Wallpaper Engine ===")
     res = subprocess.run(["pgrep", "-fl", "linux-wallpaperengine"], capture_output=True, text=True)
     lines = [line.strip() for line in res.stdout.strip().splitlines() if line.strip()]
@@ -379,7 +472,8 @@ def show_status():
                 pass
             total_rss += rss_mb
 
-            print(f"  • PID {pid} : Moniteur [{screen}] | CPU: {cpu_pct}% | RAM: {rss_mb:.1f} Mo")
+            proc_renderer = detect_process_renderer(pid)
+            print(f"  • PID {pid} : Moniteur [{screen}] | Moteur: [{proc_renderer}] | CPU: {cpu_pct}% | RAM: {rss_mb:.1f} Mo")
         print(f"✓ Total : {len(lines)} processus actif(s) | CPU: {total_cpu:.1f}% | RAM: {total_rss:.1f} Mo")
 
         # Fréquence iGPU
@@ -426,6 +520,10 @@ def main():
     # status
     subparsers.add_parser("status", help="Afficher l'état des processus Wallpaper Engine et couches Wayland")
 
+    # renderer
+    p_rend = subparsers.add_parser("renderer", help="Choisir ou afficher le mode de rendu (gpu ou cpu) pour Lucy")
+    p_rend.add_argument("mode", nargs="?", choices=["gpu", "cpu"], help="Mode de rendu : 'gpu' (matériel) ou 'cpu' (logiciel LLVMpipe)")
+
     # pack
     p_pack = subparsers.add_parser("pack", help="Compresser un PNG en conteneur binaire TEXV0005")
     p_pack.add_argument("input_png", type=Path)
@@ -448,12 +546,16 @@ def main():
     subparsers.add_parser("check-links", help="Vérifier la stricte intégrité des hard links dotfiles")
 
     # restart
-    subparsers.add_parser("restart", help="Redémarrer les instances linux-wallpaperengine multi-écrans")
+    p_rest = subparsers.add_parser("restart", help="Redémarrer les instances linux-wallpaperengine multi-écrans")
+    p_rest.add_argument("--renderer", choices=["gpu", "cpu"], help="Forcer le mode de rendu GPU ou CPU")
+    p_rest.add_argument("--fps", type=int, help="Forcer le nombre d'images par seconde (FPS)")
 
     args = parser.parse_args()
 
     if args.command == "status":
         show_status()
+    elif args.command == "renderer":
+        set_renderer_command(args.mode)
     elif args.command == "pack":
         pack_png_to_tex(args.input_png, args.output_tex, args.width, args.height)
         print(f"✓ Packé : {args.input_png} -> {args.output_tex}")
@@ -470,8 +572,9 @@ def main():
         if not audit_hardlinks():
             sys.exit(1)
     elif args.command == "restart":
-        restart_wallpapers()
+        restart_wallpapers(renderer=args.renderer, fps=args.fps)
 
 
 if __name__ == "__main__":
     main()
+

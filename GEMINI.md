@@ -230,11 +230,18 @@ pkill -f linux-wallpaperengine             # Arrêter le moteur de rendu dynamiq
 linux-wallpaper-engine                     # Lancer le gestionnaire en arrière-plan (systray)
 
 # Outillage Dédié Lucy / Wallpaper Engine (scripts/wallpaper_tool.py)
-./scripts/wallpaper_tool.py status         # Vérifier l'état des processus et moniteurs
+./scripts/wallpaper_tool.py status         # Vérifier l'état des processus, moteurs (GPU/CPU) et moniteurs
+./scripts/wallpaper_tool.py renderer       # Afficher le mode de rendu configuré (GPU / CPU)
+./scripts/wallpaper_tool.py renderer gpu   # Basculer Lucy sur le GPU matériel (Intel UHD 630 @ 30 FPS)
+./scripts/wallpaper_tool.py renderer cpu   # Basculer Lucy sur le CPU logiciel (Mesa LLVMpipe @ 20 FPS)
 ./scripts/wallpaper_tool.py sync           # Synchroniser shaders & assets vers Steam Workshop
 ./scripts/wallpaper_tool.py mask           # Régénérer le masque Blackwall et compiler le .tex
 ./scripts/wallpaper_tool.py restart        # Redémarrage déterministe multi-écrans (DP-1 / DP-2)
 ./scripts/wallpaper_tool.py check-links    # Audit d'intégrité des hard links dotfiles/ ~/.config/
+
+# Sélecteur Graphique & Lanceur Wofi
+~/.config/hypr/scripts/wallpaper-select-renderer.sh  # Menu Wofi interactif (ou SUPER + R -> "gpu")
+
 
 # Tests & Validation
 bash -n dotfiles/hypr/scripts/wofi-toggle.sh

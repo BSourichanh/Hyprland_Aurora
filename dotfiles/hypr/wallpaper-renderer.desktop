@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Lucy Wallpaper - Sélecteur GPU / CPU
+Comment=Basculer le moteur de rendu du fond d'écran animé Lucy entre GPU et CPU
+Exec=/home/user/.config/hypr/scripts/wallpaper-select-renderer.sh
+Icon=preferences-desktop-wallpaper
+Terminal=false
+Type=Application
+Categories=Settings;DesktopSettings;
+Keywords=wallpaper;lucy;gpu;cpu;render;mesa;llvmpipe;
