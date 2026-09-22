@@ -13,6 +13,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 from collections import deque
 from pathlib import Path
 from typing import List, Tuple
@@ -348,7 +349,8 @@ def detect_process_renderer(pid: str) -> str:
 
 def restart_wallpapers(renderer: str = None, fps: int = None):
     """Safely terminates and restarts linux-wallpaperengine across dual monitors with GPU/CPU selection."""
-    subprocess.run(["pkill", "-f", "linux-wallpaperengine"], check=False)
+    subprocess.run(["pkill", "-9", "-f", "linux-wallpaperengine"], check=False)
+    time.sleep(0.25)
     assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
 
     cfg = load_renderer_config()
