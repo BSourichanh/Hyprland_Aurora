@@ -335,6 +335,8 @@ def show_status():
     if not lines:
         print("✗ Aucun processus linux-wallpaperengine actif.")
     else:
+        total_rss = 0.0
+        total_cpu = 0.0
         for line in lines:
             parts = line.split(maxsplit=1)
             pid = parts[0]
@@ -354,8 +356,42 @@ def show_status():
                     pass
             if not cmd_display and len(parts) > 1:
                 cmd_display = parts[1]
-            print(f"  • PID {pid} : Moniteur [{screen}] ({cmd_display[:70]}...)")
-        print(f"✓ Total : {len(lines)} processus actif(s).")
+
+            # Extraction métriques ressources (CPU & RAM RSS)
+            rss_mb = 0.0
+            status_file = Path(f"/proc/{pid}/status")
+            if status_file.exists():
+                try:
+                    for sline in status_file.read_text().splitlines():
+                        if sline.startswith("VmRSS:"):
+                            rss_mb = int(sline.split()[1]) / 1024
+                            break
+                except Exception:
+                    pass
+
+            cpu_pct = "0.0"
+            try:
+                ps_res = subprocess.run(["ps", "-p", pid, "-o", "%cpu", "--no-headers"], capture_output=True, text=True)
+                if ps_res.returncode == 0:
+                    cpu_pct = ps_res.stdout.strip()
+                    total_cpu += float(cpu_pct.replace(",", "."))
+            except Exception:
+                pass
+            total_rss += rss_mb
+
+            print(f"  • PID {pid} : Moniteur [{screen}] | CPU: {cpu_pct}% | RAM: {rss_mb:.1f} Mo")
+        print(f"✓ Total : {len(lines)} processus actif(s) | CPU: {total_cpu:.1f}% | RAM: {total_rss:.1f} Mo")
+
+        # Fréquence iGPU
+        gpu_freq_file = Path("/sys/class/drm/card1/gt_act_freq_mhz")
+        if not gpu_freq_file.exists():
+            gpu_freq_file = Path("/sys/class/drm/card0/gt_act_freq_mhz")
+        if gpu_freq_file.exists():
+            try:
+                freq = gpu_freq_file.read_text().strip()
+                print(f"  • Fréquence GPU active : {freq} MHz")
+            except Exception:
+                pass
 
     # Vérification des couches Hyprland
     try:

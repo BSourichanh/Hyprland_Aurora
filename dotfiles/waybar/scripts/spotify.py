@@ -6,6 +6,7 @@ Refactored using Facade and Command patterns with fail-safe D-Bus timeouts.
 from abc import ABC, abstractmethod
 import json
 import sys
+import time
 import dbus
 
 JSON_STOPPED = '{"text": "", "class": "stopped"}\n'
@@ -23,6 +24,11 @@ class SpotifyMPRISClient:
         self._props = None
         self._status = None
 
+    def reset(self):
+        self._bus = None
+        self._props = None
+        self._status = None
+
     def _connect(self):
         if self._props is None:
             self._bus = dbus.SessionBus()
@@ -33,8 +39,8 @@ class SpotifyMPRISClient:
             )
             self._props = dbus.Interface(player, 'org.freedesktop.DBus.Properties')
 
-    def get_playback_status(self) -> str:
-        if self._status is not None:
+    def get_playback_status(self, fresh: bool = False) -> str:
+        if not fresh and self._status is not None:
             return self._status
         try:
             self._connect()
@@ -45,13 +51,14 @@ class SpotifyMPRISClient:
             ))
             return self._status
         except Exception:
+            self.reset()
             self._status = ""
             return ""
 
     def get_progress_data(self):
         try:
             self._connect()
-            status = self.get_playback_status()
+            status = self.get_playback_status(fresh=True)
             if not status:
                 return None
             pos_us = self._props.Get('org.mpris.MediaPlayer2.Player', 'Position', timeout=0.08)
@@ -59,6 +66,7 @@ class SpotifyMPRISClient:
             len_us = meta.get('mpris:length', 0)
             return status, float(pos_us) / 1000000.0, float(len_us) / 1000000.0
         except Exception:
+            self.reset()
             return None
 
 
@@ -89,32 +97,145 @@ class PlayPauseCommand(ICommand):
 
 
 class ProgressCommand(ICommand):
+    """Streaming progress bar with fine, constant-width animated equalizer."""
+
+    BAR_FRAMES = [
+        " ▃▅ ",
+        "▂▅▇▃",
+        "▃▇▅▅",
+        "▅▅▃▇",
+        "▇▃ ▅",
+        "▅ ▂▃",
+        "▃▂▄ ",
+        " ▄▆▂",
+    ]
+    BAR_PAUSED = " ▂▂ "
+
     def execute(self, client: SpotifyMPRISClient) -> str:
-        data = client.get_progress_data()
-        if not data:
-            return JSON_STOPPED
-        status, pos_s, len_s = data
-        if len_s <= 0:
-            return '{"text": "", "class": "empty"}\n'
+        frame_idx = 0
+        last_state = None
 
-        pct = min(1.0, max(0.0, pos_s / len_s))
-        bar_len = 8
-        filled = int(round(pct * bar_len))
-        played = "━" * filled
-        unplayed = "━" * (bar_len - filled)
+        while True:
+            try:
+                data = client.get_progress_data()
+                if not data:
+                    if last_state != "stopped":
+                        sys.stdout.write(JSON_STOPPED)
+                        sys.stdout.flush()
+                        last_state = "stopped"
+                    time.sleep(1.5)
+                    continue
 
-        pos_min, pos_sec = int(pos_s // 60), int(pos_s % 60)
-        len_min, len_sec = int(len_s // 60), int(len_s % 60)
-        pos_str = f"{pos_min}:{pos_sec:02d}"
-        len_str = f"{len_min}:{len_sec:02d}"
+                status, pos_s, len_s = data
+                if len_s <= 0:
+                    if last_state != "empty":
+                        sys.stdout.write('{"text": "", "class": "empty"}\n')
+                        sys.stdout.flush()
+                        last_state = "empty"
+                    time.sleep(1.5)
+                    continue
 
-        theme_color = "#00f0ff" if status == "Playing" else "#718096"
-        bar_html = f"<span color='{theme_color}'>{played}</span><span color='#334155'>{unplayed}</span>"
-        text = f"{pos_str} {bar_html} {len_str}"
-        tooltip = f"Progression : {pos_str} / {len_str} ({int(pct*100)}%)\nMolette : Avancer / Reculer (5s)"
-        cls = "playing" if status == "Playing" else "paused"
+                pct = min(1.0, max(0.0, pos_s / len_s))
+                bar_len = 8
+                filled = int(round(pct * bar_len))
+                played = "━" * filled
+                unplayed = "━" * (bar_len - filled)
 
-        return json.dumps({"text": text, "tooltip": tooltip, "class": cls}, ensure_ascii=False) + "\n"
+                pos_min, pos_sec = int(pos_s // 60), int(pos_s % 60)
+                len_min, len_sec = int(len_s // 60), int(len_s % 60)
+                pos_str = f"{pos_min:02d}:{pos_sec:02d}"
+                len_str = f"{len_min:02d}:{len_sec:02d}"
+
+                if status == "Playing":
+                    bars = self.BAR_FRAMES[frame_idx % len(self.BAR_FRAMES)]
+                    frame_idx += 1
+                    theme_color = "#00f0ff"
+                    cls = "playing"
+                else:
+                    bars = self.BAR_PAUSED
+                    theme_color = "#7aa2f7"
+                    cls = "paused"
+
+                bars_html = f"<span font_family='Noto Sans Mono' font_size='9pt' color='{theme_color}'>{bars}</span>"
+                bar_html = f"<span color='{theme_color}'>{played}</span><span color='#334155'>{unplayed}</span>"
+                text = f"{bars_html}  {pos_str} {bar_html} {len_str}"
+                tooltip = f"Progression : {pos_str} / {len_str} ({int(pct*100)}%)\nClic gauche : Carte déroulante\nClic droit : Lecture / Pause\nMolette : Avancer / Reculer (5s)"
+
+                sys.stdout.write(json.dumps({"text": text, "tooltip": tooltip, "class": cls}, ensure_ascii=False) + "\n")
+                sys.stdout.flush()
+                last_state = cls
+
+                time.sleep(0.25 if status == "Playing" else 0.5)
+
+            except (KeyboardInterrupt, SystemExit):
+                break
+            except Exception:
+                client.reset()
+                time.sleep(1.0)
+
+        return ""
+
+
+class BarsCommand(ICommand):
+    """Streaming animated equalizer bars for Spotify mini-player."""
+
+    FRAMES = [
+        " ▃▅ ",
+        "▂▅▇▃",
+        "▃▇▅▅",
+        "▅▅▃▇",
+        "▇▃ ▅",
+        "▅ ▂▃",
+        "▃▂▄ ",
+        " ▄▆▂",
+    ]
+
+    def execute(self, client: SpotifyMPRISClient) -> str:
+        frame_idx = 0
+        last_state = None
+
+        while True:
+            try:
+                status = client.get_playback_status(fresh=True)
+                if not status:
+                    if last_state != "stopped":
+                        sys.stdout.write(JSON_STOPPED)
+                        sys.stdout.flush()
+                        last_state = "stopped"
+                    time.sleep(1.5)
+                    continue
+
+                if status == "Playing":
+                    frame = self.FRAMES[frame_idx % len(self.FRAMES)]
+                    frame_idx += 1
+                    text = f"<span color='#00f0ff'>{frame}</span>"
+                    tooltip = "Spotify : Lecture en cours\nClic gauche : Carte déroulante\nClic droit : Lecture / Pause"
+                    data = {"text": text, "tooltip": tooltip, "class": "playing"}
+                    sys.stdout.write(json.dumps(data, ensure_ascii=False) + "\n")
+                    sys.stdout.flush()
+                    last_state = "playing"
+                    time.sleep(0.2)
+                elif status == "Paused":
+                    if last_state != "paused":
+                        text = "<span color='#7aa2f7'> ▂▂ </span>"
+                        tooltip = "Spotify : En pause\nClic gauche : Carte déroulante\nClic droit : Reprendre"
+                        data = {"text": text, "tooltip": tooltip, "class": "paused"}
+                        sys.stdout.write(json.dumps(data, ensure_ascii=False) + "\n")
+                        sys.stdout.flush()
+                        last_state = "paused"
+                    time.sleep(0.5)
+                else:
+                    if last_state != "stopped":
+                        sys.stdout.write(JSON_STOPPED)
+                        sys.stdout.flush()
+                        last_state = "stopped"
+                    time.sleep(1.5)
+            except (KeyboardInterrupt, SystemExit):
+                break
+            except Exception:
+                client.reset()
+                time.sleep(1.0)
+        return ""
 
 
 class CommandDispatcher:
@@ -126,6 +247,7 @@ class CommandDispatcher:
             '--next': NextCommand(),
             '--play-pause': PlayPauseCommand(),
             '--progress': ProgressCommand(),
+            '--bars': BarsCommand(),
         }
 
     def dispatch(self, flag: str, client: SpotifyMPRISClient) -> str:
@@ -137,7 +259,9 @@ def main():
     flag = sys.argv[1] if len(sys.argv) > 1 else '--progress'
     client = SpotifyMPRISClient()
     dispatcher = CommandDispatcher()
-    sys.stdout.write(dispatcher.dispatch(flag, client))
+    res = dispatcher.dispatch(flag, client)
+    if res:
+        sys.stdout.write(res)
 
 
 if __name__ == '__main__':

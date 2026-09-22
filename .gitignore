@@ -11,3 +11,5 @@ linux-wallpaperengine/
 # Compiled plugin binaries
 dotfiles/hypr/plugins/*.so
 
+# Temporary test artifacts
+scratch/

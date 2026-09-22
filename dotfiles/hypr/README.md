@@ -1,6 +1,6 @@
 # Hyprland Configuration & Lock Protocol (`dotfiles/hypr/`) 🌌
 
-Configuration modulaire pour le compositeur Wayland **Hyprland** (0.56.2), intégrant le design system *Hybrid Summer*, la gestion multi-écrans (`DP-1` et `DP-2`), les plugins graphiques et le protocole de verrouillage sécurisé.
+Configuration modulaire pour le compositeur Wayland **Hyprland** (0.56.2), intégrant le design system **Aurora** (autonome et sur-mesure, détaché de son inspiration originelle Hybrid Summer), la gestion multi-écrans (`DP-1` et `DP-2`), les plugins graphiques et le protocole de verrouillage sécurisé.
 
 ---
 
@@ -29,8 +29,8 @@ dotfiles/hypr/
 
 - **Coins arrondis** : `rounding = 17` uniforme sur toutes les fenêtres et conteneurs.
 - **Épaisseur de bordure** : `border_size = 2`.
-- **Dégradé actif** : Angle 45° fluide (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`).
-- **Inactif** : `rgba(7a8fae33)` discret sans halo parasite.
+- **Dégradé actif animé** : Boucle vectorielle continue 360° sans coupure (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0` ➔ `#00f0ff`), rotation matérielle GPU (`animation = borderangle, 1, 50, linear, loop`).
+- **Inactif** : `rgba(04404aaa)` discret sans halo parasite.
 
 ---
 
@@ -65,6 +65,8 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
 | <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>R</kbd> | Recharger la configuration (`hyprctl reload`) et relancer la barre (`hyprbar restart`) |
 | <kbd>SUPER</kbd> + <kbd>&</kbd> à <kbd>à</kbd> (1-10) | Changer d'espace de travail actif |
 | <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>&</kbd> à <kbd>à</kbd> | Déplacer la fenêtre active vers l'espace de travail ciblé |
+| <kbd>SUPER</kbd> + <kbd>Molette Haut / Bas</kbd> | Défiler vers l'espace de travail précédent / suivant (`e-1` / `e+1`) |
+| <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>Molette</kbd> | Déplacer la fenêtre active vers l'espace précédent / suivant |
 
 ---
 

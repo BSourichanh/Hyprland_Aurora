@@ -1,6 +1,6 @@
 # Lanceur d'Applications Wofi (`dotfiles/wofi/`) 🚀
 
-Configuration et thématisation du lanceur d'applications **Wofi** sous Wayland / Hyprland, harmonisé avec la charte graphique *Hybrid Summer* et piloté par le gestionnaire d'événements `wofi-toggle.sh`.
+Configuration et thématisation du lanceur d'applications **Wofi** sous Wayland / Hyprland, harmonisé avec la charte graphique **Aurora** et piloté par le gestionnaire d'événements `wofi-toggle.sh`.
 
 ---
 

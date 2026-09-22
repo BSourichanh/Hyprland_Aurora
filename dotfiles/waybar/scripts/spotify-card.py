@@ -377,7 +377,7 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
 # ============================================================================
 
 class SpotifyCardWindow(Gtk.Window):
-    """GTK3 Glassmorphism Floating Window adhering to Hybrid Summer Theme."""
+    """GTK3 Glassmorphism Floating Window adhering to Aurora Theme."""
 
     def __init__(self, repo: TrackRepository, player: MPRISPlayerFacade,
                  hypr: HyprlandIPCService, notifier: SSENotifier):

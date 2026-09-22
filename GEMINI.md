@@ -1,6 +1,6 @@
-# Instructions de Projet & Directives de Développement — Hyprland / Hybrid Summer
+# Instructions de Projet & Directives de Développement — Hyprland / Aurora Theme
 
-Ce fichier définit le contexte technique, la charte graphique stricte, les règles d'architecture et les consignes d'optimisation pour l'environnement Hyprland et ses composants (Waybar, Wofi, Spotify Card, Kitty).
+Ce fichier définit le contexte technique, la charte graphique stricte, les règles d'architecture et les consignes d'optimisation pour l'environnement Hyprland et ses composants (Waybar, Wofi, Spotify Card, Kitty). Le thème du projet s'appelle **Aurora** : il s'agit d'un design system autonome et sur-mesure, ayant pris son indépendance vis-à-vis de l'ancien socle *Hybrid Summer*.
 
 ---
 
@@ -17,7 +17,7 @@ Ce fichier définit le contexte technique, la charte graphique stricte, les règ
 
 ---
 
-## 🎨 Charte Graphique & Design System (Hybrid Summer Theme)
+## 🎨 Charte Graphique & Design System (Aurora Theme)
 
 Tous les composants de l'interface doivent rigoureusement respecter ces constantes :
 
@@ -33,10 +33,11 @@ Tous les composants de l'interface doivent rigoureusement respecter ces constant
 ### 2. Géométrie & Bordures
 - **Rayon d'angle (Rounding)** : **`17px`** obligatoire sur tous les conteneurs (fenêtres Hyprland, Hyprbar, popup Spotify, Wofi, champ de saisie Hyprlock).
 - **Épaisseur de bordure** : **`2px`** uniforme sur tout l'environnement (`border_size = 2` dans `hyprland.conf` et `hyprviz.conf`).
-- **Dégradé vectoriel continu** : Angle 45° ou 135° avec transition fluide (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`).
+- **Dégradé vectoriel continu** : Angle 45° ou 135° avec transition fluide (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`). Sur Hyprland, boucle fermée 360° avec rotation matérielle continue (`animation = borderangle, 1, 50, linear, loop`).
 
 ### 3. Règles Critiques GTK3 CSS (Waybar & Wofi)
 - ⚠️ **Ne jamais utiliser `border-image`** : Le moteur CSS de GTK3 désactive `border-radius` dès qu'un `border-image` est présent (angles coupés à 90°).
+- ⚠️ **Ne jamais appliquer `box-shadow` sur `window#waybar`** : La lueur diffuse de `box-shadow` injecte des pixels semi-transparents (`alpha > 0.1`) dans les 4 coins du rectangle GTK. Le shader de flou Hyprland (`layerrule = blur, waybar`) floute ces pixels parasites et génère des coins carrés à 90° grisâtres derrière les arrondis. Conserver impérativement `box-shadow: none;` sur `window#waybar`.
 - **Pour les modules / capsules internes** : Utiliser le double `background-image` avec `background-clip: padding-box, border-box` et `border: 2px solid transparent`.
 - **Pour la barre translucide (`window#waybar`)** : Utiliser impérativement le calque SVG vectoriel [bar-bg.svg](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/waybar/bar-bg.svg) avec `stroke="url(#grad)" stroke-width="2"`, dimensions 1900x34 et `rx="16" ry="16"`. Ne jamais appliquer un dégradé direct CSS sur la barre sous peine de saignement opaque.
 
@@ -55,22 +56,30 @@ Tous les composants de l'interface doivent rigoureusement respecter ces constant
 
 ---
 
-## 🎵 Architecture du Mini-Player Spotify & Règle Anti-Capsule Fantôme
+## 🎵 Architecture du Mini-Player Spotify & Règle Anti-Capsule Fantôme au Démarrage
 
-1. **Assemblage Continu Sans Espacement** :
-   - Le groupe `group/spotify-player` doit obligatoirement avoir `"spacing": 0`.
-   - Modules enfants ordonnés : `mpris`, `custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`.
-2. **Zéro-Bordure sur le Conteneur Parent** :
+1. **Zéro-Bordure sur le Conteneur Parent (`#spotify-player`)** :
    - Le conteneur parent `#spotify-player` doit impérativement avoir :
      ```css
      #spotify-player { border: none; background: transparent; padding: 0; margin: 0; }
      ```
-   - Waybar ne masquant pas automatiquement les `GtkBox` de type `group`, toute bordure ou padding mis sur `#spotify-player` laisserait une capsule vide résiduelle `[ ]` lorsque Spotify est arrêté.
-3. **Fusion Vectorielle des Enfants** :
-   - `#mpris` : arrondi gauche `10px 0 0 10px`, bordure gauche/haut/bas, padding gauche 12px.
+   - Waybar ne masquant pas automatiquement les `GtkBox` de type `group`, toute bordure ou padding mis sur `#spotify-player` laisserait une capsule vide résiduelle `[ ]` au démarrage lorsque Spotify est inactif ou arrêté.
+2. **Assemblage Continu & Fusion Vectorielle Harmonisée** :
+   - Le groupe `group/spotify-player` a `"spacing": 0` et encapsule : `mpris`, `custom/spotify-progress`, `custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`.
+   - **Dégradé vertical harmonisé (`180deg`)** : Pour éliminer les sauts chromatiques diagonaux aux jonctions des modules, les enfants partagent le dégradé `linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)`. La ligne supérieure est unifiée en violet/bleu et la ligne inférieure en cyan pur.
+   - `#mpris` : arrondi gauche `10px 0 0 10px`, bordure gauche/haut/bas, sans bordure droite.
+   - `#custom-spotify-progress` : bordures haut/bas avec délimiteurs translucides discrets (`border-left` et `border-right: 1px solid rgba(122, 162, 247, 0.25)`). Intègre l'égaliseur animé fin avant le premier timer.
    - Contrôles intermédiaires (`prev`, `play-pause`) : bordure haut/bas, sans bordure latérale.
-   - `#custom-spotify-next` : arrondi droit `0 10px 10px 0`, bordure droite/haut/bas, padding droit 12px.
-   - Dès que Spotify s'arrête, chaque enfant émet `""` / `"format-stopped": ""` et Waybar appelle `widget.hide()`. Le conteneur s'effondre à 0px sans laisser le moindre pixel à l'écran.
+   - `#custom-spotify-next` : arrondi droit `0 10px 10px 0`, bordure droite/haut/bas.
+   - Dès que Spotify s'arrête, chaque enfant émet `""` / `"format-stopped": ""` et a `border: none; background: transparent; padding: 0; margin: 0;`. Le conteneur s'effondre instantanément à 0px sans laisser le moindre pixel à l'écran.
+3. **Barre de Progression & Égaliseur Fixe Intégré (`custom/spotify-progress`)** :
+   - Exécution streaming réactive (4 FPS / 250 ms) via `spotify.py --progress`.
+   - **Égaliseur vectoriel fin à largeur constante** : Barres Unicode mono (`Noto Sans Mono 9pt`) avec une largeur strictement invariante (28px sur toutes les 8 frames animées), éliminant tout sautillement horizontal du widget.
+   - Affichage intégré : `[ Égaliseur  01:23 ━━━ 03:45 ]` (cyan `#00f0ff` en lecture, barres figées ` ▂▂ ` Tokyo Night `#7aa2f7` en pause).
+   - Repli réactif : émet une chaîne vide si inactif ou arrêté, adoptant la classe `.stopped` pour un effondrement sans bordure.
+4. **Justification de l'Architecture Hybride (SVG vs CSS)** :
+   - **Barre externe (`window#waybar`) ➔ Calque SVG (`bar-bg.svg`)** : Le fond étant à 20% d'opacité, le contour vectoriel SVG (`stroke`) isole le dégradé sur 2px sans jamais faire saigner de couleur sous la zone centrale translucide.
+   - **Modules internes & capsules ➔ Double `background-clip` CSS** : Permet une adaptation dynamique au pixel près lorsque la longueur du texte change. Sous GTK3, un SVG étiré en `100% 100%` déforme les angles arrondis (ovales étirés), alors que le CSS préserve rigoureusement le rayon de `10px` / `17px`.
 
 ---
 

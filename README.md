@@ -1,6 +1,6 @@
 # Hyprland Desktop Environment & Dotfiles 🌌
 
-Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux / Wayland, basée sur le thème **Hybrid Summer** (effet *glassmorphism*, bordures néon en dégradé continu et coins arrondis à 17px).
+Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux / Wayland, propulsée par le thème **Aurora** (anciennement inspiré de Hybrid Summer, désormais un design system indépendant et autonome : effet *glassmorphism*, bordures néon en dégradé continu 360° GPU et coins arrondis à 17px).
 
 <p align="center">
   <img src="assets/desktop_preview.png" alt="Aperçu du bureau Hyprland" width="100%" />
@@ -8,21 +8,23 @@ Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux 
 
 ---
 
-## 🎨 Identité Visuelle & Thème
+## 🎨 Identité Visuelle & Thème (Aurora)
 
 <p align="center">
   <img src="ressource/preview.gif" alt="Fond d'écran animé Lucy" width="70%" />
 </p>
 
+Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure, ayant pris son entière indépendance vis-à-vis du socle *Hybrid Summer* d'origine :
+
 - **Palette de couleurs principale** :
-  - Cyan électrique lumineux : `#00f0ff`
-  - Bleu Tokyo Night : `#7aa2f7`
-  - Violet néon : `#9778d0`
-  - Fond verre translucide : `rgba(10, 15, 30, 0.20)` (hyprbar) / `rgba(10, 15, 30, 0.85)` (cartes et fenêtres)
-- **Géométrie** :
-  - Rayon d'angle arrondi : **`17px`** (aligné sur les fenêtres Hyprland, Hyprbar, Wofi et la carte Spotify).
-  - Épaisseur de bordure : **`2px`** sur tout l'environnement.
-  - Dégradé vectoriel continu à 45° / 135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`).
+  - Cyan électrique lumineux (primaire) : `#00f0ff`
+  - Bleu Tokyo Night (secondaire) : `#7aa2f7`
+  - Violet néon (accent) : `#9778d0`
+  - Fond verre translucide : `rgba(10, 15, 30, 0.20)` (hyprbar) / `rgba(10, 15, 30, 0.65)` à `rgba(10, 15, 30, 0.85)` (cartes, modules et fenêtres)
+- **Géométrie & Harmonie** :
+  - Rayon d'angle arrondi : **`17px`** obligatoire sur tous les conteneurs (fenêtres Hyprland, Hyprbar, Wofi et la carte Spotify).
+  - Épaisseur de bordure : **`2px`** uniforme sur tout l'environnement.
+  - Dégradé vectoriel continu à 45° / 135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`) avec rotation continue matérielle GPU 360° sous Hyprland.
 
 ---
 
@@ -34,11 +36,17 @@ Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux 
   <img src="assets/waybar_preview.png" alt="Waybar translucide avec dégradé continu" width="100%" />
 </p>
 
-- **Fond translucide dépoli** : Utilisation d'un calque SVG vectoriel (`bar-bg.svg`) à 20% d'opacité combiné au flou de composition Hyprland, préservant la netteté des arrondis et le dégradé continu de 2px.
-- **Bulles de modules dégradées** : Espaces de travail, lecteur Spotify unifié, horloge, contrôleur audio, statut réseau et zone de notification partagent le même encadrement néon glassmorphism.
+- **Fond translucide dépoli** : Utilisation d'un calque SVG vectoriel (`bar-bg.svg`) à 20% d'opacité combiné au flou de composition Hyprland, préservant la netteté des arrondis et le dégradé continu de 2px sans saignement opaque.
+- **Bulles de modules dégradées** : Espaces de travail, horloge, contrôleur audio, statut réseau et zone de notification partagent le même encadrement néon glassmorphism.
+- **Mini-lecteur Spotify unifié & Barre de progression avec égaliseur** :
+  - **Fusion modulaire (`spacing: 0`)** : Regroupement continu des 5 sous-composants (`#mpris`, `#custom-spotify-progress`, commandes `prev`, `play-pause`, `next`).
+  - **Égaliseur audio animé fin à largeur constante** : Barres vectorielles Unicode fines (`Noto Sans Mono 9pt`) insérées directement avant le timer écoulé (` ▃▅   01:23 ━━━ 03:45`), garantissant une largeur rigoureusement fixe (28px) sans aucun sautillement horizontal lors de l'animation (4 FPS en lecture cyan `#00f0ff`, figé en pause `#7aa2f7`).
+  - **Barre de progression dynamique** : Affichage temps réel de la jauge vectorielle textuelle `───●────` et de l'horodatage (`MM:SS / MM:SS`) via streaming D-Bus natif (`spotify.py --progress`).
+  - **Harmonisation chromatique 180°** : Dégradé vertical partagé (`linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)`) assurant une ligne haute violette et une ligne basse cyan rigoureusement continues, sans discontinuité diagonale.
+  - **Repli total 0px (Anti-capsule fantôme)** : Conteneur parent à zéro bordure (`#spotify-player`). À l'arrêt de la lecture ou au démarrage de session, les modules s'effondrent à 0px sans laisser d'artefact visuel résiduel.
 - **Helper MPRIS modulaire (`spotify.py`)** :
   - **Command Pattern & Dispatcher** : Séparation stricte des commandes (`--prev`, `--next`, `--play-pause`, `--progress`).
-  - **Facade D-Bus** : Requêtes directes avec fail-safe timeouts (80 ms) pour garantir la fluidité absolue de la barre.
+  - **Facade D-Bus** : Requêtes directes avec fail-safe timeouts (80 ms) et streaming d'égaliseur sans surconsommation CPU.
 
 ### 2. Carte Déroulante Spotify (`spotify-card.py`)
 

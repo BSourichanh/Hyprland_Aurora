@@ -92,11 +92,21 @@
         "orientation": "horizontal",
         "modules": [
             "mpris",
+            "custom/spotify-progress",
             "custom/spotify-prev",
             "custom/spotify-play-pause",
             "custom/spotify-next"
         ],
         "spacing": 0
+    },
+    "custom/spotify-progress": {
+        "exec": "~/.config/waybar/scripts/spotify.py --progress",
+        "return-type": "json",
+        "restart-interval": 2,
+        "tooltip": true,
+        "on-click": "playerctl -p spotify play-pause",
+        "on-scroll-up": "playerctl -p spotify position 5+",
+        "on-scroll-down": "playerctl -p spotify position 5-"
     },
     "custom/spotify-prev": {
         "exec": "~/.config/waybar/scripts/spotify.py --prev",

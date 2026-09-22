@@ -1,6 +1,6 @@
 # Terminal Kitty (`dotfiles/kitty/`) 🖥️
 
-Configuration du terminal accéléré par GPU **Kitty** pour l'environnement Hyprland, aligné sur la palette *Tokyo Night / Hybrid Summer* avec translucidité matérielle.
+Configuration du terminal accéléré par GPU **Kitty** pour l'environnement Hyprland, aligné sur la palette *Aurora (Tokyo Night / Néon)* avec translucidité matérielle.
 
 ---
 
