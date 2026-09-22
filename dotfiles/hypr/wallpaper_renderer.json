@@ -1,5 +1,5 @@
 {
-  "renderer": "cpu",
-  "fps_gpu": 30,
+  "renderer": "gpu",
+  "fps_gpu": 60,
   "fps_cpu": 20
 }

@@ -305,7 +305,7 @@ def audit_hardlinks() -> bool:
 
 def load_renderer_config() -> dict:
     """Loads renderer configuration (gpu vs cpu, target FPS)."""
-    default_cfg = {"renderer": "gpu", "fps_gpu": 30, "fps_cpu": 20}
+    default_cfg = {"renderer": "gpu", "fps_gpu": 60, "fps_cpu": 20}
     if RENDERER_CONFIG_PATH.exists():
         try:
             with open(RENDERER_CONFIG_PATH, "r", encoding="utf-8") as f:
