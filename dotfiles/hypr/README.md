@@ -17,10 +17,11 @@ dotfiles/hypr/
 │   ├── reload.sh       # Script de rechargement complet (Hyprland + Waybar + notification)
 │   └── wofi-toggle.sh  # Lanceur d'applications Wofi avec backdrop transparent (wait -n, 0% CPU)
 ├── plugins/
-│   ├── Hyprspace.so    # Plugin Mission Control / Workspace Overview (SUPER + TAB)
-│   └── hyprglass.so    # Effets de flou glassmorphism avancé pour surfaces Wayland
+│   ├── Hyprspace.so                  # Plugin Mission Control / Workspace Overview (SUPER + TAB)
+│   ├── hyprspace-multimonitor.patch  # Correctif d'isolation stricte multi-écrans Hyprspace
+│   └── hyprglass.so                  # Effets de flou glassmorphism avancé pour surfaces Wayland
 └── theme-summer/
-    └── wallpaper.jpg   # Fond d'écran statique haute définition de secours (swaybg)
+    └── wallpaper.jpg                 # Fond d'écran statique haute définition de secours (swaybg)
 ```
 
 ---
@@ -67,6 +68,20 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
 | <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>&</kbd> à <kbd>à</kbd> | Déplacer la fenêtre active vers l'espace de travail ciblé |
 | <kbd>SUPER</kbd> + <kbd>Molette Haut / Bas</kbd> | Défiler vers l'espace de travail précédent / suivant (`e-1` / `e+1`) |
 | <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>Molette</kbd> | Déplacer la fenêtre active vers l'espace précédent / suivant |
+
+---
+
+## 🪟 Hyprspace Mission Control & Isolation Multi-Écrans
+
+Le plugin Hyprspace fournit une vue d'ensemble exposé / Mission Control activable par <kbd>SUPER</kbd> + <kbd>TAB</kbd>.
+
+Dans une configuration multi-moniteurs (`DP-2` à gauche, `DP-1` à droite) :
+- **Problème d'origine** : Les workspaces inactifs ou vides fuitaient entre écrans (l'overview de l'écran droit affichait les workspaces 1 à 5 de l'écran gauche et vice versa).
+- **Correctif natif C++ (`hyprspace-multimonitor.patch`)** :
+  - Filtrage strict dans `src/Render.cpp` via `isWorkspaceForThisMonitor(wsID)`.
+  - Résolution des liaisons configurées via `Config::workspaceRuleMgr()->getBoundMonitorStringForWS()`.
+  - Bornes dynamiques calculées par moniteur via `getAllWorkspaceRules()`.
+  - Nettoyage final garantissant que seuls les workspaces appartenant au moniteur actif sont affichés (1 à 5 sur `DP-2`, 6 à 10 sur `DP-1`).
 
 ---
 

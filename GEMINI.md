@@ -53,6 +53,13 @@ Tous les composants de l'interface doivent rigoureusement respecter ces constant
    - **Focus Actif (`#workspaces button.active`)** : Plein dégradé néon 45° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`), texte sombre contrasté `#090727`, ombre portée néon cyan (`box-shadow: 0 0 10px rgba(0, 240, 255, 0.55)`).
    - **Affiché à l'Écran (`#workspaces button.visible`)** : Capsule avec bordure cyan 1.5px (`rgba(0, 240, 255, 0.65)`), fond translucide teinté cyan (`rgba(0, 240, 255, 0.15)`), texte cyan `#00f0ff`, lueur douce. Permet de savoir instantanément quel espace est visible sur l'écran secondaire non focus.
    - **Arrière-plan Inactif (`#workspaces button`)** : Texte discret bleu-gris `#7a8fae`, fond et bordure transparents (surbrillance `#00f0ff` au survol).
+3. **Isolation Hyprspace Mission Control (`Hyprspace.so`)** :
+   - Hyprspace ne doit jamais faire fuiter les workspaces d'un écran sur l'autre (ex: 1..5 sur `DP-2`, 6..10 sur `DP-1`).
+   - Patch natif C++ appliqué dans `Render.cpp` (`isWorkspaceForThisMonitor`) :
+     - Vérification dynamique via `pWs->monitorID() == ownerID` pour les workspaces actifs.
+     - Résolution des workspaces vides via `Config::workspaceRuleMgr()->getBoundMonitorStringForWS()` et calcul des bornes via `getAllWorkspaceRules()`.
+     - Filtrage strict de sortie éliminant tout workspace orphelin ou appartenant à un moniteur tiers.
+     - Patch conservé sous `dotfiles/hypr/plugins/hyprspace-multimonitor.patch`.
 
 ---
 
