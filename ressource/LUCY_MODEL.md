@@ -136,7 +136,7 @@ graph TD
 ### 4.2 Shader Éclat des Yeux (`shine_downsample2.frag`)
 - **Emplacement Miroir & Workshop** : `ressource/shaders/effects/shine_downsample2.frag` ➔ `shaders/effects/shine_downsample2.frag`
 - **Modulation Temporelle Organique** :
-  - Cycle de 13.0s avec fenêtre active de durée aléatoire entre **1.0 s** et **5.0 s** ($D = 1.0 + 4.0 \times \text{hash11}$).
+  - Cycle de 30.0s avec fenêtre active de durée aléatoire entre **1.0 s** et **5.0 s** ($D = 1.0 + 4.0 \times \text{hash11}$).
   - Éclat sinusoïdal doux $\sin(p \times \pi)$ : montée vers l'illumination puis retour fluide à la normale.
   - Enveloppe nulle en dehors : yeux au repos complet et fidèles à l'illustration sans lueur parasite.
 - **Paramètres de Rayonnement (`scene.json` Pass 429)** :
