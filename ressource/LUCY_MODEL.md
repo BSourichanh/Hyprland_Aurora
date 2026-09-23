@@ -135,11 +135,14 @@ graph TD
 
 ### 4.2 Shader Éclat des Yeux (`shine_downsample2.frag`)
 - **Emplacement Miroir & Workshop** : `ressource/shaders/effects/shine_downsample2.frag` ➔ `shaders/effects/shine_downsample2.frag`
-- **Modulation Temporelle à Plateau & Zéro Accumulation** :
-  - Cycle de 22.0s avec fenêtre active de durée aléatoire entre **3.5 s** et **6.5 s** ($D = 3.5 + 3.0 \times \text{hash11}$).
-  - Enveloppe à plateau trapézoïdal : montée douce (0.0 à 0.2), maintien stable et constant sans scintillement (0.2 à 0.8), descente fluide (0.8 à 1.0).
-  - Période de repos garanti (15s à 18s) où les yeux sont 100% neutres et conformes à l'illustration.
-  - Écrasement systématique des FBOs (`alpha = 1.0`) éliminant le piège d'accumulation/saturation résiduelle sous `blending: "normal"`.
+- **Modulation Temporelle Non Périodique à Double Variabilité (Stateless GLSL)** :
+  - **Réseau temporel à gigue 1D** : Résout l'absence d'état persistant en GLSL par un échantillonnage sur 3 fenêtres locales $k \in [k_0 - 1, k_0 + 1]$ avec pas $T_{\text{step}} = 28.0\,\text{s}$ et gigue $\text{jitter}(k) \in [-6.0\,\text{s}, +6.0\,\text{s}]$.
+  - **Durée active variable** : Chaque illumination dure de manière pseudo-aléatoire entre **3.5 s** et **8.5 s** ($D = 3.5 + 5.0 \times \text{hash11}$).
+  - **Pause de repos variable** : Chaque intervalle de retour à la normale est imprévisible et non périodique, oscillant entre **16.0 s** et **29.0 s** ($P = 28.0 + \Delta\text{jitter} - D$).
+  - **Cycle 0 instantané** : Démarrage immédiat à $t = 0.5\,\text{s}$ ($D_0 = 5.0\,\text{s}$) pour validation visuelle instantanée sans attente initiale.
+  - **Enveloppe à plateau trapézoïdal** : Montée douce (0.0 à 0.2), maintien stable et constant sans scintillement (0.2 à 0.8), descente fluide (0.8 à 1.0).
+  - **Retour neutre absolu** : En dehors des fenêtres actives ($x < 0$ ou $x > 1$), l'enveloppe est strictement nulle ($0.0$), restituant l'illustration native sans aucune lueur résiduelle.
+  - **Écrasement systématique des FBOs** : `alpha = 1.0` impératif éliminant l'accumulation/saturation résiduelle sous `blending: "normal"`.
 - **Chromatisme Continu Anti-Scintillement** :
   - Pondération spectrale continue `mix()` sur les canaux dominants cyan (`#00f0ff`) et magenta (`#e0287d`), éradiquant les sauts discrets et le clignotement haute fréquence.
 - **Élimination de la Boule Lumineuse & Pass-Through (`shine_cast.frag` & `shine_gaussian.frag`)** :
