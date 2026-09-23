@@ -54,7 +54,8 @@ void main() {
 	float tStart = 0.5 + hStart * (cyclePeriod - duration - 1.0);
 	float xProg = (tLocal - tStart) / duration;
 	float inWindow = step(0.0, xProg) * step(xProg, 1.0);
-	float envelope = smoothstep(0.0, 0.25, xProg) * (1.0 - smoothstep(0.75, 1.0, xProg)) * inWindow;
+	// Courbe sinusoïdale organique : montée douce vers l'illumination puis retour fluide à la normale
+	float envelope = sin(clamp(xProg, 0.0, 1.0) * 3.14159265) * inWindow;
 
 	gl_FragColor *= envelope;
 }
