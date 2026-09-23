@@ -239,6 +239,16 @@ def sync_to_workshop():
     if src_vert.exists():
         shutil.copyfile(src_vert, dst_vert)
 
+    # Shaders personnalisés additionnels (shine, shake, etc.)
+    src_shaders = RESSOURCE_DIR / "shaders"
+    if src_shaders.exists():
+        for s_file in src_shaders.rglob("*"):
+            if s_file.is_file():
+                rel = s_file.relative_to(src_shaders)
+                target = WORKSHOP_DIR / "shaders" / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(s_file, target)
+
     # Masque Blackwall
     src_mask_tex = RESSOURCE_DIR / "blackwall" / "blackwall_mask.tex"
     dst_mask_tex = WORKSHOP_DIR / "materials" / "masks" / "blackwall_mask.tex"

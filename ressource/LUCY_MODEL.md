@@ -131,9 +131,16 @@ graph TD
   - **Niveau 1 (Tranches horizontales)** : Segments de 12% à 57% de l'écran avec wrapping cyclique (`fract(xEnd)`).
   - **Niveau 2 (Blocs rectangulaires 2D)** : Grille $14 \times 32$ avec décalages indépendants en $X$ (0.045) et $Y$ (0.012).
   - **Niveau 3 (Micro-lignes)** : Bandes ultra-fines (hauteur 1/140e, largeur 3% à 18%) pour les saccades haute fréquence.
-- **Rythme Temporel** : Cycle de 3.6s avec impulsion `smoothstep(3.1, 3.25, cycle) * (1.0 - smoothstep(3.25, 3.55, cycle))` et micro-saccades pseudo-aléatoires (`hash11(floor(time * 9.0))`).
+- **Rythme Temporel & Fréquence Réduite** : Cycle étendu à 12.0s (~5 fois par minute) avec durée pseudo-aléatoire continue entre **1.0 s** et **3.0 s** par hash mathématique, et attaque/relâchement progressifs `smoothstep`. Zéro saccade en dehors de la fenêtre.
 
-### 4.2 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
+### 4.2 Shader Éclat des Yeux (`shine_downsample2.frag`)
+- **Emplacement Miroir & Workshop** : `ressource/shaders/effects/shine_downsample2.frag` ➔ `shaders/effects/shine_downsample2.frag`
+- **Modulation Temporelle Organique** :
+  - Cycle de 11.0s avec fenêtre active de durée aléatoire entre **1.0 s** et **3.0 s** ($D = 1.0 + 2.0 \times \text{hash11}$).
+  - Éclat actif uniquement pendant la fenêtre avec fondu entrant/sortant `smoothstep(0.0, 0.25)` / `(1.0 - smoothstep(0.75, 1.0))`.
+  - Enveloppe nulle en dehors : yeux au repos complet 80% du temps sans aucun scintillement permanent.
+
+### 4.3 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
 - **Contexte** : Le système de particules Windows d'origine ne compile pas sous `linux-wallpaperengine`. Il a été remplacé par une passe procédurale GLSL 60 FPS autonome.
 - **Fast-Path GPU Zero-Overhead** :
   ```glsl
