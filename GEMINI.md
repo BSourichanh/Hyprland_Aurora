@@ -73,7 +73,7 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 ## 🖼️ Wallpaper Engine & Lucy Theme (`3566437475`)
 
-> 📖 **Spécification Complète** : Voir [`ressource/LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour les détails exhaustifs des shaders, textures TEXV0005 et passes GLSL.
+> 📖 **Spécification Complète** : Voir [`ressource/LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour tous les détails exhaustifs (shaders, passes, maths). Ne jamais rescanner récursivement `ressource/`.
 
 1. **Multi-Processus (Bug Écran Blanc)** :
    - Patch dans `/usr/lib/linux-wallpaper-engine/resources/app.asar` : 1 processus dédié indépendant par moniteur (`DP-1` et `DP-2`).
@@ -87,9 +87,11 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
    - `Layer 3 (Overlay)` : Wofi, Hyprlock, Spotify Card.
 4. **Shaders & Passes Critiques** :
    - ⚠️ `edge_glow` (id 698) dans `scene.json` **doit rester désactivé** (`"visible": false`) : surexposition totale du visage sous Linux OpenGL.
-   - `shine` (id 427) : atténué pour préserver contrastes et noirs profonds.
+   - `shine` (id 427) : cadence douce (`noisespeed: 0.035`, `noisescale: 1.5`, `noiseamount: 0.25`) évitant tout scintillement rapide sur les yeux à 60 FPS.
    - `shake.frag` : glitch géométrique pur sur 3 échelles, sans aucune aberration chromatique ni teinte jaune/cyan.
    - `blackwall.frag` : passe GLSL 60 FPS remplaçant les particules ; Fast-Path `if (mask <= 0.001) return;` court-circuitant 65% de l'écran.
+5. **Déploiement Automatique** :
+   - Toute modification sous `ressource/` doit être suivie immédiatement de `./scripts/wallpaper_tool.py sync && ./scripts/wallpaper_tool.py restart`.
 
 ---
 
