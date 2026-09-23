@@ -7,8 +7,6 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 ## ⚡ Directives d'Exécution & Concision
 
 - **Style** : Réponses directes, denses, puces courtes, français technique, zéro verbiage.
-- **Édition** : Utiliser `replace_file_content` ciblé (pas de réécriture intégrale).
-- **Lectures** : Filtrer (`grep`, `jq`, plages de lignes), sorties de commande silencieuses.
 - **Git** : Aucun `git push` sans demande explicite de l'utilisateur.
 
 ---
