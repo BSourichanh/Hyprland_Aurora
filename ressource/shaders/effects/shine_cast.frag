@@ -9,7 +9,8 @@ uniform float g_Intensity;
 uniform vec3 g_ColorRays;
 
 // Pass-through pour l'éclat des yeux : élimine la diffusion de rayons en étoile
-// qui produisait une boule de lumière diffuse hors de la pupille
+// Alpha = 1.0 impératif pour écraser le FBO à chaque frame et empêcher l'accumulation
 void main() {
-	gl_FragColor = texSample2D(g_Texture0, v_TexCoord01.xy);
+	vec4 s = texSample2D(g_Texture0, v_TexCoord01.xy);
+	gl_FragColor = vec4(s.rgb, 1.0);
 }

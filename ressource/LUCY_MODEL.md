@@ -135,19 +135,13 @@ graph TD
 
 ### 4.2 Shader Éclat des Yeux (`shine_downsample2.frag`)
 - **Emplacement Miroir & Workshop** : `ressource/shaders/effects/shine_downsample2.frag` ➔ `shaders/effects/shine_downsample2.frag`
-- **Modulation Temporelle Organique** :
-  - Cycle de 30.0s avec fenêtre active de durée aléatoire entre **3.0 s** et **10.0 s** ($D = 3.0 + 7.0 \times \text{hash11}$).
-  - Éclat sinusoïdal doux $\sin(p \times \pi)$ : montée vers l'illumination puis retour fluide à la normale.
-  - Enveloppe nulle en dehors : yeux au repos complet et fidèles à l'illustration sans lueur parasite.
-- **Masque Vectoriel Haute Définition (`materials/masks/shine_downsample2_mask_b309bcdf.tex`)** :
-  - Confinement sous-pixel strict aux pupilles / iris des deux yeux (ellipse droite et croissant gauche).
-  - Élimination intégrale de la barrette de cheveux (qui clignotait auparavant), de la sclère blanche et des paupières.
-  - Lissage gaussien sous-pixel avec interpolation Lanczos en 960x540.
-- **Chromatisme Cybernétique Natif (Cyan / Magenta)** :
-  - Anneau externe de l'iris : Cyan néon éclatant (`#00f0ff`, `vec3(0.0, 0.94, 1.0)`).
-  - Anneau interne de l'iris : Magenta fuchsia néon (`#e0287d`, `vec3(0.96, 0.15, 0.65)`).
-  - Reflet spéculaire blanc adouci en blanc glacé cyan pour éviter tout éblouissement blanchissant.
-  - Centre pupillaire : lueur violette cybernétique profonde.
+- **Modulation Temporelle à Plateau & Zéro Accumulation** :
+  - Cycle de 22.0s avec fenêtre active de durée aléatoire entre **3.5 s** et **6.5 s** ($D = 3.5 + 3.0 \times \text{hash11}$).
+  - Enveloppe à plateau trapézoïdal : montée douce (0.0 à 0.2), maintien stable et constant sans scintillement (0.2 à 0.8), descente fluide (0.8 à 1.0).
+  - Période de repos garanti (15s à 18s) où les yeux sont 100% neutres et conformes à l'illustration.
+  - Écrasement systématique des FBOs (`alpha = 1.0`) éliminant le piège d'accumulation/saturation résiduelle sous `blending: "normal"`.
+- **Chromatisme Continu Anti-Scintillement** :
+  - Pondération spectrale continue `mix()` sur les canaux dominants cyan (`#00f0ff`) et magenta (`#e0287d`), éradiquant les sauts discrets et le clignotement haute fréquence.
 - **Élimination de la Boule Lumineuse & Pass-Through (`shine_cast.frag` & `shine_gaussian.frag`)** :
   - Remplacement du lancer de rayons 5 directions et du flou gaussien 13-tap par des passes directes `pass-through`.
   - Suppression totale du halo sphérique externe ("boule de lumière") bavant sur les paupières et l'orbite.
