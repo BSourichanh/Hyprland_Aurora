@@ -163,8 +163,8 @@
               "constantshadervalues": {
                 "color": "1 1 1",
                 "direction": 0.0,
-                "rayintensity": 0.03,
-                "raylength": 0.0099999998,
+                "rayintensity": 0.08,
+                "raylength": 0.012,
                 "speed": 0.0
               },
               "id": 429

@@ -51,11 +51,10 @@ void main() {
 	float hDur = hash11(cycleIndex * 13.37 + 1.0);
 	float hStart = hash11(cycleIndex * 29.71 + 5.0);
 	float duration = 1.0 + 4.0 * hDur; // Aléatoire entre 1.0s et 5.0s
-	float tStart = 0.5 + hStart * (cyclePeriod - duration - 1.0);
+	// Cycle 0 démarre à t=0.8s pour une visibilité immédiate après relance
+	float tStart = (cycleIndex == 0.0) ? 0.8 : (0.5 + hStart * max(0.1, cyclePeriod - duration - 1.0));
 	float xProg = (tLocal - tStart) / duration;
 	float inWindow = step(0.0, xProg) * step(xProg, 1.0);
-	// Courbe sinusoïdale organique : montée douce vers l'illumination puis retour fluide à la normale
 	float envelope = sin(clamp(xProg, 0.0, 1.0) * 3.14159265) * inWindow;
-
 	gl_FragColor *= envelope;
 }

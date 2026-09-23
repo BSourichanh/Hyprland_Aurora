@@ -139,6 +139,9 @@ graph TD
   - Cycle de 13.0s avec fenêtre active de durée aléatoire entre **1.0 s** et **5.0 s** ($D = 1.0 + 4.0 \times \text{hash11}$).
   - Éclat sinusoïdal doux $\sin(p \times \pi)$ : montée vers l'illumination puis retour fluide à la normale.
   - Enveloppe nulle en dehors : yeux au repos complet et fidèles à l'illustration sans lueur parasite.
+- **Paramètres de Rayonnement (`scene.json` Pass 429)** :
+  - `rayintensity: 0.08` : intensité douce et visible sans éblouissement ni surbrillance agressive.
+  - `raylength: 0.012` : propagation contenue dans l'iris, prévenant toute bavure sur le visage.
 
 ### 4.3 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
 - **Contexte** : Le système de particules Windows d'origine ne compile pas sous `linux-wallpaperengine`. Il a été remplacé par une passe procédurale GLSL 60 FPS autonome.
