@@ -214,8 +214,68 @@ def generate_blackwall_mask(
     output_png.parent.mkdir(parents=True, exist_ok=True)
     mask.save(output_png)
     pack_png_to_tex(output_png, output_tex, w, h)
-    print(f"✓ Masque généré : {output_png} ({w}x{h})")
-    print(f"✓ Conteneur binaire compilé : {output_tex}")
+    print(f"✓ Masque Blackwall généré : {output_png} ({w}x{h})")
+    print(f"✓ Conteneur binaire Blackwall compilé : {output_tex}")
+
+
+def generate_eye_shine_mask(
+    input_png: Path = RESSOURCE_DIR / "lucy.png",
+    output_png: Path = RESSOURCE_DIR / "materials" / "masks" / "shine_downsample2_mask_b309bcdf.png",
+    output_tex: Path = RESSOURCE_DIR / "materials" / "masks" / "shine_downsample2_mask_b309bcdf.tex",
+):
+    """
+    Génère le masque vectoriel de la pupille (oeil droit et gauche) avec anti-aliasing sous-pixel,
+    éliminant strictement la barrette de cheveux, la sclère blanche et les paupières.
+    """
+    if Image is None:
+        sys.exit("Erreur : Pillow (PIL) est requis pour générer le masque.")
+
+    from PIL import ImageFilter
+
+    im = Image.open(input_png)
+    w, h = im.size
+    mask = Image.new("L", (w, h), 0)
+
+    # 1. Pupille oeil droit (proéminent) : ellipse centrée à (1132.5, 325.5)
+    for y in range(280, 370):
+        for x in range(1080, 1180):
+            dx = (x - 1132.5) / 39.5
+            dy = (y - 325.5) / 34.5
+            if dx*dx + dy*dy <= 1.0:
+                r, g, b = im.getpixel((x, y))[:3]
+                # Exclure le trait noir de la paupière supérieure
+                if y < 305 and (r < 50 and g < 50 and b < 65):
+                    continue
+                # Exclure les cils en haut à droite
+                if y < 294 and x > 1145:
+                    continue
+                # Exclure la sclère (blanc de l'oeil) à gauche
+                if x < 1093 and (b > 130 and r > 110):
+                    continue
+                mask.putpixel((x, y), 255)
+
+    # 2. Pupille oeil gauche (croissant visible sous la mèche)
+    for y in range(395, 435):
+        for x in range(735, 785):
+            r, g, b = im.getpixel((x, y))[:3]
+            is_cyan = (r < 135 and g > 135 and b > 175)
+            is_magenta = (r > 155 and g < 80 and b > 85)
+            is_white = (r > 215 and g > 215 and b > 215)
+            is_pupil = (r < 90 and g < 85 and b < 105 and r > 30 and x > 750 and x < 778 and y > 404 and y < 430)
+            if (is_cyan or is_magenta or is_white or is_pupil) and x > 740 and x < 778 and y > 401 and y < 431:
+                mask.putpixel((x, y), 255)
+
+    # Lissage gaussien sous-pixel
+    mask_smooth = mask.filter(ImageFilter.GaussianBlur(radius=1.2))
+
+    # Downsampling haute qualité Lanczos à 960x540 (format natif HalfCompoBuffer)
+    mask_540 = mask_smooth.resize((960, 540), Image.Resampling.LANCZOS)
+
+    output_png.parent.mkdir(parents=True, exist_ok=True)
+    mask_540.save(output_png)
+    pack_png_to_tex(output_png, output_tex, 960, 540)
+    print(f"✓ Masque pupille généré : {output_png} (960x540)")
+    print(f"✓ Conteneur binaire pupille compilé : {output_tex}")
 
 
 # ============================================================================
@@ -255,6 +315,16 @@ def sync_to_workshop():
     if src_mask_tex.exists():
         dst_mask_tex.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src_mask_tex, dst_mask_tex)
+
+    # Materials et masques additionnels (masque pupille shine, etc.)
+    src_materials = RESSOURCE_DIR / "materials"
+    if src_materials.exists():
+        for m_file in src_materials.rglob("*"):
+            if m_file.is_file():
+                rel = m_file.relative_to(src_materials)
+                target = WORKSHOP_DIR / "materials" / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(m_file, target)
 
     # Texture Lucy
     src_lucy_tex = RESSOURCE_DIR / "lucy.tex"
@@ -578,6 +648,7 @@ def main():
             sys.exit(f"✗ Échec : Impossible d'extraire le PNG de {args.input_tex}")
     elif args.command == "mask":
         generate_blackwall_mask()
+        generate_eye_shine_mask()
     elif args.command == "sync":
         sync_to_workshop()
     elif args.command == "check-links":

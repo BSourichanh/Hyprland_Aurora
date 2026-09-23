@@ -23,10 +23,14 @@ float hash11(float p) {
 }
 
 void main() {
+	// Sécurité spatiale : strict confinement aux coordonnées des yeux de Lucy
+	float inEyeRegion = step(0.35, v_TexCoord.x) * step(v_TexCoord.x, 0.65) *
+	                    step(0.24, v_TexCoord.y) * step(v_TexCoord.y, 0.45);
+
 #if MASK
-	float mask = texSample2D(g_Texture1, v_TexCoord.zw).r;
+	float mask = texSample2D(g_Texture1, v_TexCoord.zw).r * inEyeRegion;
 #else
-	float mask = 1.0;
+	float mask = inEyeRegion;
 #endif
 	vec4 sample = texSample2D(g_Texture0, v_TexCoord.xy);
 	
@@ -37,8 +41,27 @@ void main() {
 	
 	sample.rgb *= sample.a;
 	sample.a = 1.0;
+
+	// Extraction et saturation des teintes cybernétiques de la pupille (Cyan / Magenta)
+	vec3 pupilColor = sample.rgb;
+	// Anneau externe Cyan : dominance de bleu et vert sur le rouge
+	if (pupilColor.b > pupilColor.r + 0.12 && pupilColor.g > pupilColor.r + 0.08) {
+		pupilColor = vec3(0.0, 0.94, 1.0); // Cyan néon vibrant (#00f0ff)
+	}
+	// Anneau interne Magenta : dominance de rouge et bleu sur le vert
+	else if (pupilColor.r > pupilColor.g + 0.18 && pupilColor.b > pupilColor.g + 0.04) {
+		pupilColor = vec3(0.96, 0.15, 0.65); // Magenta néon vibrant (#e0287d)
+	}
+	// Reflet spéculaire blanc : adouci en blanc glacé pour préserver la chromaticité
+	else if (pupilColor.r > 0.75 && pupilColor.g > 0.75 && pupilColor.b > 0.75) {
+		pupilColor = vec3(0.65, 0.88, 1.0);
+	}
+	// Centre de la pupille sombre : lueur violette cybernétique profonde
+	else if (pupilColor.r < 0.4 && pupilColor.g < 0.35 && pupilColor.b < 0.45) {
+		pupilColor = vec3(0.35, 0.10, 0.45);
+	}
 	
-	gl_FragColor = sample * mask * step(g_Threshold, dot(vec3(0.11, 0.59, 0.3), sample.rgb));
+	gl_FragColor = vec4(pupilColor, 1.0) * mask * step(g_Threshold, dot(vec3(0.11, 0.59, 0.3), sample.rgb));
 
 #if NOISE
 	gl_FragColor.a *= noiseSample;

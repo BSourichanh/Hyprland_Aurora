@@ -139,9 +139,18 @@ graph TD
   - Cycle de 30.0s avec fenêtre active de durée aléatoire entre **3.0 s** et **10.0 s** ($D = 3.0 + 7.0 \times \text{hash11}$).
   - Éclat sinusoïdal doux $\sin(p \times \pi)$ : montée vers l'illumination puis retour fluide à la normale.
   - Enveloppe nulle en dehors : yeux au repos complet et fidèles à l'illustration sans lueur parasite.
+- **Masque Vectoriel Haute Définition (`materials/masks/shine_downsample2_mask_b309bcdf.tex`)** :
+  - Confinement sous-pixel strict aux pupilles / iris des deux yeux (ellipse droite et croissant gauche).
+  - Élimination intégrale de la barrette de cheveux (qui clignotait auparavant), de la sclère blanche et des paupières.
+  - Lissage gaussien sous-pixel avec interpolation Lanczos en 960x540.
+- **Chromatisme Cybernétique Natif (Cyan / Magenta)** :
+  - Anneau externe de l'iris : Cyan néon éclatant (`#00f0ff`, `vec3(0.0, 0.94, 1.0)`).
+  - Anneau interne de l'iris : Magenta fuchsia néon (`#e0287d`, `vec3(0.96, 0.15, 0.65)`).
+  - Reflet spéculaire blanc adouci en blanc glacé cyan pour éviter tout éblouissement blanchissant.
+  - Centre pupillaire : lueur violette cybernétique profonde.
 - **Paramètres de Rayonnement (`scene.json` Pass 429)** :
-  - `rayintensity: 0.08` : intensité douce et visible sans éblouissement ni surbrillance agressive.
-  - `raylength: 0.012` : propagation contenue dans l'iris, prévenant toute bavure sur le visage.
+  - `rayintensity: 0.10` : intensité lumineuse nette et équilibrée.
+  - `raylength: 0.010` : diffusion ultra-courte circonscrite au contour de la pupille, zéro débordement sur la peau.
 
 ### 4.3 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
 - **Contexte** : Le système de particules Windows d'origine ne compile pas sous `linux-wallpaperengine`. Il a été remplacé par une passe procédurale GLSL 60 FPS autonome.
