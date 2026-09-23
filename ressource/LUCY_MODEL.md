@@ -136,9 +136,9 @@ graph TD
 ### 4.2 Shader Éclat des Yeux (`shine_downsample2.frag`)
 - **Emplacement Miroir & Workshop** : `ressource/shaders/effects/shine_downsample2.frag` ➔ `shaders/effects/shine_downsample2.frag`
 - **Modulation Temporelle Organique** :
-  - Cycle de 11.0s avec fenêtre active de durée aléatoire entre **1.0 s** et **3.0 s** ($D = 1.0 + 2.0 \times \text{hash11}$).
-  - Éclat actif uniquement pendant la fenêtre avec fondu entrant/sortant `smoothstep(0.0, 0.25)` / `(1.0 - smoothstep(0.75, 1.0))`.
-  - Enveloppe nulle en dehors : yeux au repos complet 80% du temps sans aucun scintillement permanent.
+  - Cycle de 13.0s avec fenêtre active de durée aléatoire entre **1.0 s** et **5.0 s** ($D = 1.0 + 4.0 \times \text{hash11}$).
+  - Éclat sinusoïdal doux $\sin(p \times \pi)$ : montée vers l'illumination puis retour fluide à la normale.
+  - Enveloppe nulle en dehors : yeux au repos complet et fidèles à l'illustration sans lueur parasite.
 
 ### 4.3 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
 - **Contexte** : Le système de particules Windows d'origine ne compile pas sous `linux-wallpaperengine`. Il a été remplacé par une passe procédurale GLSL 60 FPS autonome.

@@ -44,13 +44,13 @@ void main() {
 	gl_FragColor.a *= noiseSample;
 #endif
 
-	// Modulation temporelle : fréquence réduite et durée aléatoire entre 1.0s et 3.0s
-	float cyclePeriod = 11.0;
+	// Modulation temporelle : fréquence réduite et durée aléatoire entre 1.0s et 5.0s
+	float cyclePeriod = 13.0;
 	float cycleIndex = floor(g_Time / cyclePeriod);
 	float tLocal = mod(g_Time, cyclePeriod);
 	float hDur = hash11(cycleIndex * 13.37 + 1.0);
 	float hStart = hash11(cycleIndex * 29.71 + 5.0);
-	float duration = 1.0 + 2.0 * hDur; // Aléatoire entre 1.0s et 3.0s
+	float duration = 1.0 + 4.0 * hDur; // Aléatoire entre 1.0s et 5.0s
 	float tStart = 0.5 + hStart * (cyclePeriod - duration - 1.0);
 	float xProg = (tLocal - tStart) / duration;
 	float inWindow = step(0.0, xProg) * step(xProg, 1.0);
