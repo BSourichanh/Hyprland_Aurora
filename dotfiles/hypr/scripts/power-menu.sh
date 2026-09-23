@@ -21,8 +21,8 @@ fi
 CHOICE=$(printf "%b\n" "$OPTS" | wofi --dmenu \
     --define hide_search=true \
     --define hide_scroll=true \
-    --width 280 \
-    --height 250 \
+    --width 300 \
+    --height 265 \
     --location center \
     --style "$STYLE_FILE" \
     --insensitive 2>/dev/null)

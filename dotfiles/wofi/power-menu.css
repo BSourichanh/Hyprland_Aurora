@@ -2,7 +2,7 @@ window {
     margin: 0px;
     border: 2px solid transparent;
     border-radius: 17px;
-    background-image: linear-gradient(rgba(10, 15, 30, 0.90), rgba(10, 15, 30, 0.90)), 
+    background-image: linear-gradient(rgba(10, 15, 30, 0.92), rgba(10, 15, 30, 0.92)), 
                       linear-gradient(135deg, #00f0ff, #7aa2f7, #9778d0);
     background-origin: border-box;
     background-clip: padding-box, border-box;
@@ -12,40 +12,79 @@ window {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 240, 255, 0.20);
 }
 
-
-#inner-box {
-    margin: 12px;
+#outer-box {
+    margin: 0px;
+    padding: 0px;
+    border: none;
     background-color: transparent;
 }
 
-#outer-box {
+#input {
+    min-height: 0px;
+    padding: 0px;
     margin: 0px;
-    background-color: transparent;
+    border: none;
+    background: transparent;
+    color: transparent;
+    font-size: 0px;
+    opacity: 0;
+}
+
+#input * {
+    min-height: 0px;
+    padding: 0px;
+    margin: 0px;
+    border: none;
+    font-size: 0px;
+}
+
+#input image {
+    -gtk-icon-transform: scale(0);
 }
 
 #scroll {
     margin: 0px;
+    padding: 0px;
+    border: none;
+    background-color: transparent;
 }
 
-#text {
-    margin: 5px 12px;
-    color: #e1e4f1;
+#inner-box {
+    margin: 12px 14px;
+    padding: 0px;
+    border: none;
+    background-color: transparent;
 }
 
 #entry {
     padding: 8px 12px;
     margin: 3px 0px;
     border-radius: 12px;
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(122, 162, 247, 0.16);
+    color: #e1e4f1;
     transition: all 0.15s ease-in-out;
+}
+
+#entry:hover {
+    background-color: rgba(0, 240, 255, 0.15);
+    border-color: rgba(0, 240, 255, 0.50);
 }
 
 #entry:selected {
     background: linear-gradient(45deg, #00f0ff, #7aa2f7);
+    border: 1px solid #00f0ff;
     color: #090727;
     font-weight: bold;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.40);
 }
 
 #entry:selected #text {
     color: #090727;
+    font-weight: bold;
+}
+
+#text {
+    margin: 0px 4px;
+    color: #e1e4f1;
 }
