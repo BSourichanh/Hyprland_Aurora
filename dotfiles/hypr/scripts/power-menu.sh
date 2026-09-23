@@ -11,17 +11,18 @@ fi
 # 2. Options du menu avec icônes
 OPTS="  Verrouiller l'écran\n  Fermer la session\n  Mettre en veille\n  Redémarrer\n  Éteindre le PC"
 
-# 3. Emplacement de la feuille de style Aurora
-STYLE_FILE="$HOME/.config/wofi/style.css"
+# 3. Emplacement de la feuille de style Aurora dédiée
+STYLE_FILE="$HOME/.config/wofi/power-menu.css"
 if [ ! -f "$STYLE_FILE" ]; then
-    STYLE_FILE="$HOME/Documents/antigravity/hyprland_project/dotfiles/wofi/style.css"
+    STYLE_FILE="$HOME/Documents/antigravity/hyprland_project/dotfiles/wofi/power-menu.css"
 fi
 
-# 4. Afficher le menu Wofi dmenu centré
+# 4. Afficher le menu Wofi dmenu centré sans barre de recherche
 CHOICE=$(printf "%b\n" "$OPTS" | wofi --dmenu \
-    --prompt "Session Aurora" \
-    --width 340 \
-    --height 280 \
+    --define hide_search=true \
+    --define hide_scroll=true \
+    --width 280 \
+    --height 250 \
     --location center \
     --style "$STYLE_FILE" \
     --insensitive 2>/dev/null)

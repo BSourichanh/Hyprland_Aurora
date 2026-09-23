@@ -1,0 +1,51 @@
+window {
+    margin: 0px;
+    border: 2px solid transparent;
+    border-radius: 17px;
+    background-image: linear-gradient(rgba(10, 15, 30, 0.90), rgba(10, 15, 30, 0.90)), 
+                      linear-gradient(135deg, #00f0ff, #7aa2f7, #9778d0);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    font-family: "Noto Sans", sans-serif;
+    font-size: 14px;
+    color: #e1e4f1;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 240, 255, 0.20);
+}
+
+
+#inner-box {
+    margin: 12px;
+    background-color: transparent;
+}
+
+#outer-box {
+    margin: 0px;
+    background-color: transparent;
+}
+
+#scroll {
+    margin: 0px;
+}
+
+#text {
+    margin: 5px 12px;
+    color: #e1e4f1;
+}
+
+#entry {
+    padding: 8px 12px;
+    margin: 3px 0px;
+    border-radius: 12px;
+    background-color: transparent;
+    transition: all 0.15s ease-in-out;
+}
+
+#entry:selected {
+    background: linear-gradient(45deg, #00f0ff, #7aa2f7);
+    color: #090727;
+    font-weight: bold;
+}
+
+#entry:selected #text {
+    color: #090727;
+}
