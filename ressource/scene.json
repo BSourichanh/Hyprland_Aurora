@@ -143,9 +143,9 @@
           "passes": [
             {
               "constantshadervalues": {
-                "noiseamount": 0.40000001,
-                "noisescale": 3.0,
-                "noisespeed": 0.15000001,
+                "noiseamount": 0.25,
+                "noisescale": 1.5,
+                "noisespeed": 0.035,
                 "raythreshold": 0
               },
               "id": 428,
