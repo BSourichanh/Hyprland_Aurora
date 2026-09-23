@@ -148,9 +148,12 @@ graph TD
   - Anneau interne de l'iris : Magenta fuchsia néon (`#e0287d`, `vec3(0.96, 0.15, 0.65)`).
   - Reflet spéculaire blanc adouci en blanc glacé cyan pour éviter tout éblouissement blanchissant.
   - Centre pupillaire : lueur violette cybernétique profonde.
-- **Paramètres de Rayonnement (`scene.json` Pass 429)** :
-  - `rayintensity: 0.10` : intensité lumineuse nette et équilibrée.
-  - `raylength: 0.010` : diffusion ultra-courte circonscrite au contour de la pupille, zéro débordement sur la peau.
+- **Élimination de la Boule Lumineuse & Pass-Through (`shine_cast.frag` & `shine_gaussian.frag`)** :
+  - Remplacement du lancer de rayons 5 directions et du flou gaussien 13-tap par des passes directes `pass-through`.
+  - Suppression totale du halo sphérique externe ("boule de lumière") bavant sur les paupières et l'orbite.
+  - L'illumination est confinée à 100% à l'intérieur de l'iris et de la pupille sans aucun débordement.
+- **Paramètres de Rayonnement (`scene.json` Pass 429, 430, 431)** :
+  - `raylength: 0.0` et `scale: "0 0"` : désactivation totale de l'étalement spatial des rayons et du flou.
 
 ### 4.3 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
 - **Contexte** : Le système de particules Windows d'origine ne compile pas sous `linux-wallpaperengine`. Il a été remplacé par une passe procédurale GLSL 60 FPS autonome.

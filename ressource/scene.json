@@ -163,15 +163,15 @@
               "constantshadervalues": {
                 "color": "1 1 1",
                 "direction": 0.0,
-                "rayintensity": 0.10,
-                "raylength": 0.010,
+                "rayintensity": 1.0,
+                "raylength": 0.0,
                 "speed": 0.0
               },
               "id": 429
             },
             {
               "constantshadervalues": {
-                "scale": "1 1"
+                "scale": "0 0"
               },
               "id": 430
             },
@@ -180,7 +180,7 @@
                 "VERTICAL": 1
               },
               "constantshadervalues": {
-                "scale": "1 1"
+                "scale": "0 0"
               },
               "id": 431
             },
