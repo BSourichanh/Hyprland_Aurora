@@ -80,6 +80,22 @@ Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure, ayan
 - **Protection multi-écrans** : Déplacement instantané de tous les moniteurs vers des espaces de travail temporaires vides lors du verrouillage pour masquer les applications ouvertes.
 - **Requête d'écrans optimisée** : Extraction JSON en passe unique via `jq` sans boucle de sous-processus.
 
+### 5. Menu de Session & Alimentation Épuré (`power-menu.sh` & `power-menu.css`)
+- **Modale compacte sans recherche** : Accessible via <kbd>SUPER</kbd> + <kbd>S</kbd>, carte modale centrée de 300x265px sans barre de texte résiduelle.
+- **Design en capsules de verre (Glass Cards)** : 5 actions organisées en boutons individuels translucides avec bordures Tokyo Night et surbrillance au survol.
+- **Actions directes** : Verrouiller (`lock.sh`), Fermer la session (`hyprctl dispatch exit`), Mettre en veille (`systemctl suspend`), Redémarrer (`systemctl reboot`), Éteindre le PC (`systemctl poweroff`).
+
+### 6. Outil de Capture d'Écran Aurora (`screenshot.sh`)
+- **Intégration native sur Impr écran** : Déclenché par la touche <kbd>Print</kbd> ou <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>.
+- **Réticule Aurora thémé** : Outil `slurp` assorti avec bordures cyan 2px (`#00f0ff`) et fond Tokyo Night semi-transparent.
+- **Multi-modes** : Sélection rectangulaire, plein écran du moniteur actif (<kbd>SHIFT</kbd> + <kbd>Print</kbd>), fenêtre active (<kbd>SUPER</kbd> + <kbd>Print</kbd>) ou multi-écrans intégral (<kbd>CTRL</kbd> + <kbd>Print</kbd>).
+- **Presse-papiers & Notifications** : Copie immédiate dans le presse-papiers Wayland (`wl-copy`) et notification avec vignette miniature.
+
+### 7. Fond d'Écran Animé Lucy & Rendu GPU 60 FPS
+- **Rendu Matériel Haute Fluidité** : Animation 60 FPS sur GPU Intel UHD 630 sans écran blanc multi-écrans (`DP-1` et `DP-2`).
+- **Sélecteur GPU / CPU** : Basculement instantané via Wofi (<kbd>SUPER</kbd> + <kbd>R</kbd> ➔ "gpu" / "cpu") ou via CLI (`./scripts/wallpaper_tool.py renderer [gpu|cpu]`).
+- **Shaders Blackwall Optimisés** : Shader GLSL natif 60 FPS avec fast-path éliminant le calcul sur ~65% des pixels et détourage subpixel sans halo opaque.
+
 ---
 
 ## 📁 Structure du Projet
@@ -93,7 +109,12 @@ hyprland_project/
 │   │   ├── hypridle.conf      # Gestionnaire d'inactivité (verrouillage auto après 5 min)
 │   │   ├── hyprlock.conf      # Écran de verrouillage stylisé avec champ de mot de passe dégradé
 │   │   ├── lock.sh            # Script de verrouillage sécurisé avec Safe Cleanup RAII
+│   │   ├── wallpaper_renderer.json # Persistance du moteur Lucy actif (GPU/CPU) et des FPS (60/20)
+│   │   ├── wallpaper-renderer.desktop # Lanceur d'applications Wofi pour le sélecteur
 │   │   ├── scripts/
+│   │   │   ├── power-menu.sh  # Menu d'alimentation et session Aurora (SUPER + S)
+│   │   │   ├── screenshot.sh  # Capture d'écran (Print Screen, sélection, écran, fenêtre)
+│   │   │   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU/CPU
 │   │   │   ├── reload.sh      # Rechargement unifié Hyprland & Waybar (SUPER + SHIFT + R)
 │   │   │   └── wofi-toggle.sh # Lanceur Wofi avec gestion de clic extérieur (wait -n, 0% CPU)
 │   │   └── theme-summer/      # Fonds d'écran et ressources graphiques
@@ -106,11 +127,12 @@ hyprland_project/
 │   │       └── spotify.py     # Helper MPRIS modulaire (Command Pattern, Facade D-Bus)
 │   ├── wofi/
 │   │   ├── config             # Dimensions, disposition et filtrage de Wofi
-│   │   └── style.css          # Style Wofi avec bordure dégradée 17px
+│   │   ├── style.css          # Style Wofi général avec bordure dégradée 17px
+│   │   └── power-menu.css     # Style dédié compact pour la modale d'alimentation (SUPER + S)
 │   └── kitty/
 │       └── kitty.conf         # Configuration du terminal Kitty (transparence 0.85, Tokyo Night)
 ├── ressource/                 # Modèle, shaders Blackwall et textures Wallpaper Engine (Lucy)
-├── scripts/                   # Outils CLI (wallpaper_tool.py : pack/unpack, mask, sync, audit)
+├── scripts/                   # Outils CLI (wallpaper_tool.py : pack/unpack, mask, sync, audit, renderer)
 ├── GEMINI.md                  # Directives d'architecture et consignes de développement
 └── README.md                  # Documentation générale du projet
 ```
@@ -151,6 +173,11 @@ Les fichiers de configuration réels de votre compte utilisateur dans `~/.config
 | :--- | :--- |
 | <kbd>SUPER</kbd> + <kbd>Return</kbd> / <kbd>SUPER</kbd> + <kbd>Q</kbd> | Ouvrir le terminal Kitty |
 | <kbd>SUPER</kbd> + <kbd>R</kbd> | Ouvrir / Fermer le lanceur d'applications (Wofi) |
+| <kbd>SUPER</kbd> + <kbd>S</kbd> | Menu de session & alimentation Aurora (Verrouiller, Veille, Éteindre, ...) |
+| <kbd>Impr écran</kbd> / <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd> | Capture d'écran interactive (sélection rectangulaire Aurora) |
+| <kbd>SHIFT</kbd> + <kbd>Impr écran</kbd> | Capture plein écran du moniteur actif sous le curseur |
+| <kbd>SUPER</kbd> + <kbd>Impr écran</kbd> | Capture de la fenêtre active sous focus |
+| <kbd>CTRL</kbd> + <kbd>Impr écran</kbd> | Capture intégrale (tous les écrans réunis) |
 | <kbd>SUPER</kbd> + <kbd>E</kbd> | Ouvrir le gestionnaire de fichiers (Nautilus) |
 | <kbd>SUPER</kbd> + <kbd>C</kbd> | Fermer la fenêtre active |
 | <kbd>SUPER</kbd> + <kbd>V</kbd> | Basculer la fenêtre en mode flottant |
@@ -186,11 +213,15 @@ hyprbar status   # Vérifier l'état et les PIDs actifs
 CLI dédié à la maintenance du fond d'écran dynamique Lucy (Cyberpunk), aux shaders Blackwall et à l'intégrité du dépôt :
 
 ```bash
-./scripts/wallpaper_tool.py status       # Affiche l'état des processus DP-1 / DP-2
-./scripts/wallpaper_tool.py mask         # Régénère le masque de détourage subpixel & compile le .tex
-./scripts/wallpaper_tool.py sync         # Déploie shaders et assets vers le dossier Steam Workshop
-./scripts/wallpaper_tool.py restart      # Redémarre proprement les instances par écran
-./scripts/wallpaper_tool.py check-links  # Valide les hard links dotfiles/ <-> ~/.config/
+./scripts/wallpaper_tool.py status         # Affiche l'état des processus DP-1 / DP-2 et FPS actifs
+./scripts/wallpaper_tool.py renderer       # Affiche le mode de rendu configuré (GPU / CPU)
+./scripts/wallpaper_tool.py renderer gpu   # Bascule Lucy sur le GPU matériel (Intel UHD 630 @ 60 FPS)
+./scripts/wallpaper_tool.py renderer cpu   # Bascule Lucy sur le CPU logiciel (Mesa LLVMpipe @ 20 FPS)
+./scripts/wallpaper_tool.py mask           # Régénère le masque de détourage subpixel & compile le .tex
+./scripts/wallpaper_tool.py sync           # Déploie shaders et assets vers le dossier Steam Workshop
+./scripts/wallpaper_tool.py restart        # Redémarre proprement les instances par écran (défaut 60 FPS)
+./scripts/wallpaper_tool.py restart --fps 30 # Forcer une cadence spécifique
+./scripts/wallpaper_tool.py check-links    # Valide les hard links dotfiles/ <-> ~/.config/
 ```
 
 ---
@@ -200,6 +231,6 @@ CLI dédié à la maintenance du fond d'écran dynamique Lucy (Cyberpunk), aux s
 Pour faire fonctionner l'ensemble de ces fonctionnalités :
 
 - **Composants système** : `hyprland`, `waybar`, `wofi`, `kitty`, `hyprlock`, `hypridle`, `swaybg`.
-- **Utilitaires Wayland** : `slurp`, `grim`, `playerctl`, `pavucontrol`, `jq`, `wireplumber` (`wpctl`).
+- **Utilitaires Wayland** : `slurp`, `grim`, `wl-clipboard` (`wl-copy`), `playerctl`, `pavucontrol`, `jq`, `wireplumber` (`wpctl`).
 - **Python & Bibliothèques** : `python3`, `python3-gi`, `python3-dbus`, `python3-pil` (Pillow).
 - **Polices recommandées** : `Noto Sans`, `FontAwesome` (pour les icônes de la barre et du popup).

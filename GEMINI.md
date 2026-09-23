@@ -174,13 +174,13 @@ Tous les composants de l'interface doivent rigoureusement respecter ces constant
 ```
 hyprland_project/
 ├── dotfiles/
-│   ├── hypr/                 # Hyprland (0.56.2), hypridle, hyprlock, lock.sh, wofi-toggle.sh
+│   ├── hypr/                 # Hyprland (0.56.2), hypridle, hyprlock, lock.sh, power-menu.sh, screenshot.sh
 │   ├── waybar/               # Config Waybar, style.css, bar-bg.svg, scripts Spotify
-│   ├── wofi/                 # Configuration et CSS du lanceur d'applications
+│   ├── wofi/                 # Configuration et CSS du lanceur (style.css, power-menu.css)
 │   └── kitty/                # Terminal Kitty (transparence 0.85, palette Tokyo Night)
 ├── linux-wallpaperengine/     # Dépôt source / utilitaires du moteur Wallpaper Engine
 ├── ressource/                # Modèle, textures et assets graphiques de Lucy (Cyberpunk)
-├── scripts/                  # CLI d'administration, packaging TEX, masquage et audit liens
+├── scripts/                  # CLI d'administration (status, renderer, mask, sync, restart, check-links)
 ├── GEMINI.md                 # Directives d'architecture et consignes projet
 └── README.md                 # Documentation générale
 ```
@@ -232,11 +232,11 @@ linux-wallpaper-engine                     # Lancer le gestionnaire en arrière-
 # Outillage Dédié Lucy / Wallpaper Engine (scripts/wallpaper_tool.py)
 ./scripts/wallpaper_tool.py status         # Vérifier l'état des processus, moteurs (GPU/CPU) et moniteurs
 ./scripts/wallpaper_tool.py renderer       # Afficher le mode de rendu configuré (GPU / CPU)
-./scripts/wallpaper_tool.py renderer gpu   # Basculer Lucy sur le GPU matériel (Intel UHD 630 @ 30 FPS)
+./scripts/wallpaper_tool.py renderer gpu   # Basculer Lucy sur le GPU matériel (Intel UHD 630 @ 60 FPS)
 ./scripts/wallpaper_tool.py renderer cpu   # Basculer Lucy sur le CPU logiciel (Mesa LLVMpipe @ 20 FPS)
 ./scripts/wallpaper_tool.py sync           # Synchroniser shaders & assets vers Steam Workshop
 ./scripts/wallpaper_tool.py mask           # Régénérer le masque Blackwall et compiler le .tex
-./scripts/wallpaper_tool.py restart        # Redémarrage déterministe multi-écrans (DP-1 / DP-2)
+./scripts/wallpaper_tool.py restart        # Redémarrage déterministe multi-écrans (DP-1 / DP-2 @ 60 FPS)
 ./scripts/wallpaper_tool.py check-links    # Audit d'intégrité des hard links dotfiles/ ~/.config/
 
 # Sélecteur Graphique & Lanceur Wofi
@@ -245,6 +245,8 @@ linux-wallpaper-engine                     # Lancer le gestionnaire en arrière-
 
 # Tests & Validation
 bash -n dotfiles/hypr/scripts/wofi-toggle.sh
+bash -n dotfiles/hypr/scripts/power-menu.sh
+bash -n dotfiles/hypr/scripts/screenshot.sh
 bash -n dotfiles/hypr/lock.sh
 python3 -m py_compile dotfiles/waybar/scripts/spotify-card.py
 python3 -m py_compile dotfiles/waybar/scripts/spotify.py
@@ -254,4 +256,6 @@ python3 -c "import json; json.load(open('dotfiles/waybar/config.jsonc'))"
 ls -lai dotfiles/waybar/style.css ~/.config/waybar/style.css
 ls -lai dotfiles/waybar/config.jsonc ~/.config/waybar/config.jsonc
 ls -lai dotfiles/hypr/lock.sh ~/.config/hypr/lock.sh
+ls -lai dotfiles/hypr/scripts/power-menu.sh ~/.config/hypr/scripts/power-menu.sh
+ls -lai dotfiles/wofi/power-menu.css ~/.config/wofi/power-menu.css
 ```

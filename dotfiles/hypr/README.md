@@ -13,7 +13,12 @@ dotfiles/hypr/
 ├── hypridle.conf       # Démon d'inactivité (verrouillage 5 min, extinction écrans)
 ├── hyprlock.conf       # Interface de déverrouillage graphique (champ mot de passe néon, flou GPU)
 ├── lock.sh             # Script de verrouillage sécurisé avec Safe Cleanup Handler (RAII)
+├── wallpaper_renderer.json # Persistance du moteur Lucy actif (GPU/CPU) et des FPS (60/20)
+├── wallpaper-renderer.desktop # Lanceur d'applications Wofi pour le sélecteur
 ├── scripts/
+│   ├── power-menu.sh   # Menu de session et d'alimentation Aurora (SUPER + S)
+│   ├── screenshot.sh   # Outil de capture d'écran polyvalent (Print Screen, sélection, écran, fenêtre)
+│   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU (60 FPS) / CPU (20 FPS)
 │   ├── reload.sh       # Script de rechargement complet (Hyprland + Waybar + notification)
 │   └── wofi-toggle.sh  # Lanceur d'applications Wofi avec backdrop transparent (wait -n, 0% CPU)
 ├── plugins/
@@ -52,6 +57,28 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
 
 ---
 
+## ⚡ Menu de Session & Alimentation (`power-menu.sh`)
+
+Le script [`power-menu.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/scripts/power-menu.sh) déploie une boîte de dialogue d'actions rapide :
+- **Raccourci** : <kbd>SUPER</kbd> + <kbd>S</kbd> (toggle : un second appui ou <kbd>Échap</kbd> referme le menu).
+- **Feuille de style dédiée** : [`dotfiles/wofi/power-menu.css`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/wofi/power-menu.css) sans barre de recherche (`hide_search=true` et `#input` réduit à 0px), avec 5 capsules de verre tactiles (Verrouiller, Fermer la session, Mettre en veille, Redémarrer, Éteindre).
+- **Format compact** : $300 \times 265\text{ px}$ centré à l'écran, navigation clavier ou souris.
+
+---
+
+## 📸 Outil de Capture d'Écran Aurora (`screenshot.sh`)
+
+Le script [`screenshot.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/scripts/screenshot.sh) gère les captures d'écran sous Wayland :
+- **Réticule Aurora thémé** : `slurp` configuré avec bordure cyan néon 2px (`#00f0ff`), fond sombre Tokyo Night et lueur douce.
+- **Modes pris en charge** :
+  - `area` (défaut) : Sélection interactive rectangulaire (<kbd>Print</kbd> ou <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>).
+  - `screen` : Moniteur actif sous le curseur (<kbd>SHIFT</kbd> + <kbd>Print</kbd>).
+  - `window` : Fenêtre sous focus actif (<kbd>SUPER</kbd> + <kbd>Print</kbd>).
+  - `full` : Intégralité des écrans réunis (<kbd>CTRL</kbd> + <kbd>Print</kbd>).
+- **Enregistrement & Presse-papiers** : Copie instantanée dans le presse-papiers via `wl-copy --type image/png`, sauvegarde dans `~/Images/Captures d’écran/Capture d’écran du AAAA-MM-JJ HH-MM-SS.png` et notification avec aperçu miniature (`notify-send`).
+
+---
+
 ## ⌨️ Raccourcis Clavier Définis
 
 | Raccourci | Action |
@@ -60,6 +87,11 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
 | <kbd>SUPER</kbd> + <kbd>C</kbd> | Fermer la fenêtre active |
 | <kbd>SUPER</kbd> + <kbd>V</kbd> | Basculer la fenêtre en mode flottant |
 | <kbd>SUPER</kbd> + <kbd>R</kbd> | Ouvrir / Fermer Wofi (`wofi-toggle.sh`) |
+| <kbd>SUPER</kbd> + <kbd>S</kbd> | Menu de session et alimentation (`power-menu.sh`) |
+| <kbd>Impr écran</kbd> / <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd> | Capture d'écran (sélection rectangulaire Aurora) |
+| <kbd>SHIFT</kbd> + <kbd>Impr écran</kbd> | Capture plein écran du moniteur actif |
+| <kbd>SUPER</kbd> + <kbd>Impr écran</kbd> | Capture de la fenêtre active |
+| <kbd>CTRL</kbd> + <kbd>Impr écran</kbd> | Capture intégrale (multi-écrans) |
 | <kbd>SUPER</kbd> + <kbd>E</kbd> | Gestionnaire de fichiers (Nautilus) |
 | <kbd>SUPER</kbd> + <kbd>L</kbd> | Verrouillage immédiat (`lock.sh`) |
 | <kbd>SUPER</kbd> + <kbd>TAB</kbd> | Vue d'ensemble Hyprspace (Mission Control) |

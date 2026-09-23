@@ -57,12 +57,27 @@ Synchronise les shaders Blackwall, les matériaux, le modèle, les textures et l
 ```
 
 ### 5. Redémarrage Multi-Écrans Déterministe (`restart`)
-Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), éliminant tout conflit EGL/OpenGL et tout risque de processus orphelin :
+Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), éliminant tout conflit EGL/OpenGL et tout risque de processus orphelin (applique par défaut la cadence cible configurée, ex. 60 FPS sur GPU) :
 ```bash
 ./scripts/wallpaper_tool.py restart
+# Forcer une cadence d'affichage personnalisée (ex. 60 ou 30 FPS)
+./scripts/wallpaper_tool.py restart --fps 60
 ```
 
-### 6. Audit d'Intégrité des Liens Système (`check-links`)
+### 6. Gestion du Moteur de Rendu GPU / CPU (`renderer`)
+Permet de visualiser le moteur actif ou de basculer instantanément Lucy entre le GPU matériel (Intel UHD 630 @ 60 FPS) et le CPU logiciel (Mesa LLVMpipe @ 20 FPS) avec mise à jour automatique de la configuration persistante :
+```bash
+# Consulter le mode configuré et les FPS cibles
+./scripts/wallpaper_tool.py renderer
+
+# Basculer sur GPU matériel (Intel UHD 630 @ 60 FPS)
+./scripts/wallpaper_tool.py renderer gpu
+
+# Basculer sur CPU logiciel (Mesa LLVMpipe @ 20 FPS)
+./scripts/wallpaper_tool.py renderer cpu
+```
+
+### 7. Audit d'Intégrité des Liens Système (`check-links`)
 Parcourt récursivement `dotfiles/` et vérifie que chaque fichier correspond rigoureusement au même numéro d'inode dans `~/.config/`, garantissant qu'aucune écriture n'a rompu les liaisons système :
 ```bash
 ./scripts/wallpaper_tool.py check-links

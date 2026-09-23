@@ -8,8 +8,9 @@ Configuration et thématisation du lanceur d'applications **Wofi** sous Wayland 
 
 ```
 dotfiles/wofi/
-├── config        # Paramètres d'affichage, dimensions (460x520), prompt et comportement de filtrage
-└── style.css     # Style GTK3 (bordure continue en dégradé 135°, coins 17px, lueur cyan)
+├── config          # Paramètres d'affichage, dimensions (460x520), prompt et comportement de filtrage
+├── style.css       # Style GTK3 principal (bordure continue en dégradé 135°, coins 17px, lueur cyan)
+└── power-menu.css  # Style dédié compact pour la modale d'alimentation & session (300x265px, sans barre de recherche)
 ```
 
 ---
@@ -24,6 +25,15 @@ dotfiles/wofi/
 
 ---
 
+## ⚡ Feuille de Style Dédiée : Menu d'Alimentation (`power-menu.css`)
+
+Pour le menu de session (`Super + S` / `power-menu.sh`), une feuille de style dédiée supprime la zone de recherche et présente les actions sous forme de capsules tactiles :
+- **Écrasement d'espace `#input`** : Annule l'allocation d'espace résiduel par GTK (`min-height: 0`, échelle d'icône 0) pour éliminer tout décalage supérieur.
+- **Capsules de verre (`#entry`)** : Fond translucide `rgba(255, 255, 255, 0.04)`, bordure fine Tokyo Night `1px solid rgba(122, 162, 247, 0.16)` et arrondi 12px.
+- **Survol & Sélection** : Surbrillance cyan au survol et plein dégradé néon Aurora 45° (`#00f0ff` ➔ `#7aa2f7`) sur l'élément sélectionné avec typographie sombre contrastée `#090727`.
+
+---
+
 ## ⚙️ Mécanisme de Fermeture au Clic Extérieur (`wofi-toggle.sh`)
 
 Sous Wayland / wlroots, Wofi ne dispose pas nativement d'un événement `unfocus` fiable pour se refermer lors d'un clic en dehors de sa fenêtre.
@@ -35,10 +45,12 @@ Le script [`wofi-toggle.sh`](file:///home/user/Documents/antigravity/hyprland_pr
 
 ---
 
-## ⌨️ Raccourci & Utilisation
+## ⌨️ Raccourcis & Utilisation
 
-- Ouvrir / Fermer Wofi : <kbd>SUPER</kbd> + <kbd>R</kbd>
+- Ouvrir / Fermer le lanceur d'applications : <kbd>SUPER</kbd> + <kbd>R</kbd>
+- Ouvrir / Fermer le menu d'alimentation : <kbd>SUPER</kbd> + <kbd>S</kbd>
 - Lancement direct en ligne de commande :
   ```bash
   ~/.config/hypr/scripts/wofi-toggle.sh
+  ~/.config/hypr/scripts/power-menu.sh
   ```
