@@ -1,262 +1,139 @@
-# Instructions de Projet & Directives de Développement — Hyprland / Aurora Theme
+# Directives de Développement — Hyprland / Aurora Theme
 
-Ce fichier définit le contexte technique, la charte graphique stricte, les règles d'architecture et les consignes d'optimisation pour l'environnement Hyprland et ses composants (Waybar, Wofi, Spotify Card, Kitty). Le thème du projet s'appelle **Aurora** : il s'agit d'un design system autonome et sur-mesure, ayant pris son indépendance vis-à-vis de l'ancien socle *Hybrid Summer*.
-
----
-
-## ⚡ Directives d'Optimisation de Tokens & Concision
-
-1. **Concision Maximale** :
-   - Pas de politesses superflues ni d'introductions verbeuses.
-   - Réponses directes, denses, orientées action (code ciblé, explications en puces courtes).
-   - Privilégier les remplacements ciblés (`replace_file_content`) plutôt que de réécrire des fichiers volumineux complets.
-2. **Gestion du Contexte & Outils** :
-   - Cibler la lecture des fichiers aux lignes nécessaires.
-   - Utiliser des filtres de commande (`grep`, `jq`, flags silencieux) pour éviter les sorties trop longues.
-3. **Langue** : Français technique, précis et direct.
+Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, Spotify Card, Kitty, Lucy Wallpaper Engine).
 
 ---
 
-## 🎨 Charte Graphique & Design System (Aurora Theme)
+## ⚡ Directives d'Exécution & Concision
 
-Tous les composants de l'interface doivent rigoureusement respecter ces constantes :
+- **Style** : Réponses directes, denses, puces courtes, français technique, zéro verbiage.
+- **Édition** : Utiliser `replace_file_content` ciblé (pas de réécriture intégrale).
+- **Lectures** : Filtrer (`grep`, `jq`, plages de lignes), sorties de commande silencieuses.
+- **Git** : Aucun `git push` sans demande explicite de l'utilisateur.
 
-### 1. Palette de Couleurs Néon
-- **Cyan lumineux (primaire)** : `#00f0ff` / `rgba(0, 240, 255, 1.0)`
-- **Bleu Tokyo Night (secondaire)** : `#7aa2f7`
-- **Violet néon (accent)** : `#9778d0`
-- **Rose / Rouge (actions Liker / alertes)** : `#f43f5e` / `#f87171`
-- **Fonds translucides** :
-  - Barre principale (`hyprbar`) : `rgba(10, 15, 30, 0.20)` (effet verre fumé ultra-léger avec flou de composition).
-  - Modules internes, popup et menus : `rgba(10, 15, 30, 0.65)` à `rgba(10, 15, 30, 0.85)`.
+---
+
+## 🎨 Charte Graphique Aurora (Constantes Strictes)
+
+### 1. Couleurs & Opacités
+| Composant | Valeur / Hex | Rôle |
+| :--- | :--- | :--- |
+| **Cyan Primaire** | `#00f0ff` / `rgba(0, 240, 255, 1.0)` | Accents principaux, texte actif, lueur |
+| **Bleu Secondaire** | `#7aa2f7` | Nuances Tokyo Night, dégradés médians |
+| **Violet Accent** | `#9778d0` | Pointes de dégradés, accents néon |
+| **Rose / Rouge** | `#f43f5e` / `#f87171` | Alertes, bouton like Spotify, Blackwall |
+| **Fond Hyprbar** | `rgba(10, 15, 30, 0.20)` | Barre supérieure (verre fumé ultra-léger) |
+| **Fonds Modules** | `rgba(10, 15, 30, 0.65)` à `0.85` | Modules internes, cartes, popups, Wofi |
 
 ### 2. Géométrie & Bordures
-- **Rayon d'angle (Rounding)** : **`17px`** obligatoire sur tous les conteneurs (fenêtres Hyprland, Hyprbar, popup Spotify, Wofi, champ de saisie Hyprlock).
-- **Épaisseur de bordure** : **`2px`** uniforme sur tout l'environnement (`border_size = 2` dans `hyprland.conf` et `hyprviz.conf`).
-- **Dégradé vectoriel continu** : Angle 45° ou 135° avec transition fluide (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`). Sur Hyprland, boucle fermée 360° avec rotation matérielle continue (`animation = borderangle, 1, 50, linear, loop`).
+- **Rayon d'angle (Rounding)** : **`17px`** obligatoire sur tous les conteneurs (fenêtres, Hyprbar, Wofi, popups, Hyprlock).
+- **Bordures** : **`2px`** (`border_size = 2`), dégradé vectoriel continu 45°/135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`). Boucle 360° continue sur fenêtres (`animation = borderangle, 1, 50, linear, loop`).
 
-### 3. Règles Critiques GTK3 CSS (Waybar & Wofi)
-- ⚠️ **Ne jamais utiliser `border-image`** : Le moteur CSS de GTK3 désactive `border-radius` dès qu'un `border-image` est présent (angles coupés à 90°).
-- ⚠️ **Ne jamais appliquer `box-shadow` sur `window#waybar`** : La lueur diffuse de `box-shadow` injecte des pixels semi-transparents (`alpha > 0.1`) dans les 4 coins du rectangle GTK. Le shader de flou Hyprland (`layerrule = blur, waybar`) floute ces pixels parasites et génère des coins carrés à 90° grisâtres derrière les arrondis. Conserver impérativement `box-shadow: none;` sur `window#waybar`.
-- **Pour les modules / capsules internes** : Utiliser le double `background-image` avec `background-clip: padding-box, border-box` et `border: 2px solid transparent`.
-- **Pour la barre translucide (`window#waybar`)** : Utiliser impérativement le calque SVG vectoriel [bar-bg.svg](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/waybar/bar-bg.svg) avec `stroke="url(#grad)" stroke-width="2"`, dimensions 1900x34 et `rx="16" ry="16"`. Ne jamais appliquer un dégradé direct CSS sur la barre sous peine de saignement opaque.
-
----
-
-## 🖥️ Règles d'Affichage Multi-Écrans & Workspaces
-
-1. **Séparation Stricte par Moniteur** :
-   - `all-outputs: false` dans `hyprland/workspaces`.
-   - Pas de `persistent-workspaces` forcé pour laisser les espaces inactifs se masquer automatiquement.
-   - Les espaces vides n'apparaissent jamais sur la barre ; ils apparaissent dynamiquement dès qu'une fenêtre y est créée et disparaissent dès qu'ils sont vidés.
-2. **Hiérarchie Visuelle des 3 États de Workspace** :
-   - **Focus Actif (`#workspaces button.active`)** : Plein dégradé néon 45° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`), texte sombre contrasté `#090727`, ombre portée néon cyan (`box-shadow: 0 0 10px rgba(0, 240, 255, 0.55)`).
-   - **Affiché à l'Écran (`#workspaces button.visible`)** : Capsule avec bordure cyan 1.5px (`rgba(0, 240, 255, 0.65)`), fond translucide teinté cyan (`rgba(0, 240, 255, 0.15)`), texte cyan `#00f0ff`, lueur douce. Permet de savoir instantanément quel espace est visible sur l'écran secondaire non focus.
-   - **Arrière-plan Inactif (`#workspaces button`)** : Texte discret bleu-gris `#7a8fae`, fond et bordure transparents (surbrillance `#00f0ff` au survol).
-3. **Isolation Hyprspace Mission Control (`Hyprspace.so`)** :
-   - Hyprspace ne doit jamais faire fuiter les workspaces d'un écran sur l'autre (ex: 1..5 sur `DP-2`, 6..10 sur `DP-1`).
-   - Patch natif C++ appliqué dans `Render.cpp` (`isWorkspaceForThisMonitor`) :
-     - Vérification dynamique via `pWs->monitorID() == ownerID` pour les workspaces actifs.
-     - Résolution des workspaces vides via `Config::workspaceRuleMgr()->getBoundMonitorStringForWS()` et calcul des bornes via `getAllWorkspaceRules()`.
-     - Filtrage strict de sortie éliminant tout workspace orphelin ou appartenant à un moniteur tiers.
-     - Patch conservé sous `dotfiles/hypr/plugins/hyprspace-multimonitor.patch`.
+### 3. Règles Critiques GTK3 CSS (Waybar / Wofi)
+- ⚠️ **Zéro `border-image`** : Désactive le `border-radius` sous GTK3 (angles coupés à 90°).
+- ⚠️ **Zéro `box-shadow` sur `window#waybar`** : Injecte des pixels parasites floutés par Hyprland (`layerrule = blur, waybar`), produisant des coins carrés grisâtres. Conserver `box-shadow: none;`.
+- **Modules internes** : Double `background-image` avec `background-clip: padding-box, border-box` et `border: 2px solid transparent`.
+- **Barre externe (`window#waybar`)** : Utiliser le calque vectoriel [`bar-bg.svg`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/waybar/bar-bg.svg) (`stroke="url(#grad)" stroke-width="2"`, $1900 \times 34$, `rx="16"`). Pas de dégradé direct CSS (saignement opaque).
 
 ---
 
-## 🎵 Architecture du Mini-Player Spotify & Règle Anti-Capsule Fantôme au Démarrage
+## 🖥️ Workspaces & Multi-Écrans
 
-1. **Zéro-Bordure sur le Conteneur Parent (`#spotify-player`)** :
-   - Le conteneur parent `#spotify-player` doit impérativement avoir :
-     ```css
-     #spotify-player { border: none; background: transparent; padding: 0; margin: 0; }
-     ```
-   - Waybar ne masquant pas automatiquement les `GtkBox` de type `group`, toute bordure ou padding mis sur `#spotify-player` laisserait une capsule vide résiduelle `[ ]` au démarrage lorsque Spotify est inactif ou arrêté.
-2. **Assemblage Continu & Fusion Vectorielle Harmonisée** :
-   - Le groupe `group/spotify-player` a `"spacing": 0` et encapsule : `mpris`, `custom/spotify-progress`, `custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`.
-   - **Dégradé vertical harmonisé (`180deg`)** : Pour éliminer les sauts chromatiques diagonaux aux jonctions des modules, les enfants partagent le dégradé `linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)`. La ligne supérieure est unifiée en violet/bleu et la ligne inférieure en cyan pur.
-   - `#mpris` : arrondi gauche `10px 0 0 10px`, bordure gauche/haut/bas, sans bordure droite.
-   - `#custom-spotify-progress` : bordures haut/bas avec délimiteurs translucides discrets (`border-left` et `border-right: 1px solid rgba(122, 162, 247, 0.25)`). Intègre l'égaliseur animé fin avant le premier timer.
-   - Contrôles intermédiaires (`prev`, `play-pause`) : bordure haut/bas, sans bordure latérale.
-   - `#custom-spotify-next` : arrondi droit `0 10px 10px 0`, bordure droite/haut/bas.
-   - Dès que Spotify s'arrête, chaque enfant émet `""` / `"format-stopped": ""` et a `border: none; background: transparent; padding: 0; margin: 0;`. Le conteneur s'effondre instantanément à 0px sans laisser le moindre pixel à l'écran.
-3. **Barre de Progression & Égaliseur Fixe Intégré (`custom/spotify-progress`)** :
-   - Exécution streaming réactive (4 FPS / 250 ms) via `spotify.py --progress`.
-   - **Égaliseur vectoriel fin à largeur constante** : Barres Unicode mono (`Noto Sans Mono 9pt`) avec une largeur strictement invariante (28px sur toutes les 8 frames animées), éliminant tout sautillement horizontal du widget.
-   - Affichage intégré : `[ Égaliseur  01:23 ━━━ 03:45 ]` (cyan `#00f0ff` en lecture, barres figées ` ▂▂ ` Tokyo Night `#7aa2f7` en pause).
-   - Repli réactif : émet une chaîne vide si inactif ou arrêté, adoptant la classe `.stopped` pour un effondrement sans bordure.
-4. **Justification de l'Architecture Hybride (SVG vs CSS)** :
-   - **Barre externe (`window#waybar`) ➔ Calque SVG (`bar-bg.svg`)** : Le fond étant à 20% d'opacité, le contour vectoriel SVG (`stroke`) isole le dégradé sur 2px sans jamais faire saigner de couleur sous la zone centrale translucide.
-   - **Modules internes & capsules ➔ Double `background-clip` CSS** : Permet une adaptation dynamique au pixel près lorsque la longueur du texte change. Sous GTK3, un SVG étiré en `100% 100%` déforme les angles arrondis (ovales étirés), alors que le CSS préserve rigoureusement le rayon de `10px` / `17px`.
+1. **Séparation Stricte** : `all-outputs: false` dans `hyprland/workspaces`. Pas de workspaces persistants forcés (masquage dynamique des espaces vides).
+2. **États Visuels des Boutons** :
+   - `button.active` : Plein dégradé néon 45° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`), texte sombre `#090727`, ombre `0 0 10px rgba(0, 240, 255, 0.55)`.
+   - `button.visible` : Bordure 1.5px `rgba(0, 240, 255, 0.65)`, fond `rgba(0, 240, 255, 0.15)`, texte `#00f0ff` (espace visible sur écran secondaire non focus).
+   - `button` (inactif) : Texte discret `#7a8fae`, fond transparent, surbrillance `#00f0ff` au survol.
+3. **Hyprspace (`Hyprspace.so`)** : Patch natif multimoniteur ([`hyprspace-multimonitor.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/plugins/hyprspace-multimonitor.patch)) filtrant strictement les workspaces par `ownerID` (pas de fuite entre `DP-1` et `DP-2`).
 
 ---
 
-## 🔒 Protocole de Verrouillage Sécurisé (`lock.sh`)
+## 🎵 Mini-Player Spotify (Waybar)
 
-1. **Synchronisation Anti-Course Décomposition / Screencopy** :
-   - `hyprlock` effectue sa capture d'écran initiale via `screencopy` en seulement **32 ms**.
-   - Après l'envoi de `killall -SIGUSR1 waybar`, un délai `sleep 0.15` est **strictement obligatoire** pour permettre au compositeur Wayland et à GTK de démapper la surface Waybar avant la capture.
-   - Sans ce délai, Waybar est capturée dans l'image figée d'arrière-plan de `hyprlock`.
-2. **Fermeture Préventive des Popups** :
-   - Tout script de verrouillage doit fermer préventivement les couches flottantes :
-     ```bash
-     pkill -x wofi 2>/dev/null
-     "$HOME/.config/waybar/scripts/spotify-card.py" hide >/dev/null 2>&1 &
-     ```
-3. **Restauration Déterministe** :
-   - Restaurer l'affichage de Waybar via `trap '[ "$WAYBAR_WAS_RUNNING" -eq 1 ] && killall -SIGUSR1 waybar' EXIT INT TERM`.
-   - Restaurer les espaces de travail initiaux via `hyprctl --batch "$RESTORE_CMD"`.
-
----
-
-## 🖼️ Linux Wallpaper Engine & Gestion Multi-Écrans
-
-1. **Architecture Multi-Processus (Résolution de l'Écran Blanc Wayland)** :
-   - Sous Wayland / Hyprland, grouper plusieurs moniteurs sous un même processus (`linux-wallpaperengine --screen-root DP-1 --screen-root DP-2`) provoque l'affichage d'un écran blanc sur les écrans secondaires suite à des conflits de contextes EGL/OpenGL.
-   - **Correction appliquée** : Patch direct dans `/usr/lib/linux-wallpaper-engine/resources/app.asar` (sauvegardé sous `.bak`). La méthode `spawnForScreens` découpe désormais toute liste d'écrans en processus indépendants dédiés (1 processus distinct par écran `DP-1` et `DP-2`).
-2. **Hiérarchie des Couches Wayland (Layer Shell)** :
-   - **Layer 0 (`background`)** : `swaybg` affiche instantanément le fond statique (`wallpaper.jpg`) au boot en ~10 ms (évite tout écran noir et sert de fallback résilient).
-   - **Layer 1 (`bottom`)** : `linux-wallpaperengine` superpose son rendu animé directement au-dessus de `swaybg`.
-   - **Layers 2 & 3 (`top` / `overlay`)** : `waybar` et les fenêtres restent prioritaires au premier plan.
-3. **Protocole de Démarrage Automatique (Autostart)** :
-   - Hyprland n'exécute pas les fichiers standards de `~/.config/autostart/`.
-   - L'activation est orchestrée dans [`hyprland.conf`](file:///home/user/.config/hypr/hyprland.conf#L31-L35) :
-     ```ini
-     exec-once = swaybg -i /home/user/.config/hypr/theme-summer/wallpaper.jpg
-     exec-once = linux-wallpaper-engine
-     ```
-   - **Mode Silencieux / Systray** : Dans [`~/.config/Linux Wallpaper Engine/settings.json`](file:///home/user/.config/Linux%20Wallpaper%20Engine/settings.json), `"minimizeOnStartup": true` est activé avec `"enableSystemTray": true`. L'application se loge directement dans la zone de notification Waybar sans ouvrir de fenêtre intempestive au login, et restaure automatiquement le dernier fond d'écran configuré dans [`active-wallpapers.json`](file:///home/user/.config/Linux%20Wallpaper%20Engine/active-wallpapers.json).
+1. **Règle Anti-Capsule Fantôme** :
+   ```css
+   #spotify-player { border: none; background: transparent; padding: 0; margin: 0; }
+   ```
+   Waybar ne masquant pas les `GtkBox`, tout padding/bordure sur le conteneur laisserait une capsule vide `[ ]` à l'arrêt de Spotify.
+2. **Assemblage Harmonisé** :
+   - Groupe `group/spotify-player` (`spacing: 0`) : `mpris`, `custom/spotify-progress`, `custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`.
+   - Dégradé vertical unifié `linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)` sur les enfants pour éliminer les sauts de couleur aux jonctions.
+   - Effondrement total à l'arrêt : chaque enfant émet `""` / `border: none; background: transparent; padding: 0; margin: 0;`.
+3. **Progression & Égaliseur (`custom/spotify-progress`)** :
+   - Streaming 4 FPS (250 ms) via `spotify.py --progress`.
+   - Égaliseur Unicode mono 9pt à largeur strictement invariante (**28px** sur les 8 frames) : zéro sautillement horizontal. Format : `[ 01:23 ━━━ 03:45 ]`.
 
 ---
 
-## ⚡ Shaders & Customisation du Thème Lucy (`3566437475`)
+## 🔒 Protocole de Verrouillage (`lock.sh`)
 
-1. **Arborescence & Dépaquetage du Workshop** :
-   - Emplacement : `/home/user/.steam/steam/steamapps/workshop/content/431960/3566437475/`
-   - Archive originale préservée : `scene.pkg.orig`.
-   - Scène décompressée pour modification à chaud des shaders, matériaux et passes de rendu.
-2. **Correction Colorimétrique & Surexposition (`scene.json`)** :
-   - Sous OpenGL / Linux, la passe `edge_glow` (id 698) causait une saturation totale (visage entièrement blanc). Elle a été désactivée (`"visible": false`).
-   - L'intensité de la passe `shine` (id 427) a été diminuée pour restaurer le piqué, les contrastes et les ombres profondes d'origine du personnage.
-3. **Rework du Shader Glitch (`shake.frag`)** :
-   - Fichier : [`shaders/workshop/2125458920/effects/shake.frag`](file:///home/user/.steam/steam/steamapps/workshop/content/431960/3566437475/shaders/workshop/2125458920/effects/shake.frag)
-   - **Déplacement Géométrique Pur (Zéro Décoloration)** :
-     - ❌ **Aberration chromatique supprimée** : Élimination du décalage RVB baveux.
-     - ❌ **Teintes parasites supprimées** : Retrait des flashs artificiels jaune Relic et cyan ainsi que des scanlines assombrissantes.
-     - Échantillonnage direct `texSample2D(g_Texture0, glitchUV)` garantissant une fidélité chromatique absolue à l'illustration.
-   - **Slice Jitter Multi-Échelles à 3 Niveaux** :
-     - **Niveau 1 (Tranches partielles)** : Segments horizontaux de largeurs aléatoires (12% à 57% de l'écran avec gestion du wrap) ne traversant pas brutalement toute la largeur.
-     - **Niveau 2 (Blocs rectangulaires 2D)** : Découpage en grille $14 \times 32$ avec décalages $X$ et $Y$ indépendants simulant la corruption de paquets de mémoire.
-     - **Niveau 3 (Micro-bandes)** : Lignes ultra-fines (hauteur 1/140e, largeur 3% à 18%) pour les saccades haute fréquence.
-   - **Rythme Temporel** : Cycle de 3.6s avec impulsion `smoothstep` (3.1s à 3.55s) et micro-saccades pseudo-aléatoires (`hash11`).
-4. **Animation d'Arrière-Plan Blackwall (`blackwall.frag` & `blackwall_mask.tex`)** :
-   - **Architecture & Performance GPU** :
-     - Remplacement des systèmes de particules enfants non supportés sous `linux-wallpaperengine` par une passe GLSL native 60 FPS (`effects/blackwall/effect.json`).
-     - **Fast-Path GPU Zero-Overhead** : Court-circuit `if (mask <= 0.001) { gl_FragColor = orig; return; }` dans `blackwall.frag` évitant le calcul du treillis cybernétique et des flux de code sur ~65% des pixels de l'écran (corps, visage, cheveux de Lucy).
-     - **Vectorisation des Glyphes & Distances sans Racine** : Calcul 4-canaux `vec4` et `dot()` (vs `length()`), réduisant la charge arithmétique globale.
-     - **Masque Subpixel Haute Résolution** : Détourage mathématique du gradient de fond ($R_{bg} = y \times \frac{170}{1079}$, $B_{bg} = y \times \frac{88}{1079}$) avec préservation de la fente cou/dos et nettoyage des patchs opaques interdigitaux.
-   - **Composants Visuels Blackwall (Cyberpunk 2077)** :
-     - **Abîme cramoisi & respiration IA** : Fond sombre avec ondes de pulsation basse fréquence simulant l'énergie de la barrière.
-     - **Grille cybernétique en partition** : Treillis de pare-feu rouge sang (`#ff003c`) pulsant dynamiquement.
-     - **Double flux de code numérique (Layer A & B)** : Flux rapide dense en arrière-plan et flux principal au premier plan avec têtes d'étincelles cyan / blanches et micro-jitter de corruption.
-     - **Lueur volumétrique (Rim Glow)** : Rétro-éclairage néon rouge soulignant le contour de Lucy.
-5. **Dossier de Ressources Dédié (`ressource/`)** :
-   - Dossier miroir sous `hyprland_project/ressource/` :
-     - `LUCY_MODEL.md` : Spécification technique exhaustive du modèle, des shaders et de l'architecture de rendu (évite tout rescannage).
-     - `lucy.png` : Artwork maître haute résolution $1920 \times 1080$ extrait sans perte du conteneur binaire `TEXV0005`.
-     - `lucy_model.json` & `lucy_material.json` : Descripteurs de modèle et matériau Wallpaper Engine.
-     - `lucy.tex` : Conteneur de texture binaire d'origine.
-     - `preview.gif` : Vignette animée officielle.
-     - `blackwall/` : Shaders (`blackwall.vert`, `blackwall.frag`), matériaux et masque haute fidélité (`blackwall_mask.tex`).
+1. **Anti-Course Screencopy** : Délai `sleep 0.15` obligatoire après `killall -SIGUSR1 waybar` avant `hyprlock` (démappage Wayland/GTK en 32 ms).
+2. **Nettoyage Préventif** : `pkill -x wofi 2>/dev/null` et `spotify-card.py hide 2>/dev/null`.
+3. **Restauration** : `trap '[ "$WAYBAR_WAS_RUNNING" -eq 1 ] && killall -SIGUSR1 waybar' EXIT INT TERM` et `hyprctl --batch "$RESTORE_CMD"`.
 
 ---
 
-## 🏛️ Architecture & Correspondance Système (`~/.config/`)
+## 🖼️ Wallpaper Engine & Lucy Theme (`3566437475`)
 
-```
-hyprland_project/
-├── dotfiles/
-│   ├── hypr/                 # Hyprland (0.56.2), hypridle, hyprlock, lock.sh, power-menu.sh, screenshot.sh
-│   ├── waybar/               # Config Waybar, style.css, bar-bg.svg, scripts Spotify
-│   ├── wofi/                 # Configuration et CSS du lanceur (style.css, power-menu.css)
-│   └── kitty/                # Terminal Kitty (transparence 0.85, palette Tokyo Night)
-├── linux-wallpaperengine/     # Dépôt source / utilitaires du moteur Wallpaper Engine
-├── ressource/                # Modèle, textures et assets graphiques de Lucy (Cyberpunk)
-├── scripts/                  # CLI d'administration (status, renderer, mask, sync, restart, check-links)
-├── GEMINI.md                 # Directives d'architecture et consignes projet
-└── README.md                 # Documentation générale
-```
+> 📖 **Spécification Complète** : Voir [`ressource/LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour les détails exhaustifs des shaders, textures TEXV0005 et passes GLSL.
 
-Les fichiers sous `dotfiles/` partagent les mêmes inodes (hard links) avec `~/.config/` :
+1. **Multi-Processus (Bug Écran Blanc)** :
+   - Patch dans `/usr/lib/linux-wallpaper-engine/resources/app.asar` : 1 processus dédié indépendant par moniteur (`DP-1` et `DP-2`).
+2. **Moteur & Cadence (`dotfiles/hypr/wallpaper_renderer.json`)** :
+   - **GPU (Défaut)** : Intel UHD 630 @ **60 FPS** (`/dev/dri/renderD128`).
+   - **CPU (Secours)** : Mesa LLVMpipe @ **20 FPS** (`LIBGL_ALWAYS_SOFTWARE=1`).
+3. **Hiérarchie des Couches Wayland** :
+   - `Layer 0 (Background)` : `swaybg` (wallpaper statique de secours instantané ~10 ms).
+   - `Layer 1 (Bottom)` : `linux-wallpaperengine` (Lucy animée).
+   - `Layer 2 (Top)` : `waybar`.
+   - `Layer 3 (Overlay)` : Wofi, Hyprlock, Spotify Card.
+4. **Shaders & Passes Critiques** :
+   - ⚠️ `edge_glow` (id 698) dans `scene.json` **doit rester désactivé** (`"visible": false`) : surexposition totale du visage sous Linux OpenGL.
+   - `shine` (id 427) : atténué pour préserver contrastes et noirs profonds.
+   - `shake.frag` : glitch géométrique pur sur 3 échelles, sans aucune aberration chromatique ni teinte jaune/cyan.
+   - `blackwall.frag` : passe GLSL 60 FPS remplaçant les particules ; Fast-Path `if (mask <= 0.001) return;` court-circuitant 65% de l'écran.
+
+---
+
+## 🏛️ Architecture & Hard Links (`~/.config/`)
+
+Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.config/` :
 - `~/.config/hypr/` ➔ `dotfiles/hypr/`
 - `~/.config/waybar/` ➔ `dotfiles/waybar/`
 - `~/.config/wofi/` ➔ `dotfiles/wofi/`
 - `~/.config/kitty/` ➔ `dotfiles/kitty/`
 
-*Vérification d'intégrité des liens* : toujours s'assurer que les inodes restent identiques (`ls -lai dotfiles/... ~/.config/...`). Ne jamais casser les hard links lors des écritures.
+⚠️ **Règle absolue** : Ne jamais briser les hard links lors des écritures. Auditer via `./scripts/wallpaper_tool.py check-links`.
 
 ---
 
-## ⚙️ Principes de Performance & Développement
+## ⚙️ Principes de Performance & Caching
 
-1. **Événementiel Prioritaire (Zéro Polling Actif)** :
-   - Préférer les signaux D-Bus MPRIS (`PropertiesChanged`) pour Spotify.
-   - Utiliser `wait -n` au niveau noyau pour synchroniser les processus (`wofi-toggle.sh`) plutôt que des boucles `while sleep`.
-2. **Mémoïsation & Caching** :
-   - Socket IPC Hyprland : Stocker le chemin découvert dans `_cached_hypr_sock`.
-   - Adresses mémoires des fenêtres : Mémoïser l'adresse `0x...` de la carte flottante Spotify pour un repositionnement direct en `< 1 ms` sans appeler `hyprctl clients -j`.
-   - Pochette Spotify : Vérifier `loaded_cover_url` en mémoire vive avant tout accès disque.
-   - D-Bus : Réutiliser le singleton `get_session_bus()`.
-3. **Gestion des Processus** :
-   - Toujours respecter le verrou singleton (`/tmp/spotify_card.lock`) pour le daemon Spotify afin d'éviter tout doublon.
-   - Nettoyer systématiquement les processus fils avec des gestionnaires `trap ... EXIT INT TERM`.
+1. **Zéro Polling** : Signaux D-Bus MPRIS (`PropertiesChanged`), `wait -n` pour la synchro processus.
+2. **Mémoïsation** : Socket Hyprland mis en cache, adresses fenêtres `0x...` mémorisées (évite `hyprctl clients -j`), pochettes Spotify en RAM.
+3. **Processus** : Verrou singleton `/tmp/spotify_card.lock`, nettoyage systématique des sous-processus par `trap ... EXIT INT TERM`.
 
 ---
 
 ## 🧪 Commandes de Référence Rapide
 
 ```bash
-# Gestion de la barre et de la carte Spotify
-hyprbar restart   # Redémarrage complet propre de Waybar et du daemon spotify-card
-hyprbar reload    # Rechargement à chaud du style CSS (SIGUSR2)
-hyprbar toggle    # Basculer affichage/masquage de la barre (SIGUSR1)
-hyprbar status    # Afficher les PIDs et l'état
+# Barre d'état & Spotify
+hyprbar restart|reload|toggle|status
 
-# Rechargement Hyprland
-hyprctl reload    # Appliquer les modifications de hyprland.conf et hyprviz.conf
+# Hyprland
+hyprctl reload
 
-# Wallpaper Engine & Arrière-plans
-pgrep -fl "linux-wallpaper"                # Vérifier les processus actifs et moniteurs associés
-hyprctl layers | grep -A 5 "Layer level"   # Vérifier l'ordre des couches (swaybg = 0, wallpaper = 1, waybar = 2)
-pkill -f linux-wallpaperengine             # Arrêter le moteur de rendu dynamique
-linux-wallpaper-engine                     # Lancer le gestionnaire en arrière-plan (systray)
+# Wallpaper Engine & Lucy CLI (scripts/wallpaper_tool.py)
+./scripts/wallpaper_tool.py status         # État PIDs, moniteurs, CPU%, RAM, couches
+./scripts/wallpaper_tool.py renderer [gpu|cpu]  # Basculer moteur (GPU 60 FPS / CPU 20 FPS)
+./scripts/wallpaper_tool.py mask           # Recalculer masque Blackwall subpixel
+./scripts/wallpaper_tool.py sync           # Déployer ressource/ vers Steam Workshop
+./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement
+./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 28 hard links
 
-# Outillage Dédié Lucy / Wallpaper Engine (scripts/wallpaper_tool.py)
-./scripts/wallpaper_tool.py status         # Vérifier l'état des processus, moteurs (GPU/CPU) et moniteurs
-./scripts/wallpaper_tool.py renderer       # Afficher le mode de rendu configuré (GPU / CPU)
-./scripts/wallpaper_tool.py renderer gpu   # Basculer Lucy sur le GPU matériel (Intel UHD 630 @ 60 FPS)
-./scripts/wallpaper_tool.py renderer cpu   # Basculer Lucy sur le CPU logiciel (Mesa LLVMpipe @ 20 FPS)
-./scripts/wallpaper_tool.py sync           # Synchroniser shaders & assets vers Steam Workshop
-./scripts/wallpaper_tool.py mask           # Régénérer le masque Blackwall et compiler le .tex
-./scripts/wallpaper_tool.py restart        # Redémarrage déterministe multi-écrans (DP-1 / DP-2 @ 60 FPS)
-./scripts/wallpaper_tool.py check-links    # Audit d'intégrité des hard links dotfiles/ ~/.config/
-
-# Sélecteur Graphique & Lanceur Wofi
-~/.config/hypr/scripts/wallpaper-select-renderer.sh  # Menu Wofi interactif (ou SUPER + R -> "gpu")
-
-
-# Tests & Validation
-bash -n dotfiles/hypr/scripts/wofi-toggle.sh
-bash -n dotfiles/hypr/scripts/power-menu.sh
-bash -n dotfiles/hypr/scripts/screenshot.sh
-bash -n dotfiles/hypr/lock.sh
-python3 -m py_compile dotfiles/waybar/scripts/spotify-card.py
-python3 -m py_compile dotfiles/waybar/scripts/spotify.py
+# Validation syntaxique rapide
+bash -n dotfiles/hypr/lock.sh dotfiles/hypr/scripts/*.sh
+python3 -m py_compile dotfiles/waybar/scripts/*.py
 python3 -c "import json; json.load(open('dotfiles/waybar/config.jsonc'))"
-
-# Vérification des hard links
-ls -lai dotfiles/waybar/style.css ~/.config/waybar/style.css
-ls -lai dotfiles/waybar/config.jsonc ~/.config/waybar/config.jsonc
-ls -lai dotfiles/hypr/lock.sh ~/.config/hypr/lock.sh
-ls -lai dotfiles/hypr/scripts/power-menu.sh ~/.config/hypr/scripts/power-menu.sh
-ls -lai dotfiles/wofi/power-menu.css ~/.config/wofi/power-menu.css
 ```
