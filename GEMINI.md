@@ -161,6 +161,7 @@ Tous les composants de l'interface doivent rigoureusement respecter ces constant
      - **Lueur volumétrique (Rim Glow)** : Rétro-éclairage néon rouge soulignant le contour de Lucy.
 5. **Dossier de Ressources Dédié (`ressource/`)** :
    - Dossier miroir sous `hyprland_project/ressource/` :
+     - `LUCY_MODEL.md` : Spécification technique exhaustive du modèle, des shaders et de l'architecture de rendu (évite tout rescannage).
      - `lucy.png` : Artwork maître haute résolution $1920 \times 1080$ extrait sans perte du conteneur binaire `TEXV0005`.
      - `lucy_model.json` & `lucy_material.json` : Descripteurs de modèle et matériau Wallpaper Engine.
      - `lucy.tex` : Conteneur de texture binaire d'origine.

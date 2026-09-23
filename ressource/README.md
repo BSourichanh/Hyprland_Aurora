@@ -2,12 +2,16 @@
 
 Ressources graphiques, shaders GLSL natifs et descripteurs de scène pour le fond d'écran animé **Lucy (Cyberpunk: Edgerunners)** sous Wallpaper Engine (Steam Workshop `3566437475`).
 
+> 📖 **Spécification Complète & Exhaustive** : Consultez [`LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour la documentation intégrale (architecture de la scène, GLSL, format binaire TEXV0005, passes post-processing, modes GPU/CPU et détourage analytique).
+
 ---
 
 ## 📁 Arborescence & Rôles des Fichiers
 
 ```
 ressource/
+├── LUCY_MODEL.md            # Spécification technique maîtresse exhaustive
+├── README.md                # Guide synthétique d'accès rapide
 ├── lucy.png                 # Artwork maître 1920x1080 nettoyé (détourage subpixel cheveux & doigts)
 ├── lucy.tex                 # Conteneur binaire de texture Wallpaper Engine (TEXV0005 / FIF_PNG)
 ├── lucy_model.json          # Descripteur géométrique du modèle Lucy
