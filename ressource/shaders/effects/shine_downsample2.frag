@@ -15,46 +15,21 @@ float hash11(float p) {
     return fract(p);
 }
 
-// Enveloppe temporelle non périodique à double variabilité :
-// Durée active aléatoire (3.5s à 8.5s) ET pause de repos aléatoire (16s à 29s)
+// Enveloppe temporelle fluide et continue à double variabilité :
+// Brillance longue, nette et stable (11s à 14s) ET pause de repos variable (17s à 21s)
+// Zéro saut discret, zéro clignotement haute fréquence
 float computeEnvelope(float time) {
-    const float T_step = 28.0;
-    float k0 = floor(time / T_step);
-    float totalEnv = 0.0;
+    float phase = time / 32.0 + 0.12 * sin(time * 0.025);
+    float cycleProg = fract(phase);
+    float activeRatio = 0.40 + 0.04 * cos(time * 0.015);
 
-    for (int i = -1; i <= 1; ++i) {
-        float k = k0 + float(i);
-        if (k < 0.0) {
-            continue;
-        }
-
-        float tStart;
-        float duration;
-
-        if (k == 0.0) {
-            // Cycle 0 immédiat au démarrage pour validation visuelle instantanée
-            tStart = 0.5;
-            duration = 5.0;
-        } else {
-            // Gigue temporelle pseudo-aléatoire rendant chaque pause de repos variable
-            float hJit = hash11(k * 31.7 + 7.0);
-            float jitter = (hJit - 0.5) * 12.0; // [-6.0s, +6.0s]
-            tStart = k * T_step + jitter;
-
-            // Durée d'illumination active aléatoire entre 3.5s et 8.5s
-            float hDur = hash11(k * 17.3 + 1.0);
-            duration = 3.5 + 5.0 * hDur;
-        }
-
-        float x = (time - tStart) / duration;
-        if (x >= 0.0 && x <= 1.0) {
-            float inWindow = step(0.0, x) * step(x, 1.0);
-            float fadeIn = smoothstep(0.0, 0.20, x);
-            float fadeOut = 1.0 - smoothstep(0.80, 1.0, x);
-            totalEnv += fadeIn * fadeOut * inWindow;
-        }
+    if (cycleProg < activeRatio) {
+        float u = cycleProg / activeRatio;
+        float fadeIn = smoothstep(0.0, 0.10, u);
+        float fadeOut = 1.0 - smoothstep(0.90, 1.0, u);
+        return fadeIn * fadeOut;
     }
-    return clamp(totalEnv, 0.0, 1.0);
+    return 0.0;
 }
 
 void main() {

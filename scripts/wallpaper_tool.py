@@ -236,37 +236,43 @@ def generate_eye_shine_mask(
     w, h = im.size
     mask = Image.new("L", (w, h), 0)
 
-    # 1. Pupille oeil droit (proéminent) : ellipse centrée à (1132.5, 325.5)
-    for y in range(280, 370):
-        for x in range(1080, 1180):
-            dx = (x - 1132.5) / 39.5
-            dy = (y - 325.5) / 34.5
-            if dx*dx + dy*dy <= 1.0:
-                r, g, b = im.getpixel((x, y))[:3]
-                # Exclure le trait noir de la paupière supérieure
-                if y < 305 and (r < 50 and g < 50 and b < 65):
-                    continue
-                # Exclure les cils en haut à droite
-                if y < 294 and x > 1145:
-                    continue
-                # Exclure la sclère (blanc de l'oeil) à gauche
-                if x < 1093 and (b > 130 and r > 110):
-                    continue
-                mask.putpixel((x, y), 255)
-
-    # 2. Pupille oeil gauche (croissant visible sous la mèche)
-    for y in range(395, 435):
-        for x in range(735, 785):
+    # 1. Iris & Pupille oeil droit (suivi exact des contours de l'iris et de la pupille)
+    for y in range(290, 360):
+        for x in range(1090, 1180):
             r, g, b = im.getpixel((x, y))[:3]
-            is_cyan = (r < 135 and g > 135 and b > 175)
-            is_magenta = (r > 155 and g < 80 and b > 85)
-            is_white = (r > 215 and g > 215 and b > 215)
-            is_pupil = (r < 90 and g < 85 and b < 105 and r > 30 and x > 750 and x < 778 and y > 404 and y < 430)
-            if (is_cyan or is_magenta or is_white or is_pupil) and x > 740 and x < 778 and y > 401 and y < 431:
+            
+            is_cyan = (b - r > 35) and (g - r > 15) and (b > 110)
+            is_magenta = (r - g > 20) and (b - g > 10) and (r > 85)
+            is_pupil = (r < 100) and (g < 80) and (b < 105) and (r > 35) and (b > 40) and (x > 1105) and (x < 1160) and (y > 295) and (y < 340)
+            is_specular = (r > 180) and (g > 180) and (b > 180) and (x > 1130) and (x < 1170) and (y > 290) and (y < 330)
+            
+            # Exclure le trait sombre des paupières et cils
+            if r < 40 and g < 40 and b < 55:
+                continue
+            # Exclure la sclère (blanc de l'oeil) en bas à gauche
+            if x < 1098 and y > 343:
+                continue
+            # Exclure les pixels hors coin externe
+            if x > 1172:
+                continue
+
+            if is_cyan or is_magenta or is_pupil or is_specular:
                 mask.putpixel((x, y), 255)
 
-    # Lissage gaussien sous-pixel
-    mask_smooth = mask.filter(ImageFilter.GaussianBlur(radius=1.2))
+    # 2. Iris & Pupille oeil gauche (croissant visible sous la mèche)
+    for y in range(390, 440):
+        for x in range(730, 788):
+            r, g, b = im.getpixel((x, y))[:3]
+            is_cyan = (b - r > 25) and (g - r > 12) and (b > 85)
+            is_magenta = (r - g > 18) and (b - g > 8) and (r > 75)
+            is_specular = (r > 175) and (g > 175) and (b > 175) and (x > 755) and (y < 425)
+            if (is_cyan or is_magenta or is_specular) and not (r < 38 and g < 38 and b < 48):
+                mask.putpixel((x, y), 255)
+
+    # Remplissage des micro-interstices internes par fermeture morphologique
+    mask_closed = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    # Lissage gaussien subpixel doux (0.8px) pour préserver des bords nets et précis
+    mask_smooth = mask_closed.filter(ImageFilter.GaussianBlur(radius=0.8))
 
     # Downsampling haute qualité Lanczos à 960x540 (format natif HalfCompoBuffer)
     mask_540 = mask_smooth.resize((960, 540), Image.Resampling.LANCZOS)
