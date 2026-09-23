@@ -23,41 +23,31 @@ float hash11(float p) {
 }
 
 void main() {
-	// Sécurité spatiale : confinement absolu au rectangle englobant des yeux de Lucy
-	float inEyeRegion = step(0.35, v_TexCoord.x) * step(v_TexCoord.x, 0.65) *
-	                    step(0.24, v_TexCoord.y) * step(v_TexCoord.y, 0.45);
-
 #if MASK
-	float mask = texSample2D(g_Texture1, v_TexCoord.zw).r * inEyeRegion;
+	float mask = texSample2D(g_Texture1, v_TexCoord.zw).r;
 #else
-	float mask = inEyeRegion;
+	float mask = 1.0;
 #endif
 
 	vec4 sample = texSample2D(g_Texture0, v_TexCoord.xy);
 	
-	// Classification stricte des pixels appartenant à l'intérieur de l'iris et la pupille
-	float isIris = 0.0;
-	vec3 pupilColor = vec3(0.0);
-	
+	// Extraction et saturation des teintes cybernétiques de la pupille (Cyan / Magenta)
+	vec3 pupilColor = sample.rgb;
 	// Anneau externe Cyan : dominance de bleu et vert sur le rouge
-	if (sample.b > sample.r + 0.10 && sample.g > sample.r + 0.06 && sample.b > 0.45) {
-		pupilColor = vec3(0.0, 0.94, 1.0); // Cyan néon vibrant (#00f0ff)
-		isIris = 1.0;
+	if (sample.b > sample.r + 0.08 && sample.g > sample.r + 0.04) {
+		pupilColor = vec3(0.0, 0.94, 1.0); // Cyan néon (#00f0ff)
 	}
 	// Anneau interne Magenta : dominance de rouge et bleu sur le vert
-	else if (sample.r > sample.g + 0.16 && sample.b > sample.g + 0.02 && sample.r > 0.45) {
-		pupilColor = vec3(0.96, 0.15, 0.65); // Magenta néon vibrant (#e0287d)
-		isIris = 1.0;
+	else if (sample.r > sample.g + 0.12 && sample.b > sample.g) {
+		pupilColor = vec3(0.96, 0.15, 0.65); // Magenta néon (#e0287d)
 	}
-	// Reflet spéculaire blanc au coeur de la pupille
-	else if (sample.r > 0.75 && sample.g > 0.75 && sample.b > 0.75) {
+	// Reflet spéculaire blanc
+	else if (sample.r > 0.70 && sample.g > 0.70 && sample.b > 0.70) {
 		pupilColor = vec3(0.70, 0.90, 1.0); // Blanc glacé cyan
-		isIris = 1.0;
 	}
-	// Centre sombre de la pupille (violet profond cyber)
-	else if (sample.r < 0.40 && sample.g < 0.35 && sample.b < 0.45 && sample.r > 0.12 && sample.b > 0.15) {
-		pupilColor = vec3(0.35, 0.10, 0.45);
-		isIris = 1.0;
+	// Centre sombre de la pupille
+	else {
+		pupilColor = vec3(0.35, 0.10, 0.45); // Violet sombre cyber
 	}
 
 	// Modulation temporelle : cycle de 30s, durée aléatoire 3s à 10s
@@ -67,14 +57,15 @@ void main() {
 	float hDur = hash11(cycleIndex * 13.37 + 1.0);
 	float hStart = hash11(cycleIndex * 29.71 + 5.0);
 	float duration = 3.0 + 7.0 * hDur; // Aléatoire entre 3.0s et 10.0s
-	// Cycle 0 démarre à t=0.8s pour une visibilité immédiate après relance
-	float tStart = (cycleIndex == 0.0) ? 0.8 : (0.5 + hStart * max(0.1, cyclePeriod - duration - 1.0));
+	// Cycle 0 démarre à t=0.5s pour une visibilité immédiate au lancement
+	float tStart = (cycleIndex == 0.0) ? 0.5 : (0.5 + hStart * max(0.1, cyclePeriod - duration - 1.0));
 	float xProg = (tLocal - tStart) / duration;
 	float inWindow = step(0.0, xProg) * step(xProg, 1.0);
 	// Montée douce et retour fluide à l'état neutre
 	float envelope = sin(clamp(xProg, 0.0, 1.0) * 3.14159265) * inWindow;
 
-	// Émission lumineuse strictement confinée à l'intérieur de la pupille (zéro bavure, zéro boule)
-	float intensity = 0.55 * envelope * mask * isIris;
+	// Émission lumineuse strictement limitée aux pixels du masque de la pupille
+	// Facteur 0.85 pour une illumination nette, franche et visible sans délaver les couleurs
+	float intensity = 0.85 * envelope * mask;
 	gl_FragColor = vec4(pupilColor * intensity, intensity);
 }
