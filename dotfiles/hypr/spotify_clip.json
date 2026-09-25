@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "target_monitor": "DP-2",
+  "fps": 60,
+  "max_duration_diff_sec": 6.0,
+  "fallback_to_canvas": true
+}
