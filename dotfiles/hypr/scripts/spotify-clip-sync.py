@@ -42,7 +42,7 @@ if not YT_DLP_BIN.exists():
 
 DEFAULT_CONFIG = {
     "enabled": True,
-    "target_monitor": "DP-2",
+    "monitors": ["DP-1", "DP-2"],
     "fps": 60,
     "max_duration_diff_sec": 6.0,
     "fallback_to_canvas": True,
@@ -100,15 +100,24 @@ class ClipCache:
 # WALLPAPER ENGINE CONTROLLER
 # ---------------------------------------------------------------------------
 class WallpaperController:
-    """Manages switching between Lucy and the Spotify Video Wallpaper on DP-2."""
+    """Manages switching between Lucy and the Spotify Video Wallpaper across configured monitors."""
 
-    def __init__(self, monitor: str = "DP-2", fps: int = 60):
-        self.monitor = monitor
+    def __init__(self, monitors: list[str] | str = None, fps: int = 60):
+        if isinstance(monitors, str):
+            if monitors.lower() in ["all", "both"]:
+                self.monitors = ["DP-1", "DP-2"]
+            else:
+                self.monitors = [monitors]
+        elif isinstance(monitors, list):
+            self.monitors = monitors
+        else:
+            self.monitors = ["DP-1", "DP-2"]
+
         self.fps = fps
         self.current_state = "LUCY"
         self._lock = threading.Lock()
 
-    def get_monitor_pid(self) -> int | None:
+    def get_monitor_pid(self, monitor: str) -> int | None:
         res = subprocess.run(["pgrep", "-fl", "linux-wallpaperengine"], capture_output=True, text=True)
         for line in res.stdout.strip().splitlines():
             if not line:
@@ -117,18 +126,18 @@ class WallpaperController:
             pid = int(parts[0])
             try:
                 cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
-                if f"--screen-root\x00{self.monitor}".encode() in cmdline:
+                if f"--screen-root\x00{monitor}".encode() in cmdline:
                     return pid
             except Exception:
                 pass
         return None
 
-    def kill_monitor_process(self):
-        pid = self.get_monitor_pid()
+    def kill_monitor_process(self, monitor: str):
+        pid = self.get_monitor_pid(monitor)
         if pid:
             try:
                 os.kill(pid, signal.SIGKILL)
-                time.sleep(0.15)
+                time.sleep(0.1)
             except ProcessLookupError:
                 pass
 
@@ -154,53 +163,53 @@ class WallpaperController:
                 import shutil
                 shutil.copy2(video_path, target_video)
 
-            # 3. Kill current DP-2 process and spawn video wallpaper
-            self.kill_monitor_process()
-            cmd = [
-                "nohup",
-                "linux-wallpaperengine",
-                "--screen-root", self.monitor,
-                "--bg", str(WALLPAPER_DIR),
-                "--volume", "0",
-                "--silent",
-                "--fps", str(self.fps),
-                "--scaling", "fill",
-                "--assets-dir", str(ASSETS_DIR),
-            ]
-            subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+            # 3. Spawn video wallpaper on all target monitors
+            for monitor in self.monitors:
+                self.kill_monitor_process(monitor)
+                cmd = [
+                    "nohup",
+                    "linux-wallpaperengine",
+                    "--screen-root", monitor,
+                    "--bg", str(WALLPAPER_DIR),
+                    "--volume", "0",
+                    "--silent",
+                    "--fps", str(self.fps),
+                    "--scaling", "fill",
+                    "--assets-dir", str(ASSETS_DIR),
+                ]
+                subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
             self.current_state = "CLIP"
 
     def restore_lucy(self):
         with self._lock:
-            if self.current_state == "LUCY":
-                # Ensure DP-2 actually has a running process
-                if self.get_monitor_pid() is not None:
-                    return
+            for monitor in self.monitors:
+                if self.current_state == "LUCY" and self.get_monitor_pid(monitor) is not None:
+                    continue
 
-            self.kill_monitor_process()
-            cmd = [
-                "nohup",
-                "linux-wallpaperengine",
-                "--screen-root", self.monitor,
-                "--bg", str(WORKSHOP_DIR),
-                "--volume", "100",
-                "--no-audio-processing",
-                "--fps", str(self.fps),
-                "--disable-parallax",
-                "--scaling", "fill",
-                "--assets-dir", str(ASSETS_DIR),
-            ]
-            subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+                self.kill_monitor_process(monitor)
+                cmd = [
+                    "nohup",
+                    "linux-wallpaperengine",
+                    "--screen-root", monitor,
+                    "--bg", str(WORKSHOP_DIR),
+                    "--volume", "100",
+                    "--no-audio-processing",
+                    "--fps", str(self.fps),
+                    "--disable-parallax",
+                    "--scaling", "fill",
+                    "--assets-dir", str(ASSETS_DIR),
+                ]
+                subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
             self.current_state = "LUCY"
 
 
@@ -326,8 +335,9 @@ class SpotifyClipSyncDaemon:
     def __init__(self):
         self.config = load_config()
         self.cache = ClipCache(INDEX_FILE)
+        monitors = self.config.get("monitors") or self.config.get("target_monitor", ["DP-1", "DP-2"])
         self.controller = WallpaperController(
-            monitor=self.config.get("target_monitor", "DP-2"),
+            monitors=monitors,
             fps=self.config.get("fps", 60)
         )
         self.current_uri = ""
@@ -469,9 +479,9 @@ def main():
             res = subprocess.run(["pkill", "-f", "spotify-clip-sync.py"], check=False)
             time.sleep(0.2)
             # Restore Lucy on DP-2
-            ctrl = WallpaperController()
+            ctrl = WallpaperController(monitors=["DP-1", "DP-2"])
             ctrl.restore_lucy()
-            print("✓ Démon arrêté et Lucy restaurée sur DP-2.")
+            print("✓ Démon arrêté et Lucy restaurée sur tous les écrans.")
             return
 
     lock = acquire_lock()
