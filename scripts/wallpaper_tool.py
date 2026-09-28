@@ -456,8 +456,17 @@ def restart_wallpapers(renderer: str = None, fps: int = None):
     assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
 
     cfg = load_renderer_config()
+    changed = False
     if renderer:
         cfg["renderer"] = renderer.lower()
+        changed = True
+    if fps:
+        if cfg.get("renderer", "gpu").lower() == "cpu":
+            cfg["fps_cpu"] = fps
+        else:
+            cfg["fps_gpu"] = fps
+        changed = True
+    if changed:
         save_renderer_config(cfg)
 
     current_renderer = cfg.get("renderer", "gpu").lower()
