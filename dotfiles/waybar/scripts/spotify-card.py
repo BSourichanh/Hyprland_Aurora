@@ -420,12 +420,9 @@ class SpotifyCardWindow(Gtk.Window):
             background-color: transparent;
         }
         .card-container {
-            border: 2px solid transparent;
+            border: 2px solid rgba(0, 240, 255, 0.65);
             border-radius: 17px;
-            background-image: linear-gradient(rgba(10, 15, 30, 0.85), rgba(10, 15, 30, 0.85)), 
-                              linear-gradient(135deg, #00f0ff, #7aa2f7, #9778d0);
-            background-origin: border-box;
-            background-clip: padding-box, border-box;
+            background-color: rgba(10, 15, 30, 0.50);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 18px rgba(0, 240, 255, 0.20);
             padding: 14px;
         }

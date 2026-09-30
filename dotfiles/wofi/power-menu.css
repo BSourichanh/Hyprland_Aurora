@@ -1,11 +1,8 @@
 window {
     margin: 0px;
-    border: 2px solid transparent;
+    border: 2px solid rgba(0, 240, 255, 0.65);
     border-radius: 17px;
-    background-image: linear-gradient(rgba(10, 15, 30, 0.92), rgba(10, 15, 30, 0.92)), 
-                      linear-gradient(135deg, #00f0ff, #7aa2f7, #9778d0);
-    background-origin: border-box;
-    background-clip: padding-box, border-box;
+    background-color: rgba(10, 15, 30, 0.50);
     font-family: "Noto Sans", sans-serif;
     font-size: 14px;
     color: #e1e4f1;

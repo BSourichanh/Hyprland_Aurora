@@ -1,6 +1,9 @@
-# Hyprland Desktop Environment & Dotfiles 🌌
+# Aurora — Hyprland Desktop Environment & Dotfiles 🌌
 
-Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux / Wayland, propulsée par le thème **Aurora** (anciennement inspiré de Hybrid Summer, désormais un design system indépendant et autonome : effet *glassmorphism*, bordures néon en dégradé continu 360° GPU et coins arrondis à 17px).
+Configuration complète, moderne et haute performance pour **Hyprland** sous Linux / Wayland, propulsée par le thème **Aurora**.
+
+- **Style Visuel** : Esthétique néon *glassmorphism* combinant des surfaces en verre fumé translucide (`rgba(10, 15, 30, 0.50)` / `0.20`), des bordures en dégradé vectoriel continu 45°/135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`) animées par rotation 360° matérielle sous GPU, et une courbure géométrique stricte à `17px` sur tous les conteneurs.
+- **Fonctionnement & Architecture** : Écosystème Wayland hautement réactif articulé autour d'une architecture événementielle zéro-polling (signaux D-Bus MPRIS, sockets IPC Hyprland). Il intègre une barre d'état Waybar dynamique avec mini-lecteur Spotify synchrone, un lanceur d'applications Wofi translucide, un moteur de fond d'écran animé Wallpaper Engine multimoniteur avec démon IPC de reconnexion à chaud (hotplug), un auto-compactage déterministe des workspaces multi-écrans et un protocole de verrouillage sécurisé avec masquage atomique des surfaces.
 
 <p align="center">
   <img src="assets/desktop_preview.png" alt="Aperçu du bureau Hyprland" width="100%" />
@@ -14,13 +17,13 @@ Configuration complète, optimisée et harmonisée pour **Hyprland** sous Linux 
   <img src="ressource/preview.gif" alt="Fond d'écran animé Lucy" width="70%" />
 </p>
 
-Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure, ayant pris son entière indépendance vis-à-vis du socle *Hybrid Summer* d'origine :
+Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure :
 
 - **Palette de couleurs principale** :
   - Cyan électrique lumineux (primaire) : `#00f0ff`
   - Bleu Tokyo Night (secondaire) : `#7aa2f7`
   - Violet néon (accent) : `#9778d0`
-  - Fond verre translucide : `rgba(10, 15, 30, 0.20)` (hyprbar) / `rgba(10, 15, 30, 0.65)` à `rgba(10, 15, 30, 0.85)` (cartes, modules et fenêtres)
+  - Fond verre translucide : `rgba(10, 15, 30, 0.20)` (hyprbar) / `rgba(10, 15, 30, 0.50)` (cartes, modules, popups et Wofi)
 - **Géométrie & Harmonie** :
   - Rayon d'angle arrondi : **`17px`** obligatoire sur tous les conteneurs (fenêtres Hyprland, Hyprbar, Wofi et la carte Spotify).
   - Épaisseur de bordure : **`2px`** uniforme sur tout l'environnement.

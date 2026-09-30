@@ -1,6 +1,6 @@
 # Hyprland Configuration & Lock Protocol (`dotfiles/hypr/`) 🌌
 
-Configuration modulaire pour le compositeur Wayland **Hyprland** (0.56.2), intégrant le design system **Aurora** (autonome et sur-mesure, détaché de son inspiration originelle Hybrid Summer), la gestion multi-écrans (`DP-1` et `DP-2`), les plugins graphiques et le protocole de verrouillage sécurisé.
+Configuration modulaire pour le compositeur Wayland **Hyprland** (0.56.2), intégrant le design system **Aurora**, la gestion multi-écrans (`DP-1` et `DP-2`), les plugins graphiques et le protocole de verrouillage sécurisé.
 
 ---
 

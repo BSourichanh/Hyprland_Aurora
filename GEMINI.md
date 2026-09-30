@@ -30,7 +30,7 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 ### 3. Règles Critiques GTK3 CSS (Waybar / Wofi)
 - ⚠️ **Zéro `border-image`** : Désactive le `border-radius` sous GTK3 (angles coupés à 90°).
 - ⚠️ **Zéro `box-shadow` sur `window#waybar`** : Injecte des pixels parasites floutés par Hyprland (`layerrule = blur, waybar`), produisant des coins carrés grisâtres. Conserver `box-shadow: none;`.
-- **Modules internes** : Double `background-image` avec `background-clip: padding-box, border-box` et `border: 2px solid transparent`.
+- **Modules internes & fenêtres transparentes** : `background: rgba(10, 15, 30, 0.50)` et bordure `rgba(0, 240, 255, 0.6)`. Proscrire le double `background-image` avec dégradé opaque sous-jacent (annule la transparence et rend les conteneurs opaques).
 - **Barre externe (`window#waybar`)** : Utiliser le calque vectoriel [`bar-bg.svg`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/waybar/bar-bg.svg) (`stroke="url(#grad)" stroke-width="2"`, $1900 \times 34$, `rx="16"`). Pas de dégradé direct CSS (saignement opaque).
 
 ---
