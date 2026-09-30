@@ -84,6 +84,15 @@ def get_monitor_configs():
 
 
 def compact_workspaces():
+    # Ne jamais compacter si la session est verrouillée (évite de démasquer les fenêtres)
+    if os.path.exists("/tmp/hypr_locked"):
+        return False
+    try:
+        if os.system("pidof hyprlock >/dev/null 2>&1") == 0:
+            return False
+    except Exception:
+        pass
+
     configs = get_monitor_configs()
     monitors = hypr_json("j/monitors")
     clients = hypr_json("j/clients")
