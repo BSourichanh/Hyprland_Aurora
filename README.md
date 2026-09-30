@@ -76,9 +76,10 @@ Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure, ayan
 - **Style assorti** : Bordure en dégradé continu 135deg avec coins arrondis à 17px et ombre portée cyan néon.
 
 ### 4. Écran de Verrouillage Sécurisé (`lock.sh` & `hyprlock.conf`)
-- **Pattern RAII / Safe Cleanup Handler** : Restauration déterministe des workspaces et de Waybar encapsulée dans une routine `cleanup()` exécutée sur tous les signaux (`EXIT`, `INT`, `TERM`).
-- **Protection multi-écrans** : Déplacement instantané de tous les moniteurs vers des espaces de travail temporaires vides lors du verrouillage pour masquer les applications ouvertes.
-- **Requête d'écrans optimisée** : Extraction JSON en passe unique via `jq` sans boucle de sous-processus.
+- **Masquage Dynamique & Protection Hotplug** : Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` garantissant que les fenêtres restent invisibles même lors de l'extinction ou du réveil d'un écran. Bascule instantanée vers les espaces vides réservés (`98` sur DP-2, `99` sur DP-1).
+- **Isolation Totale de Waybar** : Arrêt complet de Waybar pendant le verrouillage pour éliminer les réapparitions intempestives lors du hotplug d'écrans, et relance propre à la saisie du mot de passe.
+- **Neutralisation de l'Auto-Compacteur** : Drapeau atomique `/tmp/hypr_locked` empêchant `workspace-autocompact.py` de déplacer des workspaces pendant le verrouillage.
+- **Pattern RAII / Restauration Dynamique** : Restauration des workspaces d'origine encapsulée dans une routine `cleanup()` exécutée sur tous les signaux (`EXIT`, `INT`, `TERM`), ciblant uniquement les écrans réellement allumés.
 
 ### 5. Menu de Session & Alimentation Épuré (`power-menu.sh` & `power-menu.css`)
 - **Modale compacte sans recherche** : Accessible via <kbd>SUPER</kbd> + <kbd>S</kbd>, carte modale centrée de 300x265px sans barre de texte résiduelle.
@@ -91,10 +92,11 @@ Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure, ayan
 - **Multi-modes** : Sélection rectangulaire, plein écran du moniteur actif (<kbd>SHIFT</kbd> + <kbd>Print</kbd>), fenêtre active (<kbd>SUPER</kbd> + <kbd>Print</kbd>) ou multi-écrans intégral (<kbd>CTRL</kbd> + <kbd>Print</kbd>).
 - **Presse-papiers & Notifications** : Copie immédiate dans le presse-papiers Wayland (`wl-copy`) et notification avec vignette miniature.
 
-### 7. Fond d'Écran Animé Lucy & Rendu GPU 60 FPS
-- **Rendu Matériel Haute Fluidité** : Animation 60 FPS sur GPU Intel UHD 630 sans écran blanc multi-écrans (`DP-1` et `DP-2`).
+### 7. Fond d'Écran Animé Lucy & Rendu GPU 30 FPS
+- **Rendu Matériel Équilibré** : Animation fluide à 30 FPS sur iGPU Intel UHD 630 sans écran blanc multi-écrans (`DP-1` et `DP-2`).
+- **Démarrage Sélectif par Écran (`ensure`)** : Détection des surfaces matérielles réelles (`hyprctl layers -j`) et purge des processus orphelins. Lorsqu'un écran se rallume, Wallpaper Engine démarre uniquement sur celui-ci sans jamais couper ni redémarrer l'autre écran.
 - **Sélecteur GPU / CPU** : Basculement instantané via Wofi (<kbd>SUPER</kbd> + <kbd>R</kbd> ➔ "gpu" / "cpu") ou via CLI (`./scripts/wallpaper_tool.py renderer [gpu|cpu]`).
-- **Shaders Blackwall Optimisés** : Shader GLSL natif 60 FPS avec fast-path éliminant le calcul sur ~65% des pixels et détourage subpixel sans halo opaque.
+- **Shaders Blackwall Optimisés** : Shader GLSL natif avec fast-path éliminant le calcul sur ~65% des pixels et détourage subpixel sans halo opaque.
 
 ---
 

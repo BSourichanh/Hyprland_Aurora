@@ -56,29 +56,44 @@ Synchronise les shaders Blackwall, les matériaux, le modèle, les textures et l
 ./scripts/wallpaper_tool.py sync
 ```
 
-### 5. Redémarrage Multi-Écrans Déterministe (`restart`)
-Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), éliminant tout conflit EGL/OpenGL et tout risque de processus orphelin (applique par défaut la cadence cible configurée, ex. 60 FPS sur GPU) :
+### 5. Démarrage Sélectif Multi-Écrans (`ensure`)
+Assure que le moteur de rendu tourne sur les écrans connectés, en ne démarrant une instance **que sur l'écran manquant** sans jamais interrompre ni redémarrer l'autre écran déjà actif. Vérifie la présence effective de la surface Wayland `Bottom` (`hyprctl layers -j`) et purge automatiquement les processus zombies :
 ```bash
-./scripts/wallpaper_tool.py restart
-# Forcer une cadence d'affichage personnalisée (ex. 60 ou 30 FPS)
-./scripts/wallpaper_tool.py restart --fps 60
+# Vérifier et démarrer le fond d'écran uniquement sur les écrans connectés sans calque actif
+./scripts/wallpaper_tool.py ensure
+
+# Cibler un écran spécifique (ex. lors d'un événement de hotplug / réveil de DP-1)
+./scripts/wallpaper_tool.py ensure DP-1
 ```
 
-### 6. Gestion du Moteur de Rendu GPU / CPU (`renderer`)
-Permet de visualiser le moteur actif ou de basculer instantanément Lucy entre le GPU matériel (Intel UHD 630 @ 60 FPS) et le CPU logiciel (Mesa LLVMpipe @ 20 FPS) avec mise à jour automatique de la configuration persistante :
+### 6. Redémarrage Multi-Écrans Déterministe (`restart`)
+Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), protégé par un verrou mutex atomique (`flock` sur `/tmp/wallpaper_restart.lock`) contre les exécutions concurrentes :
+```bash
+# Redémarrage complet de tous les écrans connectés
+./scripts/wallpaper_tool.py restart
+
+# Redémarrer uniquement un écran spécifique (sans toucher l'autre)
+./scripts/wallpaper_tool.py restart --screen DP-1
+
+# Forcer une cadence d'affichage personnalisée (ex. 30 ou 60 FPS)
+./scripts/wallpaper_tool.py restart --fps 30
+```
+
+### 7. Gestion du Moteur de Rendu GPU / CPU (`renderer`)
+Permet de visualiser le moteur actif ou de basculer instantanément Lucy entre le GPU matériel (Intel UHD 630 @ 30 FPS) et le CPU logiciel (Mesa LLVMpipe @ 20 FPS) avec mise à jour automatique de la configuration persistante :
 ```bash
 # Consulter le mode configuré et les FPS cibles
 ./scripts/wallpaper_tool.py renderer
 
-# Basculer sur GPU matériel (Intel UHD 630 @ 60 FPS)
+# Basculer sur GPU matériel (Intel UHD 630 @ 30 FPS)
 ./scripts/wallpaper_tool.py renderer gpu
 
 # Basculer sur CPU logiciel (Mesa LLVMpipe @ 20 FPS)
 ./scripts/wallpaper_tool.py renderer cpu
 ```
 
-### 7. Audit d'Intégrité des Liens Système (`check-links`)
-Parcourt récursivement `dotfiles/` et vérifie que chaque fichier correspond rigoureusement au même numéro d'inode dans `~/.config/`, garantissant qu'aucune écriture n'a rompu les liaisons système :
+### 8. Audit d'Intégrité des Liens Système (`check-links`)
+Parcourt récursivement `dotfiles/` et vérifie que chaque fichier correspond rigoureusement au même numéro d'inode dans `~/.config/`, garantissant qu'aucune écriture n'a rompu les liaisons système (28 hard links) :
 ```bash
 ./scripts/wallpaper_tool.py check-links
 ```

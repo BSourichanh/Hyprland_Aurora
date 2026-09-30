@@ -18,8 +18,9 @@ dotfiles/hypr/
 ├── scripts/
 │   ├── power-menu.sh   # Menu de session et d'alimentation Aurora (SUPER + S)
 │   ├── screenshot.sh   # Outil de capture d'écran polyvalent (Print Screen, sélection, écran, fenêtre)
-│   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU (60 FPS) / CPU (20 FPS)
+│   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU (30 FPS) / CPU (20 FPS)
 │   ├── reload.sh       # Script de rechargement complet (Hyprland + Waybar + notification)
+│   ├── workspace-autocompact.py # Auto-compacteur dynamique d'espaces de travail avec neutralisation sous verrouillage
 │   └── wofi-toggle.sh  # Lanceur d'applications Wofi avec backdrop transparent (wait -n, 0% CPU)
 ├── plugins/
 │   ├── Hyprspace.so                  # Plugin Mission Control / Workspace Overview (SUPER + TAB)
@@ -42,18 +43,20 @@ dotfiles/hypr/
 
 ## 🔒 Protocole de Verrouillage Sécurisé (`lock.sh`)
 
-Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/lock.sh) garantit la confidentialité des espaces de travail et élimine les artefacts de capture :
+Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/lock.sh) garantit la stricte confidentialité des espaces de travail et la résilience face aux déconnexions/reconnexions d'écrans :
 
-1. **Isolation Multi-Écrans Préventive** :
-   - Requête instantanée JSON (`hyprctl monitors -j | jq`).
-   - Déplacement immédiat de chaque écran vers des espaces de travail temporaires vides (90, 91, etc.) pour masquer les fenêtres ouvertes avant toute capture.
-2. **Synchronisation Anti-Course Screencopy** :
-   - `hyprlock` effectue la capture d'écran via `screencopy` en seulement **32 ms**.
-   - Masquage de Waybar via `killall -SIGUSR1 waybar` suivi d'un `sleep 0.15` **strictement obligatoire** pour laisser le temps au compositeur de démapper la barre avant la capture.
+1. **Masquage Dynamique & Protection Hotplug** :
+   - Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` actif durant toute la session verrouillée.
+   - Bascule immédiate de chaque écran vers des espaces de travail vides réservés (`98` pour DP-2, `99` pour DP-1, `persistent:false`).
+   - Pose du drapeau atomique `/tmp/hypr_locked` neutralisant le démon `workspace-autocompact.py` pour empêcher tout démasquage accidentel des fenêtres.
+   - En cas d'événement `monitoradded` (rallumage d'un écran) : ré-application instantanée de l'espace vide dédié et relance sélective de Wallpaper Engine (`wallpaper_tool.py ensure <screen>`) sans jamais redémarrer l'autre écran.
+2. **Isolation Totale de Waybar** :
+   - Arrêt complet du processus (`killall waybar`) et des sous-processus Spotify à l'entrée en verrouillage. Cela élimine l'artefact GTK3 où Waybar réapparaissait avec `visible = true` sur tout écran rebranché lors de l'utilisation de `SIGUSR1`.
    - Fermeture forcée des popups flottants (`wofi`, carte Spotify).
-3. **Restauration Déterministe (Pattern RAII)** :
+3. **Restauration Déterministe Dynamique (Pattern RAII)** :
    - Routine `cleanup()` enregistrée sur tous les signaux d'interruption (`trap ... EXIT INT TERM`).
-   - Restauration en bloc des workspaces d'origine (`hyprctl --batch "$RESTORE_CMD"`) et réaffichage de Waybar.
+   - Restauration des workspaces d'origine **uniquement sur les moniteurs physiquement connectés** lors du déverrouillage (évite d'écraser la disposition si un écran reste éteint).
+   - Relance synchronisée de Waybar (`hyprctl dispatch exec waybar`) et déclenchement d'un cycle de compactage propre.
 
 ---
 

@@ -65,9 +65,17 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 ## 🔒 Protocole de Verrouillage (`lock.sh`)
 
-1. **Anti-Course Screencopy** : Délai `sleep 0.15` obligatoire après `killall -SIGUSR1 waybar` avant `hyprlock` (démappage Wayland/GTK en 32 ms).
-2. **Nettoyage Préventif** : `pkill -x wofi 2>/dev/null` et `spotify-card.py hide 2>/dev/null`.
-3. **Restauration** : `trap '[ "$WAYBAR_WAS_RUNNING" -eq 1 ] && killall -SIGUSR1 waybar' EXIT INT TERM` et `hyprctl --batch "$RESTORE_CMD"`.
+1. **Masquage Dynamique & Hotplug** :
+   - Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` pendant tout le verrouillage.
+   - Bascule immédiate vers les espaces réservés vides (`98` sur DP-2, `99` sur DP-1, `persistent:false`).
+   - Drapeau atomique `/tmp/hypr_locked` neutralisant `workspace-autocompact.py` (empêche tout démasquage intempestif de fenêtres).
+   - À chaque événement `monitoradded` (rallumage d'écran) : ré-application instantanée de l'espace vide et démarrage sélectif du fond d'écran sans toucher l'autre écran.
+2. **Isolation Totale de Waybar** :
+   - Arrêt complet (`killall waybar` et nettoyage des sous-processus Spotify) pendant le verrouillage. Élimine l'instanciation de barres parasites `visible = true` générées par GTK3 lors de la reconnexion d'écrans.
+   - Relance synchronisée via `hyprctl dispatch exec waybar` au déverrouillage.
+3. **Restauration d'État Dynamique (RAII)** :
+   - Routine `cleanup()` enregistrée sur `trap ... EXIT INT TERM`.
+   - Restauration des workspaces initiaux **uniquement sur les moniteurs physiquement connectés** lors du déverrouillage (évite d'écraser la disposition si un écran reste éteint).
 
 ---
 
@@ -75,10 +83,13 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 > 📖 **Spécification Complète** : Voir [`ressource/LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour tous les détails exhaustifs (shaders, passes, maths). Ne jamais rescanner récursivement `ressource/`.
 
-1. **Multi-Processus (Bug Écran Blanc)** :
-   - Patch dans `/usr/lib/linux-wallpaper-engine/resources/app.asar` : 1 processus dédié indépendant par moniteur (`DP-1` et `DP-2`).
+1. **Multi-Processus & Démarrage Sélectif** :
+   - 1 processus dédié indépendant par moniteur (`DP-1` et `DP-2`).
+   - Commande `./scripts/wallpaper_tool.py ensure [screen]` : valide la présence réelle de la couche Wayland `Bottom` (`hyprctl layers -j`).
+   - Purge automatique des processus zombies (qui ont perdu leur surface suite à une extinction) et démarrage sélectif de l'écran manquant sans jamais couper ni redémarrer l'écran resté allumé.
+   - Mutex atomique `flock` sur `/tmp/wallpaper_restart.lock` prévenant les doubles lancements concurrents lors des événements de hotplug.
 2. **Moteur & Cadence (`dotfiles/hypr/wallpaper_renderer.json`)** :
-   - **GPU (Défaut)** : Intel UHD 630 @ **60 FPS** (`/dev/dri/renderD128`).
+   - **GPU (Défaut)** : Intel UHD 630 @ **30 FPS** (`/dev/dri/renderD128`).
    - **CPU (Secours)** : Mesa LLVMpipe @ **20 FPS** (`LIBGL_ALWAYS_SOFTWARE=1`).
 3. **Hiérarchie des Couches Wayland** :
    - `Layer 0 (Background)` : `swaybg` (wallpaper statique de secours instantané ~10 ms).
@@ -107,11 +118,12 @@ Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.
 
 ---
 
-## ⚙️ Principes de Performance & Caching
+## ⚙️ Principes de Performance, Sécurité & Caching
 
-1. **Zéro Polling** : Signaux D-Bus MPRIS (`PropertiesChanged`), `wait -n` pour la synchro processus.
-2. **Mémoïsation** : Socket Hyprland mis en cache, adresses fenêtres `0x...` mémorisées (évite `hyprctl clients -j`), pochettes Spotify en RAM.
-3. **Processus** : Verrou singleton `/tmp/spotify_card.lock`, nettoyage systématique des sous-processus par `trap ... EXIT INT TERM`.
+1. **Authentification Polkit** : `hyprpolkitagent` natif Wayland/Hyprland via unité systemd utilisateur `hyprpolkitagent.service`.
+2. **Zéro Polling** : Signaux D-Bus MPRIS (`PropertiesChanged`), socket IPC Hyprland événementiel, `wait -n` pour la synchro processus.
+3. **Mémoïsation** : Socket Hyprland mis en cache, adresses fenêtres `0x...` mémorisées (évite `hyprctl clients -j`), pochettes Spotify en RAM.
+4. **Processus & Concurrence** : Verrous mutex `/tmp/spotify_card.lock` et `/tmp/wallpaper_restart.lock`, nettoyage systématique des sous-processus par `trap ... EXIT INT TERM`.
 
 ---
 
@@ -126,14 +138,15 @@ hyprctl reload
 
 # Wallpaper Engine & Lucy CLI (scripts/wallpaper_tool.py)
 ./scripts/wallpaper_tool.py status         # État PIDs, moniteurs, CPU%, RAM, couches
-./scripts/wallpaper_tool.py renderer [gpu|cpu]  # Basculer moteur (GPU 60 FPS / CPU 20 FPS)
+./scripts/wallpaper_tool.py renderer [gpu|cpu]  # Basculer moteur (GPU 30 FPS / CPU 20 FPS)
+./scripts/wallpaper_tool.py ensure [screen]# Démarrage sélectif sans relancer l'autre écran
+./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement
 ./scripts/wallpaper_tool.py mask           # Recalculer masque Blackwall subpixel
 ./scripts/wallpaper_tool.py sync           # Déployer ressource/ vers Steam Workshop
-./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement
 ./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 28 hard links
 
 # Validation syntaxique rapide
 bash -n dotfiles/hypr/lock.sh dotfiles/hypr/scripts/*.sh
-python3 -m py_compile dotfiles/waybar/scripts/*.py
+python3 -m py_compile dotfiles/waybar/scripts/*.py scripts/*.py
 python3 -c "import json; json.load(open('dotfiles/waybar/config.jsonc'))"
 ```
