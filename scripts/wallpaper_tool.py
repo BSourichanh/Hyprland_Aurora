@@ -452,7 +452,110 @@ def detect_process_renderer(pid: str) -> str:
 RESTART_LOCK_FILE = "/tmp/wallpaper_restart.lock"
 
 
-def restart_wallpapers(renderer: str = None, fps: int = None):
+def get_running_wallpaper_screens() -> dict:
+    """Returns a mapping {screen_name: pid} for currently running wallpaper instances."""
+    running = {}
+    res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True, text=True)
+    pids = [p.strip() for p in res.stdout.splitlines() if p.strip()]
+    for pid in pids:
+        cmdline_file = Path(f"/proc/{pid}/cmdline")
+        if cmdline_file.exists():
+            try:
+                args = [a.decode("utf-8", errors="ignore") for a in cmdline_file.read_bytes().split(b"\x00") if a]
+                if "--screen-root" in args:
+                    idx = args.index("--screen-root")
+                    if idx + 1 < len(args):
+                        running[args[idx + 1]] = int(pid)
+            except Exception:
+                pass
+    return running
+
+
+def get_hyprland_connected_screens() -> list:
+    """Returns list of currently active screens under Hyprland."""
+    try:
+        m_res = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
+        if m_res.returncode == 0:
+            m_data = json.loads(m_res.stdout)
+            detected = [m.get("name") for m in m_data if m.get("name")]
+            if detected:
+                return [s for s in ["DP-1", "DP-2"] if s in detected]
+    except Exception:
+        pass
+    return ["DP-1", "DP-2"]
+
+
+def ensure_wallpapers(target_screen: str = None):
+    """
+    Ensures Wallpaper Engine is active on connected screen(s).
+    Crucially: NEVER kills or restarts an already running screen instance!
+    """
+    import fcntl
+    try:
+        lock_fd = open(RESTART_LOCK_FILE, "w")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (BlockingIOError, IOError):
+        return
+
+    try:
+        running = get_running_wallpaper_screens()
+        connected = get_hyprland_connected_screens()
+
+        screens_to_start = []
+        if target_screen:
+            if target_screen in connected and target_screen not in running:
+                screens_to_start.append(target_screen)
+        else:
+            for s in connected:
+                if s not in running:
+                    screens_to_start.append(s)
+
+        if not screens_to_start:
+            return
+
+        cfg = load_renderer_config()
+        current_renderer = cfg.get("renderer", "gpu").lower()
+        fps = cfg.get("fps_cpu", 20) if current_renderer == "cpu" else cfg.get("fps_gpu", 30)
+
+        env = os.environ.copy()
+        if current_renderer == "cpu":
+            env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+            env["GALLIUM_DRIVER"] = "llvmpipe"
+        else:
+            env.pop("LIBGL_ALWAYS_SOFTWARE", None)
+            env.pop("GALLIUM_DRIVER", None)
+
+        assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
+        cmd_base = [
+            "linux-wallpaperengine",
+            "--bg", str(WORKSHOP_DIR),
+            "--volume", "100",
+            "--fps", str(fps),
+            "--disable-parallax",
+            "--scaling", "fill",
+            "--assets-dir", str(assets_dir),
+        ]
+
+        for screen in screens_to_start:
+            cmd = ["nohup", "linux-wallpaperengine", "--screen-root", screen] + cmd_base[1:]
+            subprocess.Popen(
+                cmd,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        mode_label = "CPU (Mesa LLVMpipe)" if current_renderer == "cpu" else "GPU (Intel UHD 630)"
+        print(f"✓ Wallpaper Engine démarré sélectivement sur {', '.join(screens_to_start)} [{mode_label} @ {fps} FPS] (autres écrans inchangés).")
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+        except Exception:
+            pass
+
+
+def restart_wallpapers(renderer: str = None, fps: int = None, screen: str = None):
     """Safely terminates and restarts linux-wallpaperengine across dual monitors with GPU/CPU selection."""
     import fcntl
     try:
@@ -463,12 +566,20 @@ def restart_wallpapers(renderer: str = None, fps: int = None):
         return
 
     try:
-        subprocess.run(["pkill", "-9", "-f", "linux-wallpaperengine"], check=False)
-        for _ in range(10):
-            res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True)
-            if not res.stdout.strip():
-                break
-            time.sleep(0.05)
+        if screen:
+            running = get_running_wallpaper_screens()
+            if screen in running:
+                subprocess.run(["kill", "-9", str(running[screen])], check=False)
+                time.sleep(0.1)
+            active_screens = [screen]
+        else:
+            subprocess.run(["pkill", "-9", "-f", "linux-wallpaperengine"], check=False)
+            for _ in range(10):
+                res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True)
+                if not res.stdout.strip():
+                    break
+                time.sleep(0.05)
+            active_screens = get_hyprland_connected_screens()
 
         assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
 
@@ -508,20 +619,8 @@ def restart_wallpapers(renderer: str = None, fps: int = None):
             "--assets-dir", str(assets_dir),
         ]
 
-        # Détecter les moniteurs actifs sous Hyprland pour ne lancer qu'une instance par écran
-        active_screens = ["DP-1", "DP-2"]
-        try:
-            m_res = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
-            if m_res.returncode == 0:
-                m_data = json.loads(m_res.stdout)
-                detected = [m.get("name") for m in m_data if m.get("name")]
-                if detected:
-                    active_screens = [s for s in ["DP-1", "DP-2"] if s in detected]
-        except Exception:
-            pass
-
-        for screen in active_screens:
-            cmd = ["nohup", "linux-wallpaperengine", "--screen-root", screen] + cmd_base[1:]
+        for scr in active_screens:
+            cmd = ["nohup", "linux-wallpaperengine", "--screen-root", scr] + cmd_base[1:]
             subprocess.Popen(
                 cmd,
                 env=env,
@@ -697,6 +796,11 @@ def main():
     p_rest = subparsers.add_parser("restart", help="Redémarrer les instances linux-wallpaperengine multi-écrans")
     p_rest.add_argument("--renderer", choices=["gpu", "cpu"], help="Forcer le mode de rendu GPU ou CPU")
     p_rest.add_argument("--fps", type=int, help="Forcer le nombre d'images par seconde (FPS)")
+    p_rest.add_argument("--screen", choices=["DP-1", "DP-2"], help="Redémarrer uniquement un écran spécifique")
+
+    # ensure
+    p_ens = subparsers.add_parser("ensure", help="Démarrer Wallpaper Engine sur un écran sans redémarrer les autres")
+    p_ens.add_argument("screen", nargs="?", help="Écran spécifique à démarrer si absent (ex: DP-1)")
 
     args = parser.parse_args()
 
@@ -720,8 +824,10 @@ def main():
     elif args.command == "check-links":
         if not audit_hardlinks():
             sys.exit(1)
+    elif args.command == "ensure":
+        ensure_wallpapers(target_screen=args.screen)
     elif args.command == "restart":
-        restart_wallpapers(renderer=args.renderer, fps=args.fps)
+        restart_wallpapers(renderer=args.renderer, fps=args.fps, screen=args.screen)
 
 
 if __name__ == "__main__":

@@ -152,14 +152,18 @@ while os.path.exists(lock_file):
             if not line: continue
             ev = line.split(">>")[0]
             if ev == "monitoradded":
+                mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
                 time.sleep(0.15)
                 enforce_lock()
                 subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["pkill", "-f", "spotify.py --progress"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 now = time.time()
-                if now - last_restart > 1.5 and os.path.exists(tool_path):
+                if now - last_restart > 1.0 and os.path.exists(tool_path):
                     last_restart = now
-                    subprocess.Popen([sys.executable, tool_path, "restart"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    cmd = [sys.executable, tool_path, "ensure"]
+                    if mon in ("DP-1", "DP-2"):
+                        cmd.append(mon)
+                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif ev in ("workspace", "workspacev2", "focusedmon"):
                 enforce_lock()
     except Exception:
