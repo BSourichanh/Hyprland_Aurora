@@ -153,6 +153,8 @@ while os.path.exists(lock_file):
             if ev in ("monitoradded", "monitoraddedv2"):
                 time.sleep(0.12)
                 enforce_lock()
+                subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "-f", "spotify.py --progress"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if os.path.exists(tool_path):
                     subprocess.Popen([sys.executable, tool_path, "restart"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif ev in ("workspace", "workspacev2", "focusedmon"):
@@ -167,13 +169,13 @@ WATCHER_PID=$!
 pkill -x wofi 2>/dev/null
 "$HOME/.config/waybar/scripts/spotify-card.py" hide >/dev/null 2>&1 &
 
-# Masquer Waybar pendant le verrouillage et la restaurer au déverrouillage
+# Arrêter Waybar pendant le verrouillage pour empêcher toute réapparition sur reconnexion d'écran
 WAYBAR_WAS_RUNNING=0
 if pgrep -x waybar >/dev/null; then
     WAYBAR_WAS_RUNNING=1
-    killall -SIGUSR1 waybar 2>/dev/null
-    # Laisser le temps à Waybar et GTK de démapper la surface avant que hyprlock ne capture l'écran
-    sleep 0.15
+    killall waybar 2>/dev/null
+    pkill -f "spotify.py --progress" 2>/dev/null
+    sleep 0.1
 fi
 
 # Gestionnaire de nettoyage déterministe (Safe Cleanup / RAII)
@@ -239,7 +241,8 @@ if os.path.exists(state_file):
 
     # 5. Restaurer Waybar si elle était active
     if [ "$WAYBAR_WAS_RUNNING" -eq 1 ]; then
-        killall -SIGUSR1 waybar 2>/dev/null
+        pkill -f "spotify.py --progress" 2>/dev/null
+        hyprctl dispatch exec waybar >/dev/null 2>&1
     fi
 
     # 6. Relancer un auto-compactage différé pour harmoniser la disposition
