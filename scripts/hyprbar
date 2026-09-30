@@ -1,0 +1,51 @@
+#!/bin/bash
+# Script utilitaire pour gérer la barre (Waybar) et la carte Spotify sous Hyprland
+
+ACTION="${1:-restart}"
+
+case "$ACTION" in
+    start)
+        if pgrep -x waybar > /dev/null; then
+            echo "Waybar est déjà en cours d'exécution."
+        else
+            echo "Démarrage de Waybar..."
+            hyprctl dispatch exec waybar > /dev/null 2>&1
+        fi
+        if ! pgrep -f "spotify-card.py daemon" > /dev/null; then
+            hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" > /dev/null 2>&1
+        fi
+        ;;
+    stop|kill)
+        echo "Arrêt de Waybar et de la carte Spotify..."
+        killall waybar 2>/dev/null
+        pkill -9 -f "spotify-card.py" 2>/dev/null
+        ;;
+    restart)
+        echo "Rechargement complet de Waybar..."
+        killall waybar 2>/dev/null
+        pkill -9 -f "spotify-card.py" 2>/dev/null
+        sleep 0.3
+        hyprctl dispatch exec waybar > /dev/null 2>&1
+        hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" > /dev/null 2>&1
+        echo "Waybar redémarrée avec succès."
+        ;;
+    reload|-r)
+        echo "Rechargement à chaud (SIGUSR2)..."
+        killall -SIGUSR2 waybar
+        ;;
+    toggle|-t)
+        echo "Bascule affichage/masquage (SIGUSR1)..."
+        killall -SIGUSR1 waybar
+        ;;
+    status)
+        if pgrep -x waybar > /dev/null; then
+            echo "Waybar est active (PID: $(pgrep -x waybar | tr '\n' ' '))"
+        else
+            echo "Waybar est arrêtée."
+        fi
+        ;;
+    *)
+        echo "Usage: hyprbar [start|stop|restart|reload|toggle|status]"
+        exit 1
+        ;;
+esac

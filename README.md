@@ -28,6 +28,29 @@ Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure, ayan
 
 ---
 
+## ⚡ Déploiement & Installation Rapide
+
+Un script d'installation automatisé et idempotent est disponible à la racine du dépôt pour déployer l'intégralité de l'environnement en une seule commande :
+
+```bash
+# 1. Cloner le dépôt
+git clone https://github.com/BSourichanh/Hyprland_Aurora.git
+cd Hyprland_Aurora
+
+# 2. Lancer le déploiement complet
+./setup.sh
+```
+
+### Ce que fait automatiquement `./setup.sh` :
+1. **Dépendances système** : Détecte votre gestionnaire de paquets (`apt`, `pacman`) et installe les composants Wayland, polices, polkit et bibliothèques Python requises (saut possible via `./setup.sh --no-deps`).
+2. **Sauvegarde préventive** : Archive automatiquement vos configurations existantes dans `~/.config/aurora_backup_<date>/`.
+3. **Hard Links stricts** : Établit les 28+ hard links physiques (mêmes inodes) entre `dotfiles/` et `~/.config/` garantissant la synchronisation bidirectionnelle immédiate.
+4. **Permissions & Exécutables** : Règle les permissions `chmod +x` sur tous les scripts et installe l'utilitaire de gestion `hyprbar` dans `~/.local/bin/hyprbar`.
+5. **Shaders Steam Workshop** : Synchronise automatiquement les shaders et textures de Lucy si le dossier Wallpaper Engine est détecté.
+6. **Audit d'intégrité** : Valide la conformité complète des liaisons via `./scripts/wallpaper_tool.py check-links`.
+
+---
+
 ## 🚀 Fonctionnalités Clés
 
 ### 1. Hyprbar (Waybar personnalisée)
