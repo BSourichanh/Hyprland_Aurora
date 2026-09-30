@@ -71,7 +71,9 @@ def get_monitor_configs():
         mon = r.get("monitor", "")
         if ws_str.isdigit() and mon:
             ws_id = int(ws_str)
-            mon_workspaces.setdefault(mon, []).append(ws_id)
+            # Ignorer les workspaces temporaires/réservés au verrouillage (98, 99)
+            if ws_id < 90:
+                mon_workspaces.setdefault(mon, []).append(ws_id)
 
     configs = {
         "DP-2": {"base": 1, "max": 5},
@@ -88,7 +90,8 @@ def compact_workspaces():
     if os.path.exists("/tmp/hypr_locked"):
         return False
     try:
-        if os.system("pidof hyprlock >/dev/null 2>&1") == 0:
+        import subprocess
+        if subprocess.run(["pidof", "hyprlock"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             return False
     except Exception:
         pass

@@ -215,15 +215,17 @@ hyprbar status   # Vérifier l'état et les PIDs actifs
 CLI dédié à la maintenance du fond d'écran dynamique Lucy (Cyberpunk), aux shaders Blackwall et à l'intégrité du dépôt :
 
 ```bash
-./scripts/wallpaper_tool.py status         # Affiche l'état des processus DP-1 / DP-2 et FPS actifs
+./scripts/wallpaper_tool.py status         # Affiche l'état des processus DP-1 / DP-2, démon et FPS
+./scripts/wallpaper_tool.py daemon         # Lance le démon hotplug IPC (.socket2.sock) pour restauration auto
 ./scripts/wallpaper_tool.py renderer       # Affiche le mode de rendu configuré (GPU / CPU)
-./scripts/wallpaper_tool.py renderer gpu   # Bascule Lucy sur le GPU matériel (Intel UHD 630 @ 60 FPS)
+./scripts/wallpaper_tool.py renderer gpu   # Bascule Lucy sur le GPU matériel (Intel UHD 630 @ 30 FPS)
 ./scripts/wallpaper_tool.py renderer cpu   # Bascule Lucy sur le CPU logiciel (Mesa LLVMpipe @ 20 FPS)
+./scripts/wallpaper_tool.py ensure [écran] # Démarre sélectivement l'écran manquant sans redémarrer les autres
 ./scripts/wallpaper_tool.py mask           # Régénère le masque de détourage subpixel & compile le .tex
 ./scripts/wallpaper_tool.py sync           # Déploie shaders et assets vers le dossier Steam Workshop
-./scripts/wallpaper_tool.py restart        # Redémarre proprement les instances par écran (défaut 60 FPS)
+./scripts/wallpaper_tool.py restart        # Redémarre proprement les instances par écran (défaut 30 FPS)
 ./scripts/wallpaper_tool.py restart --fps 30 # Forcer une cadence spécifique
-./scripts/wallpaper_tool.py check-links    # Valide les hard links dotfiles/ <-> ~/.config/
+./scripts/wallpaper_tool.py check-links    # Valide les 28 hard links dotfiles/ <-> ~/.config/
 ```
 
 ---
@@ -232,7 +234,8 @@ CLI dédié à la maintenance du fond d'écran dynamique Lucy (Cyberpunk), aux s
 
 Pour faire fonctionner l'ensemble de ces fonctionnalités :
 
-- **Composants système** : `hyprland`, `waybar`, `wofi`, `kitty`, `hyprlock`, `hypridle`, `swaybg`.
-- **Utilitaires Wayland** : `slurp`, `grim`, `wl-clipboard` (`wl-copy`), `playerctl`, `pavucontrol`, `jq`, `wireplumber` (`wpctl`).
+- **Composants système** : `hyprland`, `waybar`, `wofi`, `kitty`, `hyprlock`, `hypridle`, `swaybg`, `hyprpolkitagent`.
+- **Moteur de fond d'écran dynamique** : `linux-wallpaperengine` (CLI Wayland / `wlr-layer-shell`), Steam (Workshop Wallpaper Engine pour les assets).
+- **Utilitaires Wayland** : `slurp`, `grim`, `wl-clipboard` (`wl-copy`), `playerctl`, `pavucontrol`, `jq`, `wireplumber` (`wpctl`), `xrandr`.
 - **Python & Bibliothèques** : `python3`, `python3-gi`, `python3-dbus`, `python3-pil` (Pillow).
 - **Polices recommandées** : `Noto Sans`, `FontAwesome` (pour les icônes de la barre et du popup).

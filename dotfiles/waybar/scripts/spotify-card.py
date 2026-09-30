@@ -24,7 +24,7 @@ import tempfile
 import threading
 import time
 import urllib.request
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Set, Tuple
 
 import dbus
@@ -707,6 +707,11 @@ class HoverMonitorThread(threading.Thread):
         while True:
             sleep_duration = 0.08
             try:
+                # Si la carte n'est pas affichée et que Spotify n'est pas actif, relâcher la fréquence de test
+                if not self.window.is_card_visible and not self.window.player.is_running():
+                    time.sleep(1.0)
+                    continue
+
                 now = time.time()
                 if self.window.is_card_visible and (now - last_meta_check > 0.5):
                     last_meta_check = now
@@ -727,10 +732,8 @@ class HoverMonitorThread(threading.Thread):
 
                     if not self.window.is_card_visible:
                         if in_bar_dp2:
-                            self.window.is_card_visible = True
                             GLib.idle_add(self.window.show_at, 600, 44)
                         elif in_bar_dp1:
-                            self.window.is_card_visible = True
                             GLib.idle_add(self.window.show_at, 2520, 44)
                     else:
                         in_zone = (
@@ -778,7 +781,6 @@ class IPCCommandHandler:
             self._cmd_show()
 
     def _cmd_show(self):
-        self.window.is_card_visible = True
         x, _ = self.hypr.get_cursor_position()
         target_x = 2520 if (x and x >= 1920) else 600
         GLib.idle_add(self.window.show_at, target_x, 44)
@@ -922,7 +924,7 @@ def main():
     # Launch Background Threads
     def run_http():
         try:
-            server = HTTPServer(("127.0.0.1", SSE_PORT), BridgeHTTPHandler)
+            server = ThreadingHTTPServer(("127.0.0.1", SSE_PORT), BridgeHTTPHandler)
             server.serve_forever()
         except Exception:
             pass

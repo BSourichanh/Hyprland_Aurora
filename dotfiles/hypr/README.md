@@ -13,14 +13,14 @@ dotfiles/hypr/
 ├── hypridle.conf       # Démon d'inactivité (verrouillage 5 min, extinction écrans)
 ├── hyprlock.conf       # Interface de déverrouillage graphique (champ mot de passe néon, flou GPU)
 ├── lock.sh             # Script de verrouillage sécurisé avec Safe Cleanup Handler (RAII)
-├── wallpaper_renderer.json # Persistance du moteur Lucy actif (GPU/CPU) et des FPS (60/20)
+├── wallpaper_renderer.json # Persistance du moteur Lucy actif (GPU/CPU) et des FPS (30/20)
 ├── wallpaper-renderer.desktop # Lanceur d'applications Wofi pour le sélecteur
 ├── scripts/
 │   ├── power-menu.sh   # Menu de session et d'alimentation Aurora (SUPER + S)
 │   ├── screenshot.sh   # Outil de capture d'écran polyvalent (Print Screen, sélection, écran, fenêtre)
 │   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU (30 FPS) / CPU (20 FPS)
 │   ├── reload.sh       # Script de rechargement complet (Hyprland + Waybar + notification)
-│   ├── workspace-autocompact.py # Auto-compacteur dynamique d'espaces de travail avec neutralisation sous verrouillage
+│   ├── workspace-autocompact.py # Auto-compacteur dynamique d'espaces de travail (bornes disjointes 1-5 et 6-10) avec neutralisation sous verrouillage
 │   └── wofi-toggle.sh  # Lanceur d'applications Wofi avec backdrop transparent (wait -n, 0% CPU)
 ├── plugins/
 │   ├── Hyprspace.so                  # Plugin Mission Control / Workspace Overview (SUPER + TAB)

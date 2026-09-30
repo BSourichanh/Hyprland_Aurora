@@ -54,12 +54,13 @@ Cette méthode CSS est privilégiée sur les modules car elle s'adapte dynamique
 - **Égaliseur audio animé intégré (`custom/spotify-progress`)** : Streaming D-Bus réactif à 4 FPS (`spotify.py --progress`) affichant des barres vectorielles fines (`Noto Sans Mono 9pt`) insérées juste avant le premier timer (` ▃▅   01:23 ━━━ 03:45`), avec largeur constante absolue (28px sans à-coups ni vibration).
 - **Continuité chromatique (180deg)** : Dégradé vertical continu (`linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)`) garantissant une bordure supérieure violette uniforme et une bordure inférieure cyan pure, sans saut diagonal.
 - **Séparateurs verticaux subtils** : Délimitations translucides discrètes (`1px solid rgba(122, 162, 247, 0.25)`) encadrant la progression.
-- **Arrondis d'extrémités** : `#mpris` assure l'arrondi gauche (`10px 0 0 10px`) et `#custom-spotify-next` l'arrondi droit (`0 10px 10px 0`). Dès l'arrêt de Spotify, tous les enfants émettent `""` et masquent leurs bordures.
+- **Arrondis d'extrémités** : `#mpris` assure l'arrondi gauche (`10px 0 0 10px`) et `#custom-spotify-next` l'arrondi droit (`0 10px 10px 0`). Dès l'arrêt de Spotify, tous les enfants émettent `""` et masquent leurs bordures (`border: none; background: transparent; background-image: none; padding: 0; margin: 0;`).
 
 ### 2. Daemon Carte Déroulante (`spotify-card.py`)
 - **Repository Pattern (`TrackRepository`)** : Persistance atomique des morceaux likés/masqués avec synchronisation SSE Spicetify et verrouillage `threading.Lock`.
+- **Pont Réseau Concurrent** : `ThreadingHTTPServer` non-bloquant pour gérer simultanément le streaming SSE `/events` et les requêtes entrantes `POST /status` et `/songchange`.
 - **Facade Pattern (`MPRISPlayerFacade`)** : Appels directs D-Bus pour les commandes de lecture (< 1 ms).
-- **Service IPC (`HyprlandIPCService`)** : Repositionnement automatique sous le lecteur Waybar via socket Hyprland.
+- **Service IPC (`HyprlandIPCService`)** : Repositionnement automatique sous le lecteur Waybar via socket Hyprland avec veille adaptative du curseur (1s au repos).
 - **Observer Pattern (`MPRISObserver`)** : Écoute événementielle réactive du signal `org.freedesktop.DBus.Properties.PropertiesChanged`.
 
 ---

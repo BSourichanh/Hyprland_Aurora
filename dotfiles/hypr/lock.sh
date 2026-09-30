@@ -89,7 +89,7 @@ base_dir = os.path.join(runtime_dir, "hypr", his)
 cmd_sock_path = os.path.join(base_dir, ".socket.sock")
 event_sock_path = os.path.join(base_dir, ".socket2.sock")
 lock_file = "/tmp/hypr_locked"
-tool_path = "/home/user/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py"
+tool_path = os.path.expanduser("~/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py")
 
 def query(cmd: str) -> str:
     try:
@@ -256,7 +256,7 @@ if os.path.exists(state_file):
     python3 "$HOME/.config/hypr/scripts/workspace-autocompact.py" --once >/dev/null 2>&1 &
 
     # 7. S'assurer que le fond d'écran tourne sur tous les écrans connectés
-    python3 "/home/user/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 &
+    python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 &
 }
 
 trap cleanup EXIT INT TERM

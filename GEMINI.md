@@ -43,6 +43,7 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
    - `button.visible` : Bordure 1.5px `rgba(0, 240, 255, 0.65)`, fond `rgba(0, 240, 255, 0.15)`, texte `#00f0ff` (espace visible sur écran secondaire non focus).
    - `button` (inactif) : Texte discret `#7a8fae`, fond transparent, surbrillance `#00f0ff` au survol.
 3. **Hyprspace (`Hyprspace.so`)** : Patch natif multimoniteur ([`hyprspace-multimonitor.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/plugins/hyprspace-multimonitor.patch)) filtrant strictement les workspaces par `ownerID` (pas de fuite entre `DP-1` et `DP-2`).
+4. **Auto-Compactage Déterministe (`workspace-autocompact.py`)** : Filtrage strict des règles de verrouillage (`ws_id < 90`) assurant des bornes disjointes nettes (DP-2: 1–5, DP-1: 6–10) sans interférence avec les espaces de masquage 98/99.
 
 ---
 
@@ -56,10 +57,13 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 2. **Assemblage Harmonisé** :
    - Groupe `group/spotify-player` (`spacing: 0`) : `mpris`, `custom/spotify-progress`, `custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`.
    - Dégradé vertical unifié `linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)` sur les enfants pour éliminer les sauts de couleur aux jonctions.
-   - Effondrement total à l'arrêt : chaque enfant émet `""` / `border: none; background: transparent; padding: 0; margin: 0;`.
+   - Effondrement total à l'arrêt : chaque enfant émet `""` / `border: none; background: transparent; background-image: none; padding: 0; margin: 0;`.
 3. **Progression & Égaliseur (`custom/spotify-progress`)** :
    - Streaming 4 FPS (250 ms) via `spotify.py --progress`.
    - Égaliseur Unicode mono 9pt à largeur strictement invariante (**28px** sur les 8 frames) : zéro sautillement horizontal. Format : `[ 01:23 ━━━ 03:45 ]`.
+4. **Démon Carte Spotify (`spotify-card.py`)** :
+   - Pont SSE multi-clients non-bloquant via `ThreadingHTTPServer` (concurrence `/events` et `POST /status`).
+   - Veille adaptative du curseur : réduction du polling à 1s au repos dès l'arrêt de Spotify.
 
 ---
 
@@ -83,11 +87,12 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 > 📖 **Spécification Complète** : Voir [`ressource/LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour tous les détails exhaustifs (shaders, passes, maths). Ne jamais rescanner récursivement `ressource/`.
 
-1. **Multi-Processus & Démarrage Sélectif** :
+1. **Multi-Processus, Démon Hotplug & Démarrage Sélectif** :
    - 1 processus dédié indépendant par moniteur (`DP-1` et `DP-2`).
+   - Démon continu `./scripts/wallpaper_tool.py daemon` (lancé dans `hyprland.conf`) écoutant `.socket2.sock` (`monitoradded`, `monitorremoved`, `configreloaded`) avec temporisation anti-rebond (0.4s).
    - Commande `./scripts/wallpaper_tool.py ensure [screen]` : valide la présence réelle de la couche Wayland `Bottom` (`hyprctl layers -j`).
    - Purge automatique des processus zombies (qui ont perdu leur surface suite à une extinction) et démarrage sélectif de l'écran manquant sans jamais couper ni redémarrer l'écran resté allumé.
-   - Mutex atomique `flock` sur `/tmp/wallpaper_restart.lock` prévenant les doubles lancements concurrents lors des événements de hotplug.
+   - Mutex atomique `flock` sur `/tmp/wallpaper_restart.lock` et verrou singleton `/tmp/wallpaper_daemon.lock`.
 2. **Moteur & Cadence (`dotfiles/hypr/wallpaper_renderer.json`)** :
    - **GPU (Défaut)** : Intel UHD 630 @ **30 FPS** (`/dev/dri/renderD128`).
    - **CPU (Secours)** : Mesa LLVMpipe @ **20 FPS** (`LIBGL_ALWAYS_SOFTWARE=1`).
@@ -138,6 +143,7 @@ hyprctl reload
 
 # Wallpaper Engine & Lucy CLI (scripts/wallpaper_tool.py)
 ./scripts/wallpaper_tool.py status         # État PIDs, moniteurs, CPU%, RAM, couches
+./scripts/wallpaper_tool.py daemon         # Démon d'écoute hotplug IPC (restauration auto)
 ./scripts/wallpaper_tool.py renderer [gpu|cpu]  # Basculer moteur (GPU 30 FPS / CPU 20 FPS)
 ./scripts/wallpaper_tool.py ensure [screen]# Démarrage sélectif sans relancer l'autre écran
 ./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement

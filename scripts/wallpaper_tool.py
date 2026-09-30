@@ -452,12 +452,27 @@ def detect_process_renderer(pid: str) -> str:
 RESTART_LOCK_FILE = "/tmp/wallpaper_restart.lock"
 
 
-def get_running_wallpaper_screens() -> dict:
-    """Returns a mapping {screen_name: pid} for currently running wallpaper instances."""
-    running = {}
+def is_wallpaper_engine_proc(pid: int) -> bool:
+    """Verifies that the process executable is actually linux-wallpaperengine."""
+    try:
+        exe = os.readlink(f"/proc/{pid}/exe")
+        return exe.endswith("/linux-wallpaperengine")
+    except Exception:
+        return False
+
+
+def get_running_wallpaper_procs() -> list:
+    """Returns list of dicts [{'pid': int, 'screen': str}] for all running wallpaper instances."""
+    procs = []
     res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True, text=True)
     pids = [p.strip() for p in res.stdout.splitlines() if p.strip()]
-    for pid in pids:
+    for pid_str in pids:
+        try:
+            pid = int(pid_str)
+        except ValueError:
+            continue
+        if not is_wallpaper_engine_proc(pid):
+            continue
         cmdline_file = Path(f"/proc/{pid}/cmdline")
         if cmdline_file.exists():
             try:
@@ -465,10 +480,15 @@ def get_running_wallpaper_screens() -> dict:
                 if "--screen-root" in args:
                     idx = args.index("--screen-root")
                     if idx + 1 < len(args):
-                        running[args[idx + 1]] = int(pid)
+                        procs.append({"pid": pid, "screen": args[idx + 1]})
             except Exception:
                 pass
-    return running
+    return procs
+
+
+def get_running_wallpaper_screens() -> dict:
+    """Returns a mapping {screen_name: pid} for currently running wallpaper instances."""
+    return {p["screen"]: p["pid"] for p in get_running_wallpaper_procs()}
 
 
 def get_active_layer_wallpaper_screens() -> dict:
@@ -496,10 +516,26 @@ def get_hyprland_connected_screens() -> list:
             m_data = json.loads(m_res.stdout)
             detected = [m.get("name") for m in m_data if m.get("name")]
             if detected:
-                return [s for s in ["DP-1", "DP-2"] if s in detected]
+                return detected
     except Exception:
         pass
     return ["DP-1", "DP-2"]
+
+
+def cleanup_ghost_wallpapers(screen: str = None):
+    """Kills any wallpaper engine processes that have lost their active Wayland layer."""
+    active_layers = get_active_layer_wallpaper_screens()
+    running_procs = get_running_wallpaper_procs()
+    for p in running_procs:
+        pid = p["pid"]
+        s_name = p["screen"]
+        if screen and s_name != screen:
+            continue
+        if s_name not in active_layers or active_layers[s_name] != pid:
+            try:
+                os.kill(pid, 9)
+            except Exception:
+                pass
 
 
 def ensure_wallpapers(target_screen: str = None):
@@ -516,18 +552,9 @@ def ensure_wallpapers(target_screen: str = None):
         return
 
     try:
-        running_procs = get_running_wallpaper_screens()
+        cleanup_ghost_wallpapers()
         active_layers = get_active_layer_wallpaper_screens()
         connected = get_hyprland_connected_screens()
-
-        # Nettoyer les processus fantômes (processus dans /proc mais sans surface Wayland active)
-        for s_name, pid in list(running_procs.items()):
-            if s_name not in active_layers:
-                try:
-                    os.kill(pid, 9)
-                except Exception:
-                    pass
-                running_procs.pop(s_name, None)
 
         screens_to_start = []
         if target_screen:
@@ -583,6 +610,131 @@ def ensure_wallpapers(target_screen: str = None):
             pass
 
 
+DAEMON_LOCK_FILE = "/tmp/wallpaper_daemon.lock"
+
+
+def get_event_socket_path() -> str:
+    """Discovers the active Hyprland event socket path (.socket2.sock)."""
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if not runtime_dir:
+        return ""
+    his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if his:
+        sock = os.path.join(runtime_dir, "hypr", his, ".socket2.sock")
+        if os.path.exists(sock):
+            return sock
+    hypr_dir = os.path.join(runtime_dir, "hypr")
+    if os.path.isdir(hypr_dir):
+        for entry in os.listdir(hypr_dir):
+            candidate = os.path.join(hypr_dir, entry, ".socket2.sock")
+            if os.path.exists(candidate):
+                return candidate
+    return ""
+
+
+def run_wallpaper_daemon():
+    """
+    Continuous background daemon monitoring Hyprland monitor events (.socket2.sock).
+    Automatically restores Wallpaper Engine on reconnected/woken monitors without touching
+    already running screens.
+    """
+    import fcntl
+    import signal
+    import select
+    import socket
+
+    try:
+        lock_fd = open(DAEMON_LOCK_FILE, "w")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_fd.write(str(os.getpid()))
+        lock_fd.flush()
+    except (BlockingIOError, IOError):
+        print("Le démon Wallpaper Engine est déjà actif.", file=sys.stderr)
+        sys.exit(0)
+
+    event_sock_path = get_event_socket_path()
+    if not event_sock_path or not os.path.exists(event_sock_path):
+        print("Erreur: Socket événement Hyprland introuvable.", file=sys.stderr)
+        sys.exit(1)
+
+    def handle_exit(sig, frame):
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+            if os.path.exists(DAEMON_LOCK_FILE):
+                os.remove(DAEMON_LOCK_FILE)
+        except Exception:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
+    # Initialisation au démarrage : garantir la présence sur les écrans connectés
+    ensure_wallpapers()
+
+    print(f"✓ Démon Wallpaper Engine démarré (PID {os.getpid()}), écoute sur {event_sock_path}...")
+    sys.stdout.flush()
+
+    pending_ensure = {}  # {target_screen: timestamp}
+    debounce_delay = 0.4
+    last_config_reload = 0.0
+
+    while True:
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(event_sock_path)
+            s.setblocking(False)
+            buf = ""
+            while True:
+                now = time.time()
+                timeout = None
+                if pending_ensure:
+                    earliest = min(pending_ensure.values())
+                    timeout = max(0.0, earliest - now)
+
+                rlist, _, _ = select.select([s], [], [], timeout)
+
+                if s in rlist:
+                    data = s.recv(4096)
+                    if not data:
+                        break
+                    buf += data.decode("utf-8", errors="replace")
+                    while "\n" in buf:
+                        line, buf = buf.split("\n", 1)
+                        line = line.strip()
+                        if not line:
+                            continue
+                        ev_type = line.split(">>")[0]
+                        if ev_type == "monitoradded":
+                            mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
+                            target = mon if mon in ("DP-1", "DP-2") else "all"
+                            pending_ensure[target] = time.time() + debounce_delay
+                        elif ev_type == "monitorremoved":
+                            mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
+                            cleanup_ghost_wallpapers(screen=mon if mon in ("DP-1", "DP-2") else None)
+                        elif ev_type == "configreloaded":
+                            now_t = time.time()
+                            if now_t - last_config_reload > 1.0:
+                                last_config_reload = now_t
+                                pending_ensure["all"] = time.time() + 0.3
+
+                now_check = time.time()
+                ready = [m for m, t in list(pending_ensure.items()) if now_check >= t]
+                if ready:
+                    for m in ready:
+                        pending_ensure.pop(m, None)
+                    for m in ready:
+                        ensure_wallpapers(target_screen=None if m == "all" else m)
+
+            s.close()
+        except Exception:
+            time.sleep(1.0)
+            event_sock_path = get_event_socket_path()
+            if not event_sock_path or not os.path.exists(event_sock_path):
+                time.sleep(2.0)
+
+
 def restart_wallpapers(renderer: str = None, fps: int = None, screen: str = None):
     """Safely terminates and restarts linux-wallpaperengine across dual monitors with GPU/CPU selection."""
     import fcntl
@@ -595,16 +747,22 @@ def restart_wallpapers(renderer: str = None, fps: int = None, screen: str = None
 
     try:
         if screen:
-            running = get_running_wallpaper_screens()
-            if screen in running:
-                subprocess.run(["kill", "-9", str(running[screen])], check=False)
-                time.sleep(0.1)
+            for p in get_running_wallpaper_procs():
+                if p["screen"] == screen:
+                    try:
+                        os.kill(p["pid"], 9)
+                    except Exception:
+                        pass
+            time.sleep(0.1)
             active_screens = [screen]
         else:
-            subprocess.run(["pkill", "-9", "-f", "linux-wallpaperengine"], check=False)
+            for p in get_running_wallpaper_procs():
+                try:
+                    os.kill(p["pid"], 9)
+                except Exception:
+                    pass
             for _ in range(10):
-                res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True)
-                if not res.stdout.strip():
+                if not get_running_wallpaper_procs():
                     break
                 time.sleep(0.05)
             active_screens = get_hyprland_connected_screens()
@@ -696,18 +854,34 @@ def show_status():
     mode_desc = "Accélération Matérielle (Intel UHD 630)" if current_mode == "GPU" else "Rendu Logiciel (Mesa LLVMpipe)"
 
     print(f"=== Moteur Lucy : Mode Configuré [{current_mode}] ({mode_desc}) ===")
-    print("=== État des Processus Wallpaper Engine ===")
-    res = subprocess.run(["pgrep", "-fl", "linux-wallpaperengine"], capture_output=True, text=True)
-    lines = [line.strip() for line in res.stdout.strip().splitlines() if line.strip()]
 
-    if not lines:
+    daemon_pid = None
+    if os.path.exists(DAEMON_LOCK_FILE):
+        try:
+            with open(DAEMON_LOCK_FILE, "r") as f:
+                content = f.read().strip()
+                if content.isdigit():
+                    d_pid = int(content)
+                    if os.path.exists(f"/proc/{d_pid}"):
+                        daemon_pid = d_pid
+        except Exception:
+            pass
+    if daemon_pid:
+        print(f"=== Démon Hotplug IPC : Actif [PID {daemon_pid}] ===")
+    else:
+        print("=== Démon Hotplug IPC : Inactif ===")
+
+    print("=== État des Processus Wallpaper Engine ===")
+    res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True, text=True)
+    pids = [p.strip() for p in res.stdout.strip().splitlines() if p.strip()]
+    valid_pids = [p for p in pids if p.isdigit() and is_wallpaper_engine_proc(int(p))]
+
+    if not valid_pids:
         print("✗ Aucun processus linux-wallpaperengine actif.")
     else:
         total_rss = 0.0
         total_cpu = 0.0
-        for line in lines:
-            parts = line.split(maxsplit=1)
-            pid = parts[0]
+        for pid in valid_pids:
             screen = "Inconnu"
             cmd_display = ""
             cmdline_file = Path(f"/proc/{pid}/cmdline")
@@ -722,8 +896,8 @@ def show_status():
                     cmd_display = " ".join(args_str)
                 except Exception:
                     pass
-            if not cmd_display and len(parts) > 1:
-                cmd_display = parts[1]
+            if not cmd_display:
+                cmd_display = "linux-wallpaperengine"
 
             # Extraction métriques ressources (CPU & RAM RSS)
             rss_mb = 0.0
@@ -749,7 +923,7 @@ def show_status():
 
             proc_renderer = detect_process_renderer(pid)
             print(f"  • PID {pid} : Moniteur [{screen}] | Moteur: [{proc_renderer}] | CPU: {cpu_pct}% | RAM: {rss_mb:.1f} Mo")
-        print(f"✓ Total : {len(lines)} processus actif(s) | CPU: {total_cpu:.1f}% | RAM: {total_rss:.1f} Mo")
+        print(f"✓ Total : {len(valid_pids)} processus actif(s) | CPU: {total_cpu:.1f}% | RAM: {total_rss:.1f} Mo")
 
         # Fréquence iGPU
         gpu_freq_file = Path("/sys/class/drm/card1/gt_act_freq_mhz")
@@ -830,12 +1004,17 @@ def main():
     p_ens = subparsers.add_parser("ensure", help="Démarrer Wallpaper Engine sur un écran sans redémarrer les autres")
     p_ens.add_argument("screen", nargs="?", help="Écran spécifique à démarrer si absent (ex: DP-1)")
 
+    # daemon
+    subparsers.add_parser("daemon", help="Lancer le démon d'écoute hotplug IPC pour restauration automatique")
+
     args = parser.parse_args()
 
     if args.command == "status":
         show_status()
     elif args.command == "renderer":
         set_renderer_command(args.mode)
+    elif args.command == "daemon":
+        run_wallpaper_daemon()
     elif args.command == "pack":
         pack_png_to_tex(args.input_png, args.output_tex, args.width, args.height)
         print(f"✓ Packé : {args.input_png} -> {args.output_tex}")

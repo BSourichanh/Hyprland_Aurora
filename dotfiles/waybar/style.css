@@ -222,6 +222,7 @@ window#waybar {
 #custom-spotify-next.stopped {
     border: none;
     background: transparent;
+    background-image: none;
     padding: 0;
     margin: 0;
 }

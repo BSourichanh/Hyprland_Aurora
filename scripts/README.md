@@ -66,7 +66,14 @@ Assure que le moteur de rendu tourne sur les écrans connectés, en ne démarran
 ./scripts/wallpaper_tool.py ensure DP-1
 ```
 
-### 6. Redémarrage Multi-Écrans Déterministe (`restart`)
+### 6. Démon Hotplug IPC Hyprland (`daemon`)
+Démon continu d'arrière-plan écoutant nativement les événements du socket Hyprland (`.socket2.sock`). Détecte instantanément le rallumage ou rebranchement d'un moniteur (`monitoradded`), la déconnexion (`monitorremoved`) ou le rechargement de configuration (`configreloaded`). Applique une temporisation anti-rebond (0.4s) et ré-applique automatiquement Wallpaper Engine uniquement sur l'écran qui vient de s'allumer sans jamais perturber l'autre écran :
+```bash
+# Lancer le démon en arrière-plan (géré automatiquement dans hyprland.conf via exec-once)
+./scripts/wallpaper_tool.py daemon
+```
+
+### 7. Redémarrage Multi-Écrans Déterministe (`restart`)
 Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), protégé par un verrou mutex atomique (`flock` sur `/tmp/wallpaper_restart.lock`) contre les exécutions concurrentes :
 ```bash
 # Redémarrage complet de tous les écrans connectés
@@ -79,7 +86,7 @@ Relance les moteurs Wallpaper Engine en créant des sessions système découplé
 ./scripts/wallpaper_tool.py restart --fps 30
 ```
 
-### 7. Gestion du Moteur de Rendu GPU / CPU (`renderer`)
+### 8. Gestion du Moteur de Rendu GPU / CPU (`renderer`)
 Permet de visualiser le moteur actif ou de basculer instantanément Lucy entre le GPU matériel (Intel UHD 630 @ 30 FPS) et le CPU logiciel (Mesa LLVMpipe @ 20 FPS) avec mise à jour automatique de la configuration persistante :
 ```bash
 # Consulter le mode configuré et les FPS cibles
@@ -92,7 +99,7 @@ Permet de visualiser le moteur actif ou de basculer instantanément Lucy entre l
 ./scripts/wallpaper_tool.py renderer cpu
 ```
 
-### 8. Audit d'Intégrité des Liens Système (`check-links`)
+### 9. Audit d'Intégrité des Liens Système (`check-links`)
 Parcourt récursivement `dotfiles/` et vérifie que chaque fichier correspond rigoureusement au même numéro d'inode dans `~/.config/`, garantissant qu'aucune écriture n'a rompu les liaisons système (28 hard links) :
 ```bash
 ./scripts/wallpaper_tool.py check-links
