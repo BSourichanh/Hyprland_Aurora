@@ -449,59 +449,94 @@ def detect_process_renderer(pid: str) -> str:
     return "GPU (Matériel)"
 
 
+RESTART_LOCK_FILE = "/tmp/wallpaper_restart.lock"
+
+
 def restart_wallpapers(renderer: str = None, fps: int = None):
     """Safely terminates and restarts linux-wallpaperengine across dual monitors with GPU/CPU selection."""
-    subprocess.run(["pkill", "-9", "-f", "linux-wallpaperengine"], check=False)
-    time.sleep(0.25)
-    assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
+    import fcntl
+    try:
+        lock_fd = open(RESTART_LOCK_FILE, "w")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (BlockingIOError, IOError):
+        # Un redémarrage est déjà en cours d'exécution
+        return
 
-    cfg = load_renderer_config()
-    changed = False
-    if renderer:
-        cfg["renderer"] = renderer.lower()
-        changed = True
-    if fps:
-        if cfg.get("renderer", "gpu").lower() == "cpu":
-            cfg["fps_cpu"] = fps
+    try:
+        subprocess.run(["pkill", "-9", "-f", "linux-wallpaperengine"], check=False)
+        for _ in range(10):
+            res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True)
+            if not res.stdout.strip():
+                break
+            time.sleep(0.05)
+
+        assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
+
+        cfg = load_renderer_config()
+        changed = False
+        if renderer:
+            cfg["renderer"] = renderer.lower()
+            changed = True
+        if fps:
+            if cfg.get("renderer", "gpu").lower() == "cpu":
+                cfg["fps_cpu"] = fps
+            else:
+                cfg["fps_gpu"] = fps
+            changed = True
+        if changed:
+            save_renderer_config(cfg)
+
+        current_renderer = cfg.get("renderer", "gpu").lower()
+        if fps is None:
+            fps = cfg.get("fps_cpu", 20) if current_renderer == "cpu" else cfg.get("fps_gpu", 30)
+
+        env = os.environ.copy()
+        if current_renderer == "cpu":
+            env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+            env["GALLIUM_DRIVER"] = "llvmpipe"
         else:
-            cfg["fps_gpu"] = fps
-        changed = True
-    if changed:
-        save_renderer_config(cfg)
+            env.pop("LIBGL_ALWAYS_SOFTWARE", None)
+            env.pop("GALLIUM_DRIVER", None)
 
-    current_renderer = cfg.get("renderer", "gpu").lower()
-    if fps is None:
-        fps = cfg.get("fps_cpu", 20) if current_renderer == "cpu" else cfg.get("fps_gpu", 30)
+        cmd_base = [
+            "linux-wallpaperengine",
+            "--bg", str(WORKSHOP_DIR),
+            "--volume", "100",
+            "--fps", str(fps),
+            "--disable-parallax",
+            "--scaling", "fill",
+            "--assets-dir", str(assets_dir),
+        ]
 
-    env = os.environ.copy()
-    if current_renderer == "cpu":
-        env["LIBGL_ALWAYS_SOFTWARE"] = "1"
-        env["GALLIUM_DRIVER"] = "llvmpipe"
-    else:
-        env.pop("LIBGL_ALWAYS_SOFTWARE", None)
-        env.pop("GALLIUM_DRIVER", None)
+        # Détecter les moniteurs actifs sous Hyprland pour ne lancer qu'une instance par écran
+        active_screens = ["DP-1", "DP-2"]
+        try:
+            m_res = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
+            if m_res.returncode == 0:
+                m_data = json.loads(m_res.stdout)
+                detected = [m.get("name") for m in m_data if m.get("name")]
+                if detected:
+                    active_screens = [s for s in ["DP-1", "DP-2"] if s in detected]
+        except Exception:
+            pass
 
-    cmd_base = [
-        "linux-wallpaperengine",
-        "--bg", str(WORKSHOP_DIR),
-        "--volume", "100",
-        "--fps", str(fps),
-        "--disable-parallax",
-        "--scaling", "fill",
-        "--assets-dir", str(assets_dir),
-    ]
-
-    for screen in ["DP-1", "DP-2"]:
-        cmd = ["nohup", "linux-wallpaperengine", "--screen-root", screen] + cmd_base[1:]
-        subprocess.Popen(
-            cmd,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-    mode_label = "CPU (Mesa LLVMpipe)" if current_renderer == "cpu" else "GPU (Intel UHD 630)"
-    print(f"✓ Moteurs Wallpaper Engine relancés sur DP-1 et DP-2 en mode [{mode_label}] @ {fps} FPS.")
+        for screen in active_screens:
+            cmd = ["nohup", "linux-wallpaperengine", "--screen-root", screen] + cmd_base[1:]
+            subprocess.Popen(
+                cmd,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        mode_label = "CPU (Mesa LLVMpipe)" if current_renderer == "cpu" else "GPU (Intel UHD 630)"
+        print(f"✓ Moteurs Wallpaper Engine relancés sur {', '.join(active_screens)} en mode [{mode_label}] @ {fps} FPS.")
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+        except Exception:
+            pass
 
 
 def set_renderer_command(mode: str = None):

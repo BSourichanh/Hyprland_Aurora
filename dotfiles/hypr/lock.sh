@@ -139,6 +139,7 @@ try:
 except Exception:
     sys.exit(1)
 
+last_restart = 0
 buf = ""
 while os.path.exists(lock_file):
     try:
@@ -150,12 +151,14 @@ while os.path.exists(lock_file):
             line = line.strip()
             if not line: continue
             ev = line.split(">>")[0]
-            if ev in ("monitoradded", "monitoraddedv2"):
-                time.sleep(0.12)
+            if ev == "monitoradded":
+                time.sleep(0.15)
                 enforce_lock()
                 subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["pkill", "-f", "spotify.py --progress"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if os.path.exists(tool_path):
+                now = time.time()
+                if now - last_restart > 1.5 and os.path.exists(tool_path):
+                    last_restart = now
                     subprocess.Popen([sys.executable, tool_path, "restart"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif ev in ("workspace", "workspacev2", "focusedmon"):
                 enforce_lock()
