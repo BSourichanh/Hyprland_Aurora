@@ -471,6 +471,23 @@ def get_running_wallpaper_screens() -> dict:
     return running
 
 
+def get_active_layer_wallpaper_screens() -> dict:
+    """Returns {monitor_name: pid} for monitors that have an active Wayland layer in Hyprland."""
+    active = {}
+    try:
+        res = subprocess.run(["hyprctl", "layers", "-j"], capture_output=True, text=True)
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            for mon, mon_data in data.items():
+                for lvl, items in mon_data.get("levels", {}).items():
+                    for item in items:
+                        if item.get("namespace") == "linux-wallpaperengine":
+                            active[mon] = item.get("pid")
+    except Exception:
+        pass
+    return active
+
+
 def get_hyprland_connected_screens() -> list:
     """Returns list of currently active screens under Hyprland."""
     try:
@@ -488,7 +505,8 @@ def get_hyprland_connected_screens() -> list:
 def ensure_wallpapers(target_screen: str = None):
     """
     Ensures Wallpaper Engine is active on connected screen(s).
-    Crucially: NEVER kills or restarts an already running screen instance!
+    Crucially: NEVER kills or restarts an already running screen instance with an active Wayland layer!
+    Kills any ghost/hung processes that lost their Wayland layer upon screen disconnect.
     """
     import fcntl
     try:
@@ -498,16 +516,26 @@ def ensure_wallpapers(target_screen: str = None):
         return
 
     try:
-        running = get_running_wallpaper_screens()
+        running_procs = get_running_wallpaper_screens()
+        active_layers = get_active_layer_wallpaper_screens()
         connected = get_hyprland_connected_screens()
+
+        # Nettoyer les processus fantômes (processus dans /proc mais sans surface Wayland active)
+        for s_name, pid in list(running_procs.items()):
+            if s_name not in active_layers:
+                try:
+                    os.kill(pid, 9)
+                except Exception:
+                    pass
+                running_procs.pop(s_name, None)
 
         screens_to_start = []
         if target_screen:
-            if target_screen in connected and target_screen not in running:
+            if target_screen in connected and target_screen not in active_layers:
                 screens_to_start.append(target_screen)
         else:
             for s in connected:
-                if s not in running:
+                if s not in active_layers:
                     screens_to_start.append(s)
 
         if not screens_to_start:

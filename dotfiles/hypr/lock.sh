@@ -153,12 +153,12 @@ while os.path.exists(lock_file):
             ev = line.split(">>")[0]
             if ev == "monitoradded":
                 mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
-                time.sleep(0.15)
+                time.sleep(0.3)
                 enforce_lock()
                 subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["pkill", "-f", "spotify.py --progress"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 now = time.time()
-                if now - last_restart > 1.0 and os.path.exists(tool_path):
+                if now - last_restart > 0.8 and os.path.exists(tool_path):
                     last_restart = now
                     cmd = [sys.executable, tool_path, "ensure"]
                     if mon in ("DP-1", "DP-2"):
@@ -254,6 +254,9 @@ if os.path.exists(state_file):
 
     # 6. Relancer un auto-compactage différé pour harmoniser la disposition
     python3 "$HOME/.config/hypr/scripts/workspace-autocompact.py" --once >/dev/null 2>&1 &
+
+    # 7. S'assurer que le fond d'écran tourne sur tous les écrans connectés
+    python3 "/home/user/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 &
 }
 
 trap cleanup EXIT INT TERM
