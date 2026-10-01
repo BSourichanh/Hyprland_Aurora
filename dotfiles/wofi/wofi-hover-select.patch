@@ -1,0 +1,49 @@
+--- a/src/wofi.c	2024-02-09 20:22:27.000000000 +0100
++++ b/src/wofi.c	2026-09-30 16:26:52.225824126 +0200
+@@ -1747,6 +1747,36 @@
+ 	return G_SOURCE_REMOVE;
+ }
+ 
++
++static gboolean on_motion_select(GtkWidget* widget, GdkEventMotion* event, gpointer user_data) {
++	(void) user_data;
++	(void) widget;
++	if(event == NULL || inner_box == NULL) {
++		return FALSE;
++	}
++	GtkFlowBoxChild* child = gtk_flow_box_get_child_at_pos(GTK_FLOW_BOX(inner_box), (gint)event->x, (gint)event->y);
++	if(child != NULL && !gtk_flow_box_child_is_selected(child)) {
++		user_moved = true;
++		gtk_flow_box_select_child(GTK_FLOW_BOX(inner_box), child);
++	}
++	return FALSE;
++}
++
++static gboolean on_enter_select(GtkWidget* widget, GdkEventCrossing* event, gpointer user_data) {
++	(void) user_data;
++	(void) widget;
++	if(event == NULL || inner_box == NULL) {
++		return FALSE;
++	}
++	GtkFlowBoxChild* child = gtk_flow_box_get_child_at_pos(GTK_FLOW_BOX(inner_box), (gint)event->x, (gint)event->y);
++	if(child != NULL && !gtk_flow_box_child_is_selected(child)) {
++		user_moved = true;
++		gtk_flow_box_select_child(GTK_FLOW_BOX(inner_box), child);
++	}
++	return FALSE;
++}
++
++
+ void wofi_init(struct map* _config) {
+ 	config = _config;
+ 	char* width_str = config_get(config, "width", "50%");
+@@ -2022,6 +2052,9 @@
+ 	}
+ 
+ 	inner_box = gtk_flow_box_new();
++	gtk_widget_add_events(inner_box, GDK_POINTER_MOTION_MASK | GDK_ENTER_NOTIFY_MASK);
++	g_signal_connect(inner_box, "motion-notify-event", G_CALLBACK(on_motion_select), NULL);
++	g_signal_connect(inner_box, "enter-notify-event", G_CALLBACK(on_enter_select), NULL);
+ 	gtk_flow_box_set_selection_mode(GTK_FLOW_BOX(inner_box), GTK_SELECTION_BROWSE);
+ 	gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(inner_box), columns);
+ 	gtk_orientable_set_orientation(GTK_ORIENTABLE(inner_box), orientation);

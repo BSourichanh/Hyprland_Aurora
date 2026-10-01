@@ -5,6 +5,7 @@ Refactored using Facade and Command patterns with fail-safe D-Bus timeouts.
 """
 from abc import ABC, abstractmethod
 import json
+import subprocess
 import sys
 import time
 import dbus
@@ -123,6 +124,10 @@ class ProgressCommand(ICommand):
                         sys.stdout.write(JSON_STOPPED)
                         sys.stdout.flush()
                         last_state = "stopped"
+                        try:
+                            subprocess.run(["pkill", "-RTMIN+11", "waybar"], stderr=subprocess.DEVNULL)
+                        except Exception:
+                            pass
                     time.sleep(1.5)
                     continue
 
@@ -163,6 +168,12 @@ class ProgressCommand(ICommand):
 
                 sys.stdout.write(json.dumps({"text": text, "tooltip": tooltip, "class": cls}, ensure_ascii=False) + "\n")
                 sys.stdout.flush()
+
+                if last_state != cls:
+                    try:
+                        subprocess.run(["pkill", "-RTMIN+11", "waybar"], stderr=subprocess.DEVNULL)
+                    except Exception:
+                        pass
                 last_state = cls
 
                 time.sleep(0.25 if status == "Playing" else 0.5)

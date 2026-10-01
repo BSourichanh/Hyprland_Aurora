@@ -830,6 +830,11 @@ def setup_mpris_observer(window: SpotifyCardWindow, player: MPRISPlayerFacade):
             if "Metadata" in changed_properties:
                 if window.is_card_visible:
                     GLib.idle_add(window.update_metadata)
+            if "PlaybackStatus" in changed_properties:
+                try:
+                    subprocess.run(["pkill", "-RTMIN+11", "waybar"], stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
 
     try:
         bus = player.get_bus()

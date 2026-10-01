@@ -47,6 +47,21 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 ---
 
+## 🚀 Lanceur Wofi & Navigation Ergonomique (Souris + Clavier)
+
+1. **Comportement Hybride & Single-Click** :
+   - Wofi natif est strictement piloté au clavier. Le patch natif [`wofi-hover-select.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/wofi/wofi-hover-select.patch) ajoute la sélection active au survol de la souris (`#entry:selected`) tout en maintenant le focus continu sur `#input`.
+   - Option `single_click=true` requise dans `dotfiles/wofi/config` pour exécution au premier clic gauche.
+2. **Règle Critique GTK3 Coordonnées & Signaux** :
+   - ⚠️ **Écoute exclusive sur `inner_box`** : Connecter `motion-notify-event` et `enter-notify-event` **uniquement** sur `inner_box` (`GtkFlowBox`).
+   - ⚠️ **Zéro écoute sur `window`, `scroll` ou `wrapper_box`** : `inner_box` possédant sa propre `GdkWindow`, `event->x/y` sont déjà dans son repère local. Re-transférer l'événement depuis `window` via `gtk_widget_translate_coordinates` soustrait deux fois la hauteur du champ `#input` (~82px en mode `drun`), décalant la sélection active de 2 entrées vers le haut.
+3. **Chaîne de Déploiement du Binaire** :
+   - Source locale : `/tmp/wofi_src/` compilée via `ninja -C /tmp/wofi_src/build`.
+   - Binaires installés : synchronisation conjointe sur `~/.local/bin/wofi` et `/usr/local/bin/wofi`.
+   - Versionnage : régénération systématique du diff unifié dans `dotfiles/wofi/wofi-hover-select.patch`.
+
+---
+
 ## 🎵 Mini-Player Spotify (Waybar)
 
 1. **Règle Anti-Capsule Fantôme** :
@@ -64,6 +79,13 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 4. **Démon Carte Spotify (`spotify-card.py`)** :
    - Pont SSE multi-clients non-bloquant via `ThreadingHTTPServer` (concurrence `/events` et `POST /status`).
    - Veille adaptative du curseur : réduction du polling à 1s au repos dès l'arrêt de Spotify.
+5. **Architecture Événementielle Zéro Polling (`signal: 11`)** :
+   - Élimination stricte des forks répétitifs de sous-processus Python (`custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`).
+   - Configuration de `signal: 11` avec `interval: 30` (filet de sécurité passif) dans `config.jsonc`.
+   - Émission réactive de `pkill -RTMIN+11 waybar` :
+     - Lors des transitions d'état (`last_state != cls`) dans le flux streaming `spotify.py --progress`.
+     - Sur réception du signal D-Bus `PlaybackStatus` dans l'observateur de `spotify-card.py`.
+     - Directement dans les handlers `on-click` pour un rafraîchissement visuel instantané.
 
 ---
 
@@ -129,6 +151,10 @@ Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.
 2. **Zéro Polling** : Signaux D-Bus MPRIS (`PropertiesChanged`), socket IPC Hyprland événementiel, `wait -n` pour la synchro processus.
 3. **Mémoïsation** : Socket Hyprland mis en cache, adresses fenêtres `0x...` mémorisées (évite `hyprctl clients -j`), pochettes Spotify en RAM.
 4. **Processus & Concurrence** : Verrous mutex `/tmp/spotify_card.lock` et `/tmp/wallpaper_restart.lock`, nettoyage systématique des sous-processus par `trap ... EXIT INT TERM`.
+5. **Écosystème MCP & Sécurité de Contrôle** :
+   - `hypruse` : Serveur MCP Wayland natif (`zwlr_virtual_pointer_v1`) avec garde-fou `HYPRUSE_AUTH_GUARD=1` (blocage Polkit/Sudo).
+   - Coupure d'urgence matérielle dans `hyprland.conf` : `bind = $mainMod SHIFT, BackSpace, exec, hypruse stop`.
+   - `aurora-mcp` : Micro-serveur MCP local FastMCP pour diagnostic consolidé unifié (1 appel) et pilotage de Lucy, Waybar et Spotify.
 
 ---
 
@@ -137,6 +163,9 @@ Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.
 ```bash
 # Barre d'état & Spotify
 hyprbar restart|reload|toggle|status
+
+# Micro-serveur MCP & Diagnostic Aurora
+aurora-mcp status|audit
 
 # Hyprland
 hyprctl reload
@@ -149,7 +178,7 @@ hyprctl reload
 ./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement
 ./scripts/wallpaper_tool.py mask           # Recalculer masque Blackwall subpixel
 ./scripts/wallpaper_tool.py sync           # Déployer ressource/ vers Steam Workshop
-./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 28 hard links
+./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 30 hard links
 
 # Validation syntaxique rapide
 bash -n dotfiles/hypr/lock.sh dotfiles/hypr/scripts/*.sh

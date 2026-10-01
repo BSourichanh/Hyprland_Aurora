@@ -8,9 +8,10 @@ Configuration et thématisation du lanceur d'applications **Wofi** sous Wayland 
 
 ```
 dotfiles/wofi/
-├── config          # Paramètres d'affichage, dimensions (460x520), prompt et comportement de filtrage
-├── style.css       # Style GTK3 principal (bordure continue en dégradé 135°, coins 17px, lueur cyan)
-└── power-menu.css  # Style dédié compact pour la modale d'alimentation & session (300x265px, sans barre de recherche)
+├── config                  # Paramètres d'affichage, prompt, single_click et filtrage
+├── style.css               # Style GTK3 principal (dégradé 135°, coins 17px, lueur cyan, survol néon)
+├── power-menu.css          # Style dédié compact pour la modale d'alimentation & session
+└── wofi-hover-select.patch # Patch C natif GTK3 pour sélection active au survol de la souris
 ```
 
 ---
@@ -22,6 +23,15 @@ dotfiles/wofi/
 - **Arrière-plan** : Fond sombre translucide `rgba(10, 15, 30, 0.88)` complété par le flou matériel Hyprland.
 - **Champ de saisie (`#input`)** : Curseur cyan, texte contrasté, bordure dégradée fine et ombre portée néon (`box-shadow: 0 0 12px rgba(0, 240, 255, 0.35)`).
 - **Éléments sélectionnés (`#entry:selected`)** : Surlignage en dégradé cyan / violet avec texte sombre contrasté.
+
+---
+
+## 🖱️ Navigation Ergonomique Souris (Patch Hover-Select)
+
+Par défaut, Wofi est un lanceur exclusivement centré sur le clavier (seules les flèches modifient la sélection active). Le patch natif [`wofi-hover-select.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/wofi/wofi-hover-select.patch) ajoute une navigation hybride intuitive :
+- **Sélection dynamique au survol (`motion-notify-event`)** : Déplacer le curseur sur n'importe quelle entrée déplace immédiatement la capsule de sélection Aurora (`#entry:selected`), comme avec les flèches du clavier.
+- **Lancement en un seul clic (`single_click=true`)** : Un simple clic gauche exécute directement l'application sélectionnée.
+- **Saisie continue sans perte de focus** : Le champ `#input` conserve en permanence le focus clavier pour chercher et taper sans interruption.
 
 ---
 

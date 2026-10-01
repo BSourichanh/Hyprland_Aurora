@@ -43,8 +43,8 @@
         "tooltip": true,
         "tooltip-format": "{title} \u2022 {artist} ({album})\n\nClic gauche : Carte d\u00e9roulante\nClic droit : Lecture / Pause\nClic milieu : Piste suivante\nMolette : Avancer / Reculer (5s)",
         "on-click": "~/.config/waybar/scripts/spotify-card.py toggle",
-        "on-click-right": "playerctl -p spotify play-pause",
-        "on-click-middle": "playerctl -p spotify next",
+        "on-click-right": "playerctl -p spotify play-pause && pkill -RTMIN+11 waybar",
+        "on-click-middle": "playerctl -p spotify next && pkill -RTMIN+11 waybar",
         "on-scroll-up": "playerctl -p spotify position 5+",
         "on-scroll-down": "playerctl -p spotify position 5-"
     },
@@ -104,29 +104,32 @@
         "return-type": "json",
         "restart-interval": 2,
         "tooltip": true,
-        "on-click": "playerctl -p spotify play-pause",
+        "on-click": "playerctl -p spotify play-pause && pkill -RTMIN+11 waybar",
         "on-scroll-up": "playerctl -p spotify position 5+",
         "on-scroll-down": "playerctl -p spotify position 5-"
     },
     "custom/spotify-prev": {
         "exec": "~/.config/waybar/scripts/spotify.py --prev",
         "return-type": "json",
-        "interval": 2,
+        "interval": 30,
+        "signal": 11,
         "tooltip": false,
-        "on-click": "playerctl -p spotify previous"
+        "on-click": "playerctl -p spotify previous && pkill -RTMIN+11 waybar"
     },
     "custom/spotify-play-pause": {
         "exec": "~/.config/waybar/scripts/spotify.py --play-pause",
         "return-type": "json",
-        "interval": 1,
+        "interval": 30,
+        "signal": 11,
         "tooltip": false,
-        "on-click": "playerctl -p spotify play-pause"
+        "on-click": "playerctl -p spotify play-pause && pkill -RTMIN+11 waybar"
     },
     "custom/spotify-next": {
         "exec": "~/.config/waybar/scripts/spotify.py --next",
         "return-type": "json",
-        "interval": 2,
+        "interval": 30,
+        "signal": 11,
         "tooltip": false,
-        "on-click": "playerctl -p spotify next"
+        "on-click": "playerctl -p spotify next && pkill -RTMIN+11 waybar"
     }
 }

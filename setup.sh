@@ -88,6 +88,11 @@ SYSTEM_PKGS=(
     python3-pil
     fonts-noto
     fonts-font-awesome
+    meson
+    ninja-build
+    libgtk-3-dev
+    libwayland-dev
+    wtype
 )
 
 if [ "$INSTALL_DEPS" -eq 1 ]; then
@@ -127,6 +132,25 @@ if command -v linux-wallpaperengine >/dev/null 2>&1; then
 else
     log_warn "linux-wallpaperengine n'est pas détecté. Le fond d'écran statique swaybg fonctionnera en secours immédiat."
     log_step "Pour installer linux-wallpaperengine : https://github.com/Almamu/linux-wallpaperengine"
+fi
+
+# Vérification et patch ergonomique Wofi (sélection au survol souris)
+WOFI_BIN=$(command -v wofi 2>/dev/null || true)
+if [ -n "$WOFI_BIN" ] && ! strings "$WOFI_BIN" 2>/dev/null | grep -q "on_motion_select"; then
+    log_step "Application du patch Wofi (sélection ergonomique active au survol de la souris)..."
+    TMP_WOFI=$(mktemp -d /tmp/wofi_build_XXXXXX)
+    if curl -sL https://hg.sr.ht/~scoopta/wofi/archive/v1.4.1.tar.gz | tar -xzf - -C "$TMP_WOFI" --strip-components=1 2>/dev/null; then
+        if [ -f "$DOTFILES_DIR/wofi/wofi-hover-select.patch" ]; then
+            patch -d "$TMP_WOFI" -p1 < "$DOTFILES_DIR/wofi/wofi-hover-select.patch" >/dev/null 2>&1 || true
+            mkdir -p "$LOCAL_BIN"
+            meson setup "$TMP_WOFI/build" "$TMP_WOFI" --prefix="$HOME/.local" --buildtype=release >/dev/null 2>&1 || true
+            ninja -C "$TMP_WOFI/build" install >/dev/null 2>&1 || true
+            log_success "Patch Wofi appliqué et installé dans $LOCAL_BIN/wofi."
+        fi
+    fi
+    rm -rf "$TMP_WOFI"
+elif [ -n "$WOFI_BIN" ]; then
+    log_success "Wofi est configuré avec le support natif de sélection au survol."
 fi
 
 # ----------------- ÉTAPE 2 : SAUVEGARDE PRÉVENTIVE -----------------
@@ -204,6 +228,17 @@ if [ -f "$SCRIPT_DIR/scripts/hyprbar" ]; then
     cp "$SCRIPT_DIR/scripts/hyprbar" "$LOCAL_BIN/hyprbar"
     chmod +x "$LOCAL_BIN/hyprbar"
     log_success "Utilitaire 'hyprbar' installé dans $LOCAL_BIN/hyprbar."
+fi
+
+if [ -f "$SCRIPT_DIR/scripts/aurora_mcp_server.py" ]; then
+    cat << 'EOF' > "$LOCAL_BIN/aurora-mcp"
+#!/usr/bin/env bash
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../Documents/antigravity/hyprland_project" 2>/dev/null && pwd || echo "$HOME/Documents/antigravity/hyprland_project")"
+exec uv run --with "mcp<2" python3 "$PROJECT_DIR/scripts/aurora_mcp_server.py" "$@"
+EOF
+    chmod +x "$LOCAL_BIN/aurora-mcp"
+    log_success "Serveur et CLI 'aurora-mcp' configuré dans $LOCAL_BIN/aurora-mcp."
 fi
 
 # Vérification du PATH

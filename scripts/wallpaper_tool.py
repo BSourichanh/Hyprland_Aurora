@@ -680,6 +680,16 @@ def run_wallpaper_daemon():
     debounce_delay = 0.4
     last_config_reload = 0.0
 
+    def extract_monitor_name(ev_line: str) -> str:
+        if ">>" not in ev_line:
+            return ""
+        payload = ev_line.split(">>", 1)[1]
+        parts = [p.strip() for p in payload.split(",")]
+        for p in parts:
+            if p in ("DP-1", "DP-2") or p.startswith("DP-") or p.startswith("HDMI-") or p.startswith("eDP-"):
+                return p
+        return parts[0] if parts else ""
+
     while True:
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -688,10 +698,10 @@ def run_wallpaper_daemon():
             buf = ""
             while True:
                 now = time.time()
-                timeout = None
+                timeout = 2.0
                 if pending_ensure:
                     earliest = min(pending_ensure.values())
-                    timeout = max(0.0, earliest - now)
+                    timeout = min(timeout, max(0.0, earliest - now))
 
                 rlist, _, _ = select.select([s], [], [], timeout)
 
@@ -706,12 +716,12 @@ def run_wallpaper_daemon():
                         if not line:
                             continue
                         ev_type = line.split(">>")[0]
-                        if ev_type == "monitoradded":
-                            mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
+                        if ev_type.startswith("monitoradded"):
+                            mon = extract_monitor_name(line)
                             target = mon if mon in ("DP-1", "DP-2") else "all"
                             pending_ensure[target] = time.time() + debounce_delay
-                        elif ev_type == "monitorremoved":
-                            mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
+                        elif ev_type.startswith("monitorremoved"):
+                            mon = extract_monitor_name(line)
                             cleanup_ghost_wallpapers(screen=mon if mon in ("DP-1", "DP-2") else None)
                         elif ev_type == "configreloaded":
                             now_t = time.time()
@@ -726,6 +736,15 @@ def run_wallpaper_daemon():
                         pending_ensure.pop(m, None)
                     for m in ready:
                         ensure_wallpapers(target_screen=None if m == "all" else m)
+                elif not os.path.exists("/tmp/hypr_locked"):
+                    # Auto-guérison si un écran s'est rallumé sans événement (ex. sortie de veille DPMS)
+                    try:
+                        active_layers = get_active_layer_wallpaper_screens()
+                        connected = get_hyprland_connected_screens()
+                        if any(scr not in active_layers for scr in connected):
+                            ensure_wallpapers()
+                    except Exception:
+                        pass
 
             s.close()
         except Exception:

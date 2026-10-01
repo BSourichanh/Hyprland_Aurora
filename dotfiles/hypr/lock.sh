@@ -151,8 +151,14 @@ while os.path.exists(lock_file):
             line = line.strip()
             if not line: continue
             ev = line.split(">>")[0]
-            if ev == "monitoradded":
-                mon = line.split(">>")[1].split(",")[0].strip() if ">>" in line else ""
+            if ev.startswith("monitoradded"):
+                mon = ""
+                if ">>" in line:
+                    parts = [p.strip() for p in line.split(">>", 1)[1].split(",")]
+                    for p in parts:
+                        if p in ("DP-1", "DP-2") or p.startswith("DP-") or p.startswith("HDMI-") or p.startswith("eDP-"):
+                            mon = p
+                            break
                 time.sleep(0.3)
                 enforce_lock()
                 subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -255,8 +261,9 @@ if os.path.exists(state_file):
     # 6. Relancer un auto-compactage différé pour harmoniser la disposition
     python3 "$HOME/.config/hypr/scripts/workspace-autocompact.py" --once >/dev/null 2>&1 &
 
-    # 7. S'assurer que le fond d'écran tourne sur tous les écrans connectés
+    # 7. S'assurer que le fond d'écran tourne sur tous les écrans connectés (immédiat + différé pour réveil moniteur)
     python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 &
+    (sleep 0.5 && python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1) &
 }
 
 trap cleanup EXIT INT TERM
