@@ -31,6 +31,9 @@ ressource/
 ├── lucy_material.json       # Descripteur du matériau 'genericimage4' (translucent)
 ├── scene.json               # Descripteur de scène maître (passes, bloom, HDR, objets)
 ├── preview.gif              # Vignette animée officielle (899 Ko)
+├── shaders/                 # Shaders GLSL customisés (glitch géométrique, shine yeux)
+│   ├── workshop/2125458920/effects/shake.frag # Glitch pur sans aberration chromatique ni teinte
+│   └── effects/             # Passes d'éclat oculaire optimisées (shine_downsample2, etc.)
 └── blackwall/               # Effet Blackwall natif GLSL (remplace les particules du workshop)
     ├── blackwall.frag       # Fragment shader GLSL (Fast-Path GPU, glyphes vectorisés)
     ├── blackwall.vert       # Vertex shader GLSL (projection 2D v_TexCoord)
@@ -48,6 +51,8 @@ ressource/
 | `lucy_model.json` | `models/Diseño sin título.json` | Modèle 2D liant le matériau principal |
 | `lucy_material.json` | `materials/Diseño sin título.json` | Définition des passes de texture |
 | `scene.json` | `scene.json` | Arbre de rendu et réglages de post-traitement |
+| `shaders/workshop/2125458920/effects/shake.frag` | `shaders/workshop/2125458920/effects/shake.frag` | Glitch géométrique pur sans distorsion RVB |
+| `shaders/effects/*` | `shaders/effects/*` | Passes d'éclat oculaire étalonnées |
 | `blackwall/blackwall.frag` | `shaders/effects/blackwall.frag` | Shader de fragment du réseau Blackwall |
 | `blackwall/blackwall.vert` | `shaders/effects/blackwall.vert` | Shader de sommet 2D |
 | `blackwall/blackwall_mask.tex` | `materials/masks/blackwall_mask.tex` | Masque subpixel binaire |
@@ -122,16 +127,208 @@ graph TD
 ## 4. Shaders GLSL & Optimisations Graphiques
 
 ### 4.1 Shader Glitch Relic Rework (`shake.frag`)
-- **Emplacement Workshop** : `shaders/workshop/2125458920/effects/shake.frag`
-- **Déplacement Géométrique Pur (Zéro Décoloration)** :
-  - Suppression intégrale de l'aberration chromatique (pas de décalage RVB baveux).
-  - Élimination des teintes jaunes artificielles Relic et des flashs cyan parasites.
-  - Échantillonnage direct : `texSample2D(g_Texture0, glitchUV)` garantissant une fidélité chromatique 100% absolue à l'illustration.
-- **Slice Jitter Multi-Échelles à 3 Niveaux** :
-  - **Niveau 1 (Tranches horizontales)** : Segments de 12% à 57% de l'écran avec wrapping cyclique (`fract(xEnd)`).
-  - **Niveau 2 (Blocs rectangulaires 2D)** : Grille $14 \times 32$ avec décalages indépendants en $X$ (0.045) et $Y$ (0.012).
-  - **Niveau 3 (Micro-lignes)** : Bandes ultra-fines (hauteur 1/140e, largeur 3% à 18%) pour les saccades haute fréquence.
-- **Rythme Temporel** : Cycle de 3.6s avec impulsion `smoothstep(3.1, 3.25, cycle) * (1.0 - smoothstep(3.25, 3.55, cycle))` et micro-saccades pseudo-aléatoires (`hash11(floor(time * 9.0))`).
+- **Emplacement Miroir (Git)** : [`ressource/shaders/workshop/2125458920/effects/shake.frag`](file:///home/user/Documents/antigravity/hyprland_project/ressource/shaders/workshop/2125458920/effects/shake.frag)
+- **Destination Workshop** : `~/.steam/.../3566437475/shaders/workshop/2125458920/effects/shake.frag`
+- **Mécanisme VFS & Priorité du Runtime** :
+  - `linux-wallpaperengine` monte par défaut `scene.pkg` à la racine `/` du VFS virtuel (`WallpaperApplication.cpp:88`).
+  - Si `scene.pkg` est présent, les shaders originaux du créateur (aberration chromatique baveuse, flashs jaune Relic, scanlines assombrissantes) écrasent les fichiers décompressés sur disque.
+  - La routine `sync_to_workshop()` décompresse automatiquement les 80 fichiers de l'archive et renomme `scene.pkg` en `scene.pkg.orig` pour garantir le chargement exclusif du shader customisé.
+
+#### A. Principes Visuels & Fidélité Chromatique Absolue (Zéro Dispersion)
+1. **Suppression Totale de l'Aberration Chromatique** :
+   - Élimination des décalages de coordonnées par composante (`redUV`, `blueUV`). Aucun liseré rouge ou bleu ne bave sur les mèches blanches ou les yeux.
+2. **Suppression des Voiles Colorés & Flashs Parasites** :
+   - Retrait des teintes jaune Relic, des filtres cyan et des barres d'assombrissement artificielles.
+   - Les noirs profonds du fond Blackwall, les dégradés cyan/mauve des cheveux et l'iris rose néon conservent 100% de leur colorimétrie native via un échantillonnage direct `texSample2D(g_Texture0, glitchUV)`.
+3. **Calme Visuel & Équilibre (Zéro Surcharge)** :
+   - Aucun effet de flou ou d'écho fantôme résiduel (qui créait une sensation de flou de bougé indésirable).
+   - Aucune coupure noire (drop-out) ni sursaut de luminosité blanc. L'image reste cristalline et nette.
+
+#### B. Rythme Temporel & Cadence « Snappy » (Double-Tap Discret)
+- **Période Globale** : Cycle posé de **$3.80\,\text{s}$** (`mod(time, 3.8)` avec `time = g_Time * 1.5`).
+- **Repos Visuel Absolu** : Pendant **$90\%$ du cycle** ($t \in [0.00\,\text{s}, 3.20\,\text{s}[$ et $t \in ]3.43\,\text{s}, 3.80\,\text{s}]$), l'intensité est strictement nulle ($0.0$). L'écran est totalement immobile.
+- **Double Impulsion Instantanée (Pas de glissement gélatineux)** :
+  Au lieu d'une interpolation continue `smoothstep` de 450 ms qui faisait glisser mollement l'image comme de la gelée, la secousse est quantifiée en échelons instantanés nets :
+  - **Tic 1 (Choc principal)** : $t \in [3.20\,\text{s}, 3.30\,\text{s}]$ (durée : $100\,\text{ms}$, intensité : $1.0$).
+  - **Inter-tic (Micro-pause)** : $t \in ]3.30\,\text{s}, 3.35\,\text{s}[$ (durée : $50\,\text{ms}$, pause nette à $0.0$).
+  - **Tic 2 (Réplique secondaire)** : $t \in [3.35\,\text{s}, 3.43\,\text{s}]$ (durée : $80\,\text{ms}$, intensité : $0.7$).
+  - **Micro-secousse sporadique** : Déclenchement pseudo-aléatoire très rare ($< 1.8\%$ des trames) via `step(0.982, hash11(floor(time * 10.0))) * 0.45`.
+
+#### C. Découpe Géométrique Multi-Tailles & Variabilité Strictement Bornée
+Le déplacement spatial opère simultanément sur 4 échelles asymétriques indépendantes sans rupture de grille :
+
+1. **Grandes Tranches Épaisses (Sections Focalisées)** :
+   - **Hauteur au pixel près** : Calibrée strictement entre **$50\,\text{px}$ et $75\,\text{px}$** :
+     $$\text{macroY} = \text{uv.y} \times 14.4, \quad \text{macroIndex} = \lfloor \text{macroY} \rfloor, \quad \text{localY} = \text{fract}(\text{macroY}) \times 75.0$$
+     $$\text{macroHeight} = \text{hash11}(\text{macroSeed} \times 3.77) \times 25.0 + 50.0 \quad \in [50\,\text{px}, 75\,\text{px}]$$
+   - **Largeur variable (Asymétrique)** : Strictement bornée entre **$25\%$ et $50\%$** de l'écran :
+     $$x_{\text{width}} = \text{hash11}(\text{macroSeed} \times 5.43) \times 0.25 + 0.25 \quad \in [0.25, 0.50]$$
+   - **Déplacement net** : Décalage horizontal franc $\Delta X = (\text{hash} - 0.5) \times 0.075 \times \text{intensity}$ encapsulé dans le helper `isInsideSpan` avec repliement toroïdal (`fract(xEnd)`).
+2. **Tranches Moyennes** :
+   - **Hauteur** : $\sim 25\,\text{px}$ à $45\,\text{px}$ ($\lfloor \text{uv.y} \times 30.0 \rfloor$).
+   - **Largeur variable** : **$25\%$ à $50\%$** de l'écran.
+   - **Déplacement** : $\Delta X = (\text{hash} - 0.5) \times 0.050 \times \text{intensity}$.
+3. **Tranches Fines** :
+   - **Hauteur** : $\sim 10\,\text{px}$ à $18\,\text{px}$ ($\lfloor \text{uv.y} \times 65.0 \rfloor$).
+   - **Largeur variable** : **$25\%$ à $50\%$** de l'écran.
+   - **Déplacement** : $\Delta X = (\text{hash} - 0.5) \times 0.035 \times \text{intensity}$.
+4. **Blocs Rectangulaires 2D (Pavés de Corruption VRAM)** :
+   - **Gros blocs massifs** : Grille $8 \times 16$ (hauteur fixe de $67.5\,\text{px}$, largeur $240\,\text{px}$). Décalage 2D : $\Delta X = \pm 0.030$, $\Delta Y = \pm 0.0075$.
+   - **Blocs moyens** : Grille $18 \times 28$ (hauteur $38.5\,\text{px}$, largeur $106\,\text{px}$). Décalage 2D : $\Delta X = \pm 0.020$, $\Delta Y = \pm 0.0040$.
+
+#### D. Code Source GLSL Intégral Annoté (`shake.frag`)
+```glsl
+#include "common.h"
+
+varying vec4 v_TexCoord;
+
+uniform sampler2D g_Texture0; // {"material":"framebuffer","hidden":true}
+uniform float g_Time;
+
+// ============================================================================
+// CONFIGURATION DU GLITCH (CONSTANTES NOMMÉES)
+// ============================================================================
+const float TIME_SCALE      = 1.5;
+const float CYCLE_PERIOD    = 3.8;
+const float TICK1_START     = 3.20;
+const float TICK1_END       = 3.30;
+const float TICK2_START     = 3.35;
+const float TICK2_END       = 3.43;
+const float TICK2_WEIGHT    = 0.70;
+const float TWITCH_RATE     = 10.0;
+const float TWITCH_THRESH   = 0.982;
+const float TWITCH_WEIGHT   = 0.45;
+
+// Géométrie des tranches
+const float MACRO_FREQ      = 14.4; // 1080.0 / 75.0 (tranches de 75px de période)
+const float MACRO_MIN_H     = 50.0; // Hauteur minimale 50px
+const float MACRO_VAR_H     = 25.0; // Plage de variation 50px à 75px
+const float WIDTH_BASE      = 0.25; // Largeur minimale (25%)
+const float WIDTH_RANGE     = 0.25; // Plage variable (25% à 50%)
+
+// ============================================================================
+// FONCTIONS DE HACHAGE & HELPERS
+// ============================================================================
+float hash11(float p) {
+    p = fract(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
+}
+
+float hash21(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+// Vérification d'intervalle horizontal avec bouclage torique (DRY)
+bool isInsideSpan(float x, float xStart, float xWidth) {
+    float xEnd = xStart + xWidth;
+    return (x >= xStart && x <= xEnd) || (xEnd > 1.0 && x <= fract(xEnd));
+}
+
+// ============================================================================
+// MAIN SHADER PIPELINE
+// ============================================================================
+void main() {
+    vec2 uv = v_TexCoord.xy;
+    float time = g_Time * TIME_SCALE;
+
+    // 1. Rythme posé : secousse nette et brève toutes les ~3.8s (calme absolu 90% du temps)
+    float cycle = mod(time, CYCLE_PERIOD);
+
+    // Double-tic sec et instantané (pas de glissement mou)
+    float tick1 = step(TICK1_START, cycle) * (1.0 - step(TICK1_END, cycle)); // Choc principal franc (100ms)
+    float tick2 = step(TICK2_START, cycle) * (1.0 - step(TICK2_END, cycle)) * TICK2_WEIGHT; // Réplique secondaire (80ms)
+    float twitch = step(TWITCH_THRESH, hash11(floor(time * TWITCH_RATE))) * TWITCH_WEIGHT; // Micro-saccade rare
+    float intensity = max(max(tick1, tick2), twitch);
+
+    // -------------------------------------------------------------------------
+    // FAST-PATH EARLY EXIT (Optimisation GPU 90% du temps)
+    // -------------------------------------------------------------------------
+    if (intensity <= 0.005) {
+        gl_FragColor = texSample2D(g_Texture0, uv);
+        return;
+    }
+
+    vec2 glitchUV = uv;
+    float frameSeed = floor(time * 20.0) * 23.41;
+
+    // =========================================================================
+    // A. GRANDES TRANCHES ÉPAISSES (Hauteur exacte 50px à 75px, largeur 25%-50%)
+    // =========================================================================
+    float macroY = uv.y * MACRO_FREQ;
+    float macroIndex = floor(macroY);
+    float macroSeed = macroIndex + frameSeed;
+    float macroHeight = hash11(macroSeed * 3.77) * MACRO_VAR_H + MACRO_MIN_H; // 50px à 75px
+    float localY = fract(macroY) * 75.0; // Optimisation ALU : fract au lieu de mod
+
+    if (hash11(macroSeed) > 0.65 && localY <= macroHeight) {
+        float xStart = hash11(macroSeed * 2.17);
+        float xWidth = hash11(macroSeed * 5.43) * WIDTH_RANGE + WIDTH_BASE;
+
+        if (isInsideSpan(uv.x, xStart, xWidth)) {
+            float macroShift = (hash11(macroSeed * 9.13) - 0.5) * 0.075 * intensity;
+            glitchUV.x += macroShift;
+        }
+    }
+
+    // =========================================================================
+    // B. TRANCHES MOYENNES (Hauteur ~25-45px, largeur variable 25%-50%)
+    // =========================================================================
+    float midY = floor(uv.y * 30.0);
+    float midSeed = midY + frameSeed * 1.47;
+    if (hash11(midSeed) > 0.60) {
+        float xStart = hash11(midSeed * 1.83);
+        float xWidth = hash11(midSeed * 4.61) * WIDTH_RANGE + WIDTH_BASE;
+
+        if (isInsideSpan(uv.x, xStart, xWidth)) {
+            float midShift = (hash11(midSeed * 7.77) - 0.5) * 0.050 * intensity;
+            glitchUV.x += midShift;
+        }
+    }
+
+    // =========================================================================
+    // C. TRANCHES FINES (Hauteur ~10-18px, largeur variable 25%-50%)
+    // =========================================================================
+    float fineY = floor(uv.y * 65.0);
+    float fineSeed = fineY + frameSeed * 2.19;
+    if (hash11(fineSeed) > 0.72) {
+        float xStart = hash11(fineSeed * 3.11);
+        float xWidth = hash11(fineSeed * 6.29) * WIDTH_RANGE + WIDTH_BASE;
+
+        if (isInsideSpan(uv.x, xStart, xWidth)) {
+            float fineShift = (hash11(fineSeed * 11.23) - 0.5) * 0.035 * intensity;
+            glitchUV.x += fineShift;
+        }
+    }
+
+    // =========================================================================
+    // D. BLOCS RECTANGULAIRES 2D (Pavés francs de tailles variables)
+    // =========================================================================
+    // 1. Gros blocs francs (grille 8x16 : 67.5px de haut, décrochages massifs localisés)
+    vec2 macroCell = floor(uv * vec2(8.0, 16.0));
+    float macroBlockSeed = hash21(macroCell + frameSeed);
+    if (macroBlockSeed > 0.88) {
+        vec2 bShift = (vec2(hash21(macroCell * 2.7 + 1.1), hash21(macroCell * 6.1 + 3.7)) - 0.5) 
+                      * vec2(0.060, 0.015) * intensity;
+        glitchUV += bShift;
+    }
+
+    // 2. Blocs moyens (grille 18x28, détails nets)
+    vec2 midCell = floor(uv * vec2(18.0, 28.0));
+    float midBlockSeed = hash21(midCell + frameSeed * 1.33);
+    if (midBlockSeed > 0.87) {
+        vec2 bShift = (vec2(hash21(midCell * 3.9 + 1.4), hash21(midCell * 8.3 + 4.7)) - 0.5) 
+                      * vec2(0.040, 0.008) * intensity;
+        glitchUV += bShift;
+    }
+
+    // Échantillonnage direct 100% fidèle : couleurs d'origine pures, zéro flash, zéro flou
+    gl_FragColor = texSample2D(g_Texture0, glitchUV);
+}
+```
 
 ### 4.2 Shader Éclat des Yeux (`shine_downsample2.frag`)
 - **Emplacement Miroir & Workshop** : `ressource/shaders/effects/shine_downsample2.frag` ➔ `shaders/effects/shine_downsample2.frag`

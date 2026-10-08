@@ -93,6 +93,7 @@ SYSTEM_PKGS=(
     libgtk-3-dev
     libwayland-dev
     wtype
+    sway-notification-center
 )
 
 if [ "$INSTALL_DEPS" -eq 1 ]; then
@@ -159,7 +160,7 @@ log_info "2. Sauvegarde des configurations existantes dans ~/.config/..."
 BACKUP_DIR="$HOME/.config/aurora_backup_$(date +'%Y%m%d_%H%M%S')"
 NEED_BACKUP=0
 
-TARGET_DIRS=("hypr" "waybar" "wofi" "kitty")
+TARGET_DIRS=("hypr" "waybar" "wofi" "kitty" "swaync")
 for d in "${TARGET_DIRS[@]}"; do
     TARGET_PATH="$CONFIG_DIR/$d"
     if [ -d "$TARGET_PATH" ]; then

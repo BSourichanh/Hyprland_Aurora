@@ -53,10 +53,17 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
 2. **Isolation Totale de Waybar** :
    - Arrêt complet du processus (`killall waybar`) et des sous-processus Spotify à l'entrée en verrouillage. Cela élimine l'artefact GTK3 où Waybar réapparaissait avec `visible = true` sur tout écran rebranché lors de l'utilisation de `SIGUSR1`.
    - Fermeture forcée des popups flottants (`wofi`, carte Spotify).
-3. **Restauration Déterministe Dynamique (Pattern RAII)** :
+3. **Confidentialité des Notifications (SwayNC)** :
+   - Mémorisation de l'état préalable, fermeture forcée du panneau (`swaync-client -cp`) et bascule immédiate en mode Ne Pas Déranger (`swaync-client -dn`).
+   - Zéro toast sur l'écran de verrouillage : les alertes restent historisées en silence sans créer de couche visuelle.
+4. **Restauration Déterministe Dynamique (Pattern RAII)** :
    - Routine `cleanup()` enregistrée sur tous les signaux d'interruption (`trap ... EXIT INT TERM`).
    - Restauration des workspaces d'origine **uniquement sur les moniteurs physiquement connectés** lors du déverrouillage (évite d'écraser la disposition si un écran reste éteint).
+   - Rétablissement de l'état Ne Pas Déranger de SwayNC (`swaync-client -df` si inactif au départ).
    - Relance synchronisée de Waybar (`hyprctl dispatch exec waybar`) et déclenchement d'un cycle de compactage propre.
+5. **Horloge Hyprlock Anti-Freeze (`hyprlock.conf`)** :
+   - Remplacement de la variable passive `$TIME` (vulnérable aux race conditions internes du *ResourceGatherer* lors des coupures d'affichage DPMS) par `cmd[update:1000] date +"%H:%M"`.
+   - Asservissement direct à un timer système noyau Linux (`timerfd`) garantissant un rafraîchissement d'heure déterministe à la seconde près.
 
 ---
 
@@ -90,6 +97,7 @@ Le script [`screenshot.sh`](file:///home/user/Documents/antigravity/hyprland_pro
 | <kbd>SUPER</kbd> + <kbd>C</kbd> | Fermer la fenêtre active |
 | <kbd>SUPER</kbd> + <kbd>V</kbd> | Basculer la fenêtre en mode flottant |
 | <kbd>SUPER</kbd> + <kbd>R</kbd> | Ouvrir / Fermer Wofi (`wofi-toggle.sh`) |
+| <kbd>SUPER</kbd> + <kbd>N</kbd> | Ouvrir / Fermer le centre de notifications (`swaync-client -t -sw`) |
 | <kbd>SUPER</kbd> + <kbd>S</kbd> | Menu de session et alimentation (`power-menu.sh`) |
 | <kbd>Impr écran</kbd> / <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd> | Capture d'écran (sélection rectangulaire Aurora) |
 | <kbd>SHIFT</kbd> + <kbd>Impr écran</kbd> | Capture plein écran du moniteur actif |

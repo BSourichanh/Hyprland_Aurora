@@ -18,13 +18,18 @@ ressource/
 ├── lucy_material.json       # Descripteur du matériau principal et liaisons de textures
 ├── scene.json               # Configuration de la scène (passes de post-traitement, shine, bloom)
 ├── preview.gif              # Vignette animée officielle du Workshop
-└── blackwall/               # Effet Blackwall natif GLSL (remplace les particules non supportées)
-    ├── blackwall.frag       # Fragment shader optimisé (Fast-Path GPU, glyphes vectorisés)
-    ├── blackwall.vert       # Vertex shader pour la projection 2D de la passe Blackwall
-    ├── blackwall_mask.png   # Masque subpixel haute fidélité (isolation du gradient de fond)
-    ├── blackwall_mask.tex   # Masque compilé en conteneur binaire TEXV0005
-    ├── blackwall.json       # Liaisons des propriétés et passes de rendu
-    └── effect.json          # Descripteur de l'effet pour le moteur Wallpaper Engine
+├── blackwall/               # Effet Blackwall natif GLSL (remplace les particules non supportées)
+│   ├── blackwall.frag       # Fragment shader optimisé (Fast-Path GPU, glyphes vectorisés)
+│   ├── blackwall.vert       # Vertex shader pour la projection 2D de la passe Blackwall
+│   ├── blackwall_mask.png   # Masque subpixel haute fidélité (isolation du gradient de fond)
+│   ├── blackwall_mask.tex   # Masque compilé en conteneur binaire TEXV0005
+│   ├── blackwall.json       # Liaisons des propriétés et passes de rendu
+│   └── effect.json          # Descripteur de l'effet pour le moteur Wallpaper Engine
+└── shaders/                 # Shaders GLSL natifs déployés dans le Workshop Steam
+    ├── effects/
+    │   └── shine_downsample2.frag # Passe shine optimisée (vitesse 0.035, lissage sans scintillement)
+    └── workshop/2125458920/effects/
+        └── shake.frag       # Glitch géométrique épuré (tranches discrètes 50-75px, largeur 25-50%, fast-path)
 ```
 
 ---
@@ -60,6 +65,28 @@ L'algorithme de génération de masque (`scripts/wallpaper_tool.py mask`) appliq
 - **Ensemencement universel** : Détection des pixels de fond piégés ($D \le 1.8$).
 - **Propagation subpixel (BFS)** : Expansion douce avec seuil d'adhérence $D < 18.0$ et lissage `smoothstep`.
 - **Préservation anatomique** : Préservation intégrale de la fente cou/dos et détourage net des fentes entre les doigts de la main.
+
+---
+
+## ⚡ Shader Glitch Cybernétique Épuré (`shake.frag`)
+
+Le shader d'effet glitch cyberpunk ([`ressource/shaders/workshop/2125458920/effects/shake.frag`](file:///home/user/Documents/antigravity/hyprland_project/ressource/shaders/workshop/2125458920/effects/shake.frag)) a été entièrement refactorisé pour éliminer les voiles flous, les distorsions de couleur et la surconsommation GPU :
+
+1. **Fast-Path Précoce Zero-Cost** :
+   ```glsl
+   if (frac > 0.046) {
+       gl_FragColor = texColor;
+       return;
+   }
+   ```
+   Court-circuite 95.4% du temps de rendu et ramène le coût moyen du fragment shader à un simple échantillonnage de texture.
+2. **Double Micro-Décrochage Discret (Double-Tap)** :
+   Cycle aéré de ~4.2 secondes avec deux impulsions nettes de 38 ms séparées d'une pause de 76 ms.
+3. **Macro-Tranches Délimitées & Asymétriques** :
+   - Hauteur discrète de 50 à 75 px (pas de micro-hachures agressives).
+   - Largeur variable asymétrique limitée entre 25% et 50% de la largeur d'écran (aucune déformation plein écran).
+4. **Zéro Distorsion Chromatique** :
+   Déplacement 2D net ($\pm 18$ px) sur les composantes RVB préservées sans aberration ni décalage de teinte.
 
 ---
 

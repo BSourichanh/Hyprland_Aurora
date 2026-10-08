@@ -1,0 +1,254 @@
+/*
+ * SwayNC Aurora Theme — GTK3 Stylesheet
+ * Strict adherence to GEMINI.md Aurora Design System
+ * Rounding: 17px, Border: 2px solid rgba(0, 240, 255, 0.65), Glass: rgba(10, 15, 30, 0.80)
+ */
+
+@define-color cc-bg rgba(10, 15, 30, 0.85);
+@define-color noti-border-color rgba(0, 240, 255, 0.65);
+@define-color noti-bg rgba(10, 15, 30, 0.80);
+@define-color noti-bg-darker rgba(10, 15, 30, 0.95);
+@define-color noti-bg-hover rgba(21, 46, 80, 0.70);
+@define-color noti-bg-focus rgba(21, 46, 80, 0.85);
+@define-color noti-close-bg rgba(0, 240, 255, 0.15);
+@define-color noti-close-bg-hover #f43f5e;
+
+@define-color text-color #e1e4f1;
+@define-color text-color-disabled #7a8fae;
+@define-color cyan-primary #00f0ff;
+@define-color blue-secondary #7aa2f7;
+@define-color violet-accent #9778d0;
+@define-color alert-red #f43f5e;
+
+* {
+  font-family: "Noto Sans", sans-serif;
+}
+
+.notification-row {
+  outline: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+.notification-row:focus,
+.notification-row:hover {
+  background: transparent;
+}
+
+.notification {
+  border-radius: 17px;
+  margin: 8px 12px;
+  padding: 0;
+  border: 2px solid @noti-border-color;
+  background: @noti-bg;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 14px rgba(0, 240, 255, 0.25);
+  transition: all 0.2s ease-in-out;
+}
+
+.notification:hover {
+  border-color: @cyan-primary;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 18px rgba(0, 240, 255, 0.40);
+}
+
+.critical {
+  border: 2px solid @alert-red;
+  box-shadow: 0 0 16px rgba(244, 63, 94, 0.45);
+}
+
+.low {
+  border: 1.5px solid rgba(122, 162, 247, 0.45);
+}
+
+.notification-content {
+  background: transparent;
+  padding: 12px 14px;
+  border-radius: 17px;
+}
+
+.close-button {
+  background: @noti-close-bg;
+  color: @cyan-primary;
+  text-shadow: none;
+  padding: 0;
+  border-radius: 100%;
+  margin-top: 10px;
+  margin-right: 12px;
+  box-shadow: none;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  min-width: 22px;
+  min-height: 22px;
+  transition: all 0.15s ease-in-out;
+}
+
+.close-button:hover {
+  background: @noti-close-bg-hover;
+  color: #ffffff;
+  border-color: @alert-red;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+}
+
+.notification-default-action,
+.notification-action {
+  padding: 6px 12px;
+  margin: 0;
+  box-shadow: none;
+  background: rgba(21, 46, 80, 0.60);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: @text-color;
+  border-radius: 12px;
+  transition: all 0.15s ease-in-out;
+}
+
+.notification-default-action:hover,
+.notification-action:hover {
+  background: linear-gradient(45deg, rgba(0, 240, 255, 0.25), rgba(122, 162, 247, 0.25));
+  border-color: @cyan-primary;
+  color: @cyan-primary;
+}
+
+.notification-default-action {
+  border-radius: 17px;
+}
+
+.summary {
+  font-size: 15px;
+  font-weight: bold;
+  background: transparent;
+  color: @cyan-primary;
+  text-shadow: none;
+}
+
+.time {
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: @blue-secondary;
+  text-shadow: none;
+  margin-right: 8px;
+}
+
+.body {
+  font-size: 13.5px;
+  font-weight: normal;
+  background: transparent;
+  color: @text-color;
+  text-shadow: none;
+  margin-top: 4px;
+}
+
+/* ============================================================================
+ * CONTROL CENTER (PANNEAU LATÉRAL)
+ * ============================================================================ */
+
+.control-center {
+  background: @cc-bg;
+  border-radius: 17px;
+  border: 2px solid @noti-border-color;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 240, 255, 0.25);
+  padding: 14px;
+}
+
+.control-center-list {
+  background: transparent;
+}
+
+.control-center-list-placeholder {
+  color: @text-color-disabled;
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.floating-notifications {
+  background: transparent;
+}
+
+.blank-window {
+  background: alpha(black, 0.30);
+}
+
+/* ============================================================================
+ * WIDGETS
+ * ============================================================================ */
+
+/* Widget Title */
+.widget-title {
+  margin: 6px 8px 12px 8px;
+  font-size: 1.25rem;
+  color: @cyan-primary;
+  font-weight: bold;
+}
+
+.widget-title > button {
+  font-size: 12px;
+  font-weight: 600;
+  color: @blue-secondary;
+  text-shadow: none;
+  background: rgba(21, 46, 80, 0.50);
+  border: 1px solid rgba(122, 162, 247, 0.40);
+  box-shadow: none;
+  border-radius: 12px;
+  padding: 4px 10px;
+  transition: all 0.15s ease-in-out;
+}
+
+.widget-title > button:hover {
+  background: rgba(244, 63, 94, 0.20);
+  border-color: @alert-red;
+  color: @alert-red;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.4);
+}
+
+/* Widget DND (Ne pas déranger) */
+.widget-dnd {
+  margin: 6px 8px 12px 8px;
+  font-size: 1rem;
+  color: @text-color;
+  font-weight: 500;
+}
+
+.widget-dnd > switch {
+  font-size: initial;
+  border-radius: 17px;
+  background: rgba(21, 46, 80, 0.50);
+  border: 1px solid rgba(122, 162, 247, 0.40);
+  box-shadow: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.widget-dnd > switch:checked {
+  background: linear-gradient(45deg, #00f0ff, #7aa2f7);
+  border-color: #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.widget-dnd > switch slider {
+  background: #090727;
+  border-radius: 17px;
+  border: 1px solid rgba(0, 240, 255, 0.5);
+}
+
+/* Widget MPRIS */
+.widget-mpris {
+  background: rgba(21, 46, 80, 0.40);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 17px;
+  padding: 10px;
+  margin: 8px 4px 12px 4px;
+}
+
+.widget-mpris-player {
+  padding: 4px;
+  margin: 0;
+}
+
+.widget-mpris-title {
+  font-weight: bold;
+  font-size: 1.05rem;
+  color: @cyan-primary;
+}
+
+.widget-mpris-subtitle {
+  font-size: 0.9rem;
+  color: @blue-secondary;
+}

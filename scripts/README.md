@@ -18,20 +18,23 @@ scripts/
 Le script est exécutable directement depuis la racine du dépôt :
 
 ### 1. Surveillance des Processus & Couches Wayland (`status`)
-Affiche l'état des processus actifs de rendu dynamique, leurs moniteurs assignés (`DP-1`, `DP-2`) et l'empilement des calques Wayland rapporté par Hyprland :
+Affiche l'état des processus actifs de rendu dynamique, leurs moniteurs assignés (`DP-1`, `DP-2`), les métriques CPU (par cœur et global machine), la mémoire RSS et l'empilement des calques Wayland rapporté par Hyprland :
 ```bash
 ./scripts/wallpaper_tool.py status
 ```
 *Sortie type :*
 ```text
+=== Moteur Lucy : Mode Configuré [GPU] (Accélération Matérielle (Intel UHD 630)) ===
+=== Démon Hotplug IPC : Actif [PID 45389] ===
 === État des Processus Wallpaper Engine ===
-  • PID 101351 : Moniteur [DP-1] (linux-wallpaperengine --screen-root DP-1 ...)
-  • PID 101352 : Moniteur [DP-2] (linux-wallpaperengine --screen-root DP-2 ...)
-✓ Total : 2 processus actif(s).
+  • PID 45288 : Moniteur [DP-1] | Moteur: [GPU (Intel UHD 630)] | CPU: 3.0% (0.5% global) | RAM: 184.4 Mo
+  • PID 45289 : Moniteur [DP-2] | Moteur: [GPU (Intel UHD 630)] | CPU: 3.2% (0.5% global) | RAM: 184.3 Mo
+✓ Total : 2 processus actif(s) | CPU: 6.2% (sur 600% max, soit 1.0% global) | RAM: 368.6 Mo
+  • Fréquence GPU active : 1100 MHz
 
 === Couches Wayland Détectées (Hyprland) ===
-  • DP-1 : Background:wallpaper[pid:3373] | Bottom:linux-wallpaperengine[pid:101351] | Top:waybar[pid:3378]
-  • DP-2 : Background:wallpaper[pid:3373] | Bottom:linux-wallpaperengine[pid:101352] | Top:waybar[pid:3378]
+  • DP-1 : Background:wallpaper[pid:3593] | Bottom:linux-wallpaperengine[pid:45288] | Top:waybar[pid:29304]
+  • DP-2 : Background:wallpaper[pid:3593] | Bottom:linux-wallpaperengine[pid:45289] | Top:waybar[pid:29304]
 ```
 
 ### 2. Régénération du Masque Subpixel (`mask`)
@@ -74,7 +77,7 @@ Démon continu d'arrière-plan écoutant nativement les événements du socket H
 ```
 
 ### 7. Redémarrage Multi-Écrans Déterministe (`restart`)
-Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), protégé par un verrou mutex atomique (`flock` sur `/tmp/wallpaper_restart.lock`) contre les exécutions concurrentes :
+Relance les moteurs Wallpaper Engine en créant des sessions système découplées (`start_new_session=True`) pour chaque écran (`DP-1` et `DP-2`), protégé par un verrou mutex atomique (`file_mutex` RAII avec `flock` sur `/tmp/wallpaper_restart.lock`) contre les exécutions concurrentes. Injecte automatiquement les flags basse consommation (`--silent --no-audio-processing --disable-mouse --fullscreen-pause-only-active`) et la variable d'environnement `SDL_AUDIODRIVER=dummy`, réduisant l'empreinte CPU à ~3.0% par cœur (~0.5% machine global) :
 ```bash
 # Redémarrage complet de tous les écrans connectés
 ./scripts/wallpaper_tool.py restart
@@ -100,7 +103,16 @@ Permet de visualiser le moteur actif ou de basculer instantanément Lucy entre l
 ```
 
 ### 9. Audit d'Intégrité des Liens Système (`check-links`)
-Parcourt récursivement `dotfiles/` et vérifie que chaque fichier correspond rigoureusement au même numéro d'inode dans `~/.config/`, garantissant qu'aucune écriture n'a rompu les liaisons système (28 hard links) :
+Parcourt récursivement `dotfiles/` et vérifie que chaque fichier correspond rigoureusement au même numéro d'inode dans `~/.config/`, garantissant qu'aucune écriture n'a rompu les liaisons système (33 hard links) :
 ```bash
 ./scripts/wallpaper_tool.py check-links
 ```
+
+---
+
+## 🏛️ Architecture & Bonnes Pratiques de Conception
+
+- **Gestionnaire de Contexte RAII (`file_mutex`)** : Encapsulation stricte du verrouillage `flock` avec libération déterministe (`try...finally`) prévenant tout blocage ou fichier verrouillé orphelin en cas d'exception.
+- **Principe de Responsabilité Unique (SRP)** : Découpage de l'extraction de textures et de scènes (`unpack_scene_pkg`) séparant le parsing binaire des conteneurs PKG/TEX et l'écriture disque.
+- **Registre Déclaratif d'Actifs (`SYNC_ASSETS`)** : Table centralisée associant source et destination pour la synchronisation Steam Workshop, éliminant les duplications de logique de copie.
+

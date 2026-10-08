@@ -6,6 +6,8 @@ Steam workshop synchronization, dotfiles hard link audits, and process managemen
 """
 
 import argparse
+import contextlib
+import fcntl
 import json
 import math
 import os
@@ -16,12 +18,36 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageFilter
 except ImportError:
     Image = None
+    ImageFilter = None
+
+
+@contextlib.contextmanager
+def file_mutex(lock_path: str, non_blocking: bool = True):
+    """Context manager acquiring an exclusive file lock, yielding True if acquired."""
+    try:
+        lock_fd = open(lock_path, "w")
+        flags = fcntl.LOCK_EX
+        if non_blocking:
+            flags |= fcntl.LOCK_NB
+        fcntl.flock(lock_fd, flags)
+    except (BlockingIOError, IOError):
+        yield False
+        return
+
+    try:
+        yield True
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+        except Exception:
+            pass
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 RESSOURCE_DIR = PROJECT_DIR / "ressource"
@@ -227,10 +253,8 @@ def generate_eye_shine_mask(
     Génère le masque vectoriel de la pupille (oeil droit et gauche) avec anti-aliasing sous-pixel,
     éliminant strictement la barrette de cheveux, la sclère blanche et les paupières.
     """
-    if Image is None:
+    if Image is None or ImageFilter is None:
         sys.exit("Erreur : Pillow (PIL) est requis pour générer le masque.")
-
-    from PIL import ImageFilter
 
     im = Image.open(input_png)
     w, h = im.size
@@ -304,61 +328,89 @@ def generate_eye_shine_mask(
 # 3. SYNCHRONISATION & DÉPLOIEMENT STEAM WORKSHOP
 # ============================================================================
 
+def unpack_scene_pkg(pkg_file: Path, workshop_dir: Path) -> bool:
+    """
+    Extracts all files from a Wallpaper Engine scene.pkg archive and renames it
+    to scene.pkg.orig to prevent VFS shadowing of loose shader/material assets.
+    """
+    if not pkg_file.exists():
+        return False
+    try:
+        with open(pkg_file, "rb") as f:
+            magic_len = struct.unpack("<I", f.read(4))[0]
+            _magic = f.read(magic_len).decode("ascii")
+            file_count = struct.unpack("<I", f.read(4))[0]
+            entries = []
+            for _ in range(file_count):
+                nl = struct.unpack("<I", f.read(4))[0]
+                name = f.read(nl).decode("utf-8")
+                offset = struct.unpack("<I", f.read(4))[0]
+                size = struct.unpack("<I", f.read(4))[0]
+                entries.append((name, offset, size))
+            header_end = f.tell()
+            for name, offset, size in entries:
+                target = workshop_dir / name
+                if not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    f.seek(header_end + offset)
+                    target.write_bytes(f.read(size))
+        orig_file = workshop_dir / "scene.pkg.orig"
+        if orig_file.exists():
+            pkg_file.unlink()
+        else:
+            pkg_file.rename(orig_file)
+        print("✓ Archive scene.pkg décompressée et renommée en scene.pkg.orig")
+        return True
+    except Exception as e:
+        print(f"⚠️ Erreur lors du déballage de scene.pkg : {e}")
+        return False
+
+
+def copy_asset(src: Path, dst: Path):
+    """Copies src to dst, creating parent directories if needed."""
+    if src.exists():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+
+
+def sync_tree(src_dir: Path, dst_dir: Path):
+    """Recursively syncs all files from src_dir to dst_dir."""
+    if not src_dir.exists():
+        return
+    for s_file in src_dir.rglob("*"):
+        if s_file.is_file():
+            rel = s_file.relative_to(src_dir)
+            target = dst_dir / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(s_file, target)
+
+
 def sync_to_workshop():
     """Synchronizes local shaders, materials, and textures into Steam workshop directory."""
     if not WORKSHOP_DIR.exists():
         sys.exit(f"Erreur : Dossier Workshop introuvable : {WORKSHOP_DIR}")
 
-    # Shaders
-    src_frag = RESSOURCE_DIR / "blackwall" / "blackwall.frag"
-    src_vert = RESSOURCE_DIR / "blackwall" / "blackwall.vert"
-    dst_frag = WORKSHOP_DIR / "shaders" / "effects" / "blackwall.frag"
-    dst_vert = WORKSHOP_DIR / "shaders" / "effects" / "blackwall.vert"
+    # 1. Neutralisation de l'archive scene.pkg si présente
+    unpack_scene_pkg(WORKSHOP_DIR / "scene.pkg", WORKSHOP_DIR)
 
-    if src_frag.exists():
-        dst_frag.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src_frag, dst_frag)
-    if src_vert.exists():
-        shutil.copyfile(src_vert, dst_vert)
+    # 2. Synchronisation récursive des arborescences d'assets
+    sync_tree(RESSOURCE_DIR / "shaders", WORKSHOP_DIR / "shaders")
+    sync_tree(RESSOURCE_DIR / "materials", WORKSHOP_DIR / "materials")
 
-    # Shaders personnalisés additionnels (shine, shake, etc.)
-    src_shaders = RESSOURCE_DIR / "shaders"
-    if src_shaders.exists():
-        for s_file in src_shaders.rglob("*"):
-            if s_file.is_file():
-                rel = s_file.relative_to(src_shaders)
-                target = WORKSHOP_DIR / "shaders" / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(s_file, target)
-
-    # Masque Blackwall
-    src_mask_tex = RESSOURCE_DIR / "blackwall" / "blackwall_mask.tex"
-    dst_mask_tex = WORKSHOP_DIR / "materials" / "masks" / "blackwall_mask.tex"
-    if src_mask_tex.exists():
-        dst_mask_tex.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src_mask_tex, dst_mask_tex)
-
-    # Materials et masques additionnels (masque pupille shine, etc.)
-    src_materials = RESSOURCE_DIR / "materials"
-    if src_materials.exists():
-        for m_file in src_materials.rglob("*"):
-            if m_file.is_file():
-                rel = m_file.relative_to(src_materials)
-                target = WORKSHOP_DIR / "materials" / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(m_file, target)
-
-    # Texture Lucy
-    src_lucy_tex = RESSOURCE_DIR / "lucy.tex"
-    dst_lucy_tex = WORKSHOP_DIR / "materials" / "Diseño sin título.tex"
-    if src_lucy_tex.exists():
-        shutil.copyfile(src_lucy_tex, dst_lucy_tex)
-
-    # Scene JSON
-    src_scene = RESSOURCE_DIR / "scene.json"
-    dst_scene = WORKSHOP_DIR / "scene.json"
-    if src_scene.exists():
-        shutil.copyfile(src_scene, dst_scene)
+    # 3. Table déclarative des fichiers individuels
+    asset_map: List[Tuple[Path, Path]] = [
+        (RESSOURCE_DIR / "blackwall" / "blackwall.frag", WORKSHOP_DIR / "shaders" / "effects" / "blackwall.frag"),
+        (RESSOURCE_DIR / "blackwall" / "blackwall.vert", WORKSHOP_DIR / "shaders" / "effects" / "blackwall.vert"),
+        (RESSOURCE_DIR / "blackwall" / "blackwall_mask.tex", WORKSHOP_DIR / "materials" / "masks" / "blackwall_mask.tex"),
+        (RESSOURCE_DIR / "blackwall" / "effect.json", WORKSHOP_DIR / "effects" / "blackwall" / "effect.json"),
+        (RESSOURCE_DIR / "blackwall" / "blackwall.json", WORKSHOP_DIR / "materials" / "effects" / "blackwall.json"),
+        (RESSOURCE_DIR / "lucy_model.json", WORKSHOP_DIR / "models" / "Diseño sin título.json"),
+        (RESSOURCE_DIR / "lucy_material.json", WORKSHOP_DIR / "materials" / "Diseño sin título.json"),
+        (RESSOURCE_DIR / "lucy.tex", WORKSHOP_DIR / "materials" / "Diseño sin título.tex"),
+        (RESSOURCE_DIR / "scene.json", WORKSHOP_DIR / "scene.json"),
+    ]
+    for src, dst in asset_map:
+        copy_asset(src, dst)
 
     print("✓ Synchronisation vers Steam Workshop effectuée.")
 
@@ -538,20 +590,47 @@ def cleanup_ghost_wallpapers(screen: str = None):
                 pass
 
 
+def build_wallpaper_cmd(screen: str, fps: int) -> List[str]:
+    """Constructs optimized command line for linux-wallpaperengine."""
+    assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
+    return [
+        "nohup", "linux-wallpaperengine",
+        "--screen-root", screen,
+        "--bg", str(WORKSHOP_DIR),
+        "--silent",
+        "--no-audio-processing",
+        "--disable-mouse",
+        "--fullscreen-pause-only-active",
+        "--fps", str(fps),
+        "--disable-parallax",
+        "--scaling", "fill",
+        "--assets-dir", str(assets_dir),
+    ]
+
+
+def build_wallpaper_env(renderer: str) -> dict:
+    """Builds optimized environment variables disabling SDL audio and configuring GPU/CPU."""
+    env = os.environ.copy()
+    env["SDL_AUDIODRIVER"] = "dummy"
+    if renderer == "cpu":
+        env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+        env["GALLIUM_DRIVER"] = "llvmpipe"
+    else:
+        env.pop("LIBGL_ALWAYS_SOFTWARE", None)
+        env.pop("GALLIUM_DRIVER", None)
+    return env
+
+
 def ensure_wallpapers(target_screen: str = None):
     """
     Ensures Wallpaper Engine is active on connected screen(s).
     Crucially: NEVER kills or restarts an already running screen instance with an active Wayland layer!
     Kills any ghost/hung processes that lost their Wayland layer upon screen disconnect.
     """
-    import fcntl
-    try:
-        lock_fd = open(RESTART_LOCK_FILE, "w")
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except (BlockingIOError, IOError):
-        return
+    with file_mutex(RESTART_LOCK_FILE) as acquired:
+        if not acquired:
+            return
 
-    try:
         cleanup_ghost_wallpapers()
         active_layers = get_active_layer_wallpaper_screens()
         connected = get_hyprland_connected_screens()
@@ -572,27 +651,10 @@ def ensure_wallpapers(target_screen: str = None):
         current_renderer = cfg.get("renderer", "gpu").lower()
         fps = cfg.get("fps_cpu", 20) if current_renderer == "cpu" else cfg.get("fps_gpu", 30)
 
-        env = os.environ.copy()
-        if current_renderer == "cpu":
-            env["LIBGL_ALWAYS_SOFTWARE"] = "1"
-            env["GALLIUM_DRIVER"] = "llvmpipe"
-        else:
-            env.pop("LIBGL_ALWAYS_SOFTWARE", None)
-            env.pop("GALLIUM_DRIVER", None)
-
-        assets_dir = Path(os.path.expanduser("~/.steam/steam/steamapps/common/wallpaper_engine/assets"))
-        cmd_base = [
-            "linux-wallpaperengine",
-            "--bg", str(WORKSHOP_DIR),
-            "--volume", "100",
-            "--fps", str(fps),
-            "--disable-parallax",
-            "--scaling", "fill",
-            "--assets-dir", str(assets_dir),
-        ]
+        env = build_wallpaper_env(current_renderer)
 
         for screen in screens_to_start:
-            cmd = ["nohup", "linux-wallpaperengine", "--screen-root", screen] + cmd_base[1:]
+            cmd = build_wallpaper_cmd(screen, fps)
             subprocess.Popen(
                 cmd,
                 env=env,
@@ -602,12 +664,6 @@ def ensure_wallpapers(target_screen: str = None):
             )
         mode_label = "CPU (Mesa LLVMpipe)" if current_renderer == "cpu" else "GPU (Intel UHD 630)"
         print(f"✓ Wallpaper Engine démarré sélectivement sur {', '.join(screens_to_start)} [{mode_label} @ {fps} FPS] (autres écrans inchangés).")
-    finally:
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
-        except Exception:
-            pass
 
 
 DAEMON_LOCK_FILE = "/tmp/wallpaper_daemon.lock"
@@ -756,15 +812,11 @@ def run_wallpaper_daemon():
 
 def restart_wallpapers(renderer: str = None, fps: int = None, screen: str = None):
     """Safely terminates and restarts linux-wallpaperengine across dual monitors with GPU/CPU selection."""
-    import fcntl
-    try:
-        lock_fd = open(RESTART_LOCK_FILE, "w")
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except (BlockingIOError, IOError):
-        # Un redémarrage est déjà en cours d'exécution
-        return
+    with file_mutex(RESTART_LOCK_FILE) as acquired:
+        if not acquired:
+            # Un redémarrage est déjà en cours d'exécution
+            return
 
-    try:
         if screen:
             for p in get_running_wallpaper_procs():
                 if p["screen"] == screen:
@@ -806,26 +858,10 @@ def restart_wallpapers(renderer: str = None, fps: int = None, screen: str = None
         if fps is None:
             fps = cfg.get("fps_cpu", 20) if current_renderer == "cpu" else cfg.get("fps_gpu", 30)
 
-        env = os.environ.copy()
-        if current_renderer == "cpu":
-            env["LIBGL_ALWAYS_SOFTWARE"] = "1"
-            env["GALLIUM_DRIVER"] = "llvmpipe"
-        else:
-            env.pop("LIBGL_ALWAYS_SOFTWARE", None)
-            env.pop("GALLIUM_DRIVER", None)
-
-        cmd_base = [
-            "linux-wallpaperengine",
-            "--bg", str(WORKSHOP_DIR),
-            "--volume", "100",
-            "--fps", str(fps),
-            "--disable-parallax",
-            "--scaling", "fill",
-            "--assets-dir", str(assets_dir),
-        ]
+        env = build_wallpaper_env(current_renderer)
 
         for scr in active_screens:
-            cmd = ["nohup", "linux-wallpaperengine", "--screen-root", scr] + cmd_base[1:]
+            cmd = build_wallpaper_cmd(scr, fps)
             subprocess.Popen(
                 cmd,
                 env=env,
@@ -835,12 +871,6 @@ def restart_wallpapers(renderer: str = None, fps: int = None, screen: str = None
             )
         mode_label = "CPU (Mesa LLVMpipe)" if current_renderer == "cpu" else "GPU (Intel UHD 630)"
         print(f"✓ Moteurs Wallpaper Engine relancés sur {', '.join(active_screens)} en mode [{mode_label}] @ {fps} FPS.")
-    finally:
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
-        except Exception:
-            pass
 
 
 def set_renderer_command(mode: str = None):
@@ -941,8 +971,14 @@ def show_status():
             total_rss += rss_mb
 
             proc_renderer = detect_process_renderer(pid)
-            print(f"  • PID {pid} : Moniteur [{screen}] | Moteur: [{proc_renderer}] | CPU: {cpu_pct}% | RAM: {rss_mb:.1f} Mo")
-        print(f"✓ Total : {len(valid_pids)} processus actif(s) | CPU: {total_cpu:.1f}% | RAM: {total_rss:.1f} Mo")
+            cpu_val = float(cpu_pct.replace(",", "."))
+            num_cpus = os.cpu_count() or 1
+            global_pct = cpu_val / num_cpus
+            print(f"  • PID {pid} : Moniteur [{screen}] | Moteur: [{proc_renderer}] | CPU: {cpu_pct}% ({global_pct:.1f}% global) | RAM: {rss_mb:.1f} Mo")
+        num_cpus = os.cpu_count() or 1
+        total_cores_pct = num_cpus * 100.0
+        total_global = total_cpu / num_cpus
+        print(f"✓ Total : {len(valid_pids)} processus actif(s) | CPU: {total_cpu:.1f}% (sur {total_cores_pct:.0f}% max, soit {total_global:.1f}% global) | RAM: {total_rss:.1f} Mo")
 
         # Fréquence iGPU
         gpu_freq_file = Path("/sys/class/drm/card1/gt_act_freq_mhz")
@@ -959,7 +995,6 @@ def show_status():
     try:
         layers = subprocess.run(["hyprctl", "layers", "-j"], capture_output=True, text=True)
         if layers.returncode == 0:
-            import json
             data = json.loads(layers.stdout)
             print("\n=== Couches Wayland Détectées (Hyprland) ===")
             layer_names = {"0": "Background", "1": "Bottom", "2": "Top", "3": "Overlay"}

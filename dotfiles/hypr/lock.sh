@@ -182,6 +182,11 @@ WATCHER_PID=$!
 pkill -x wofi 2>/dev/null
 "$HOME/.config/waybar/scripts/spotify-card.py" hide >/dev/null 2>&1 &
 
+# Masquer et suspendre les notifications pendant le verrouillage (protection vie privée)
+PREV_DND=$(swaync-client -D 2>/dev/null || echo "false")
+swaync-client -cp >/dev/null 2>&1
+swaync-client -dn >/dev/null 2>&1
+
 # Arrêter Waybar pendant le verrouillage pour empêcher toute réapparition sur reconnexion d'écran
 WAYBAR_WAS_RUNNING=0
 if pgrep -x waybar >/dev/null; then
@@ -264,6 +269,11 @@ if os.path.exists(state_file):
     # 7. S'assurer que le fond d'écran tourne sur tous les écrans connectés (immédiat + différé pour réveil moniteur)
     python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 &
     (sleep 0.5 && python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1) &
+
+    # 8. Restaurer l'affichage des notifications si DND n'était pas activé au départ
+    if [ "$PREV_DND" = "false" ]; then
+        swaync-client -df >/dev/null 2>&1
+    fi
 }
 
 trap cleanup EXIT INT TERM

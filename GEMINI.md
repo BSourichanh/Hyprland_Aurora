@@ -7,7 +7,14 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 ## ⚡ Directives d'Exécution & Concision
 
 - **Style** : Réponses directes, denses, puces courtes, français technique, zéro verbiage.
-- **Git** : Aucun `git push` sans demande explicite de l'utilisateur.
+- **Refactoring & Modifications de Code** :
+  - **Toujours proposer** le plan de refactorisation / optimisation et **attendre la confirmation explicite** de l'utilisateur avant d'éditer ou d'appliquer des changements dans les fichiers.
+  - Ne jamais modifier le code unilatéralement lors d'une demande de refactoring sans validation préalable.
+- **Architecture & Design Patterns** :
+  - **Toujours appliquer** les design patterns reconnus et adaptés (ex. Strategy, Factory, Observer, RAII, Object Pooling, séparation des responsabilités) lors de toute conception et refactorisation de code.
+- **Git & Gestion de Versions** :
+  - **Ne jamais effectuer de `git commit` ni `git push` automatiquement**.
+  - Tout commit ou push nécessite impérativement une demande ou validation explicite préalable de l'utilisateur.
 
 ---
 
@@ -89,7 +96,7 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 ---
 
-## 🔒 Protocole de Verrouillage (`lock.sh`)
+## 🔒 Protocole de Verrouillage (`lock.sh` / `hyprlock.conf`)
 
 1. **Masquage Dynamique & Hotplug** :
    - Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` pendant tout le verrouillage.
@@ -102,6 +109,13 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 3. **Restauration d'État Dynamique (RAII)** :
    - Routine `cleanup()` enregistrée sur `trap ... EXIT INT TERM`.
    - Restauration des workspaces initiaux **uniquement sur les moniteurs physiquement connectés** lors du déverrouillage (évite d'écraser la disposition si un écran reste éteint).
+4. **Masquage & Suspension des Notifications (SwayNC)** :
+   - Fermeture immédiate du panneau de notification (`swaync-client -cp`).
+   - Activation atomique du mode Ne pas déranger (`swaync-client -dn`) éliminant toute fuite de toasts sur l'écran verrouillé.
+   - Restauration déterministe de l'état DND initial (`swaync-client -df`) dans `cleanup()`.
+5. **Horloge Hyprlock & Résilience DPMS (`hyprlock.conf`)** :
+   - ⚠️ **Proscrire strictement `$TIME`** : Sujet à une condition de course (*race condition*) dans le thread interne `ResourceGatherer` lors des coupures/sorties de veille DPMS, provoquant un arrêt total des rafraîchissements de l'heure.
+   - **Règle absolue** : Utiliser impérativement un timer système explicite asservi au noyau Linux : `text = cmd[update:1000] date +"%H:%M"` (ou `+"%H:%M:%S"`).
 
 ---
 
@@ -115,9 +129,10 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
    - Commande `./scripts/wallpaper_tool.py ensure [screen]` : valide la présence réelle de la couche Wayland `Bottom` (`hyprctl layers -j`).
    - Purge automatique des processus zombies (qui ont perdu leur surface suite à une extinction) et démarrage sélectif de l'écran manquant sans jamais couper ni redémarrer l'écran resté allumé.
    - Mutex atomique `flock` sur `/tmp/wallpaper_restart.lock` et verrou singleton `/tmp/wallpaper_daemon.lock`.
-2. **Moteur & Cadence (`dotfiles/hypr/wallpaper_renderer.json`)** :
+2. **Moteur, Cadence & Optimisation Processus (`dotfiles/hypr/wallpaper_renderer.json`)** :
    - **GPU (Défaut)** : Intel UHD 630 @ **30 FPS** (`/dev/dri/renderD128`).
    - **CPU (Secours)** : Mesa LLVMpipe @ **20 FPS** (`LIBGL_ALWAYS_SOFTWARE=1`).
+   - **Flags CLI Basse Consommation** : `--silent --no-audio-processing --disable-mouse --fullscreen-pause-only-active` couplés à `SDL_AUDIODRIVER=dummy` (élimine les 6 threads audio PulseAudio/SDL et le polling souris, pause atomique en plein écran, empreinte CPU abaissée à ~3.5% par écran / ~0.6% machine).
 3. **Hiérarchie des Couches Wayland** :
    - `Layer 0 (Background)` : `swaybg` (wallpaper statique de secours instantané ~10 ms).
    - `Layer 1 (Bottom)` : `linux-wallpaperengine` (Lucy animée).
@@ -126,7 +141,7 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 4. **Shaders & Passes Critiques** :
    - ⚠️ `edge_glow` (id 698) dans `scene.json` **doit rester désactivé** (`"visible": false`) : surexposition totale du visage sous Linux OpenGL.
    - `shine` (id 427) : cadence douce (`noisespeed: 0.035`, `noisescale: 1.5`, `noiseamount: 0.25`) évitant tout scintillement rapide sur les yeux à 60 FPS.
-   - `shake.frag` : glitch géométrique pur sur 3 échelles, sans aucune aberration chromatique ni teinte jaune/cyan.
+   - `shake.frag` : glitch géométrique épuré et chirurgical (tranches fines partielles, micro-décrochages 2D, cadence aérée ~4.2s), zéro surcharge, zéro aberration chromatique ni voile de couleur.
    - `blackwall.frag` : passe GLSL 60 FPS remplaçant les particules ; Fast-Path `if (mask <= 0.001) return;` court-circuitant 65% de l'écran.
 5. **Déploiement Automatique** :
    - Toute modification sous `ressource/` doit être suivie immédiatement de `./scripts/wallpaper_tool.py sync && ./scripts/wallpaper_tool.py restart`.
@@ -140,8 +155,9 @@ Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.
 - `~/.config/waybar/` ➔ `dotfiles/waybar/`
 - `~/.config/wofi/` ➔ `dotfiles/wofi/`
 - `~/.config/kitty/` ➔ `dotfiles/kitty/`
+- `~/.config/swaync/` ➔ `dotfiles/swaync/`
 
-⚠️ **Règle absolue** : Ne jamais briser les hard links lors des écritures. Auditer via `./scripts/wallpaper_tool.py check-links`.
+⚠️ **Règle absolue** : Ne jamais briser les hard links lors des écritures. Auditer via `./scripts/wallpaper_tool.py check-links` (33 fichiers).
 
 ---
 
@@ -178,7 +194,7 @@ hyprctl reload
 ./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement
 ./scripts/wallpaper_tool.py mask           # Recalculer masque Blackwall subpixel
 ./scripts/wallpaper_tool.py sync           # Déployer ressource/ vers Steam Workshop
-./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 30 hard links
+./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 33 hard links
 
 # Validation syntaxique rapide
 bash -n dotfiles/hypr/lock.sh dotfiles/hypr/scripts/*.sh
