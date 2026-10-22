@@ -8,10 +8,24 @@ Configuration et thématisation du centre de notifications **SwayNC** (*Sway Not
 
 ```
 dotfiles/swaync/
-├── config.json  # Structure des widgets (titre, DND, mpris, liste), géométrie (largeur 420px, marges)
-├── style.css    # Feuille de style GTK3 (glassmorphism rgba(10, 15, 30, 0.80), coins 17px, bordures cyan 2px)
-└── README.md    # Documentation technique du centre de notifications
+├── config.json             # Structure des widgets (titre, DND, mpris, liste), géométrie (largeur 420px, marges)
+├── style.css               # Feuille de style GTK3 (glassmorphism rgba(10, 15, 30, 0.80), coins 17px, bordures cyan 2px)
+├── swaync-blacklist.patch  # Patch natif Vala pour menu contextuel au clic droit (Blacklist / Fermer)
+├── scripts/
+│   └── blacklist-app.py   # Helper Python pour insertion in-place dans notification-visibility (respect hardlinks)
+└── README.md               # Documentation technique du centre de notifications
 ```
+
+---
+
+## 🖱️ Navigation Souris & Blacklist d'Applications (Patch Clic Droit)
+
+Par défaut sous SwayNC, un clic droit ferme la notification sans action supplémentaire. Le patch natif [`swaync-blacklist.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/swaync/swaync-blacklist.patch) enrichit l'ergonomie :
+- **Menu Contextuel Popover (`button-press-event` bouton 3)** : Un clic droit sur n'importe quelle notification (popup ou panneau latéral) ouvre une modale Popover Aurora ciblée sur les coordonnées du pointeur.
+- **Action « 🚫 Blacklister [App] »** : Appelle le script [`scripts/blacklist-app.py`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/swaync/scripts/blacklist-app.py) qui injecte de manière atomique une règle `state: "ignored"` dans `~/.config/swaync/config.json` en écriture *in-place* (stricte préservation des 34/34 hardlinks sans rupture d'inode).
+- **Prise d'effet instantanée** : Déclenche immédiatement `swaync-client -R` et confirme le blocage par une notification système.
+- **Action « ✕ Fermer »** : Ferme simplement la notification.
+- **Neutralisation du Timeout** : Dès l'ouverture du menu contextuel, le timer d'expiration de la notification est suspendu pour éviter toute disparition pendant la sélection.
 
 ---
 

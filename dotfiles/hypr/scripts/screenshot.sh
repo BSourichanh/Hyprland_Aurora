@@ -38,13 +38,35 @@ case "$MODE" in
         grim "$FILEPATH"
         ;;
     area|*)
-        # Sélection interactive avec charte graphique Aurora (Bordure cyan 2px, fond Tokyo Night)
-        GEOM=$(slurp -d -b '#0a0f1e80' -c '#00f0ffff' -s '#00f0ff1a' -w 2 2>/dev/null)
-        if [ -z "$GEOM" ]; then
+        # Gel instantané de l'affichage via hyprpicker (tous les moniteurs figés)
+        PICKER_PID=""
+        if command -v hyprpicker >/dev/null 2>&1; then
+            hyprpicker -r -z &
+            PICKER_PID=$!
+            trap 'kill $PICKER_PID 2>/dev/null || true' EXIT INT TERM
+            sleep 0.1
+        fi
+
+        # Sélection interactive avec charte graphique Aurora (Bordure fine 1px, pas de rémanence)
+        GEOM=$(slurp -d -b '#0a0f1e66' -c '#00f0ffff' -s '#00f0ff1a' -w 1 2>/dev/null)
+        SLURP_STATUS=$?
+
+        # Capture immédiate de la zone sélectionnée pendant le gel
+        if [ $SLURP_STATUS -eq 0 ] && [ -n "$GEOM" ]; then
+            grim -g "$GEOM" "$FILEPATH"
+        fi
+
+        # Libération déterministe de l'écran (dégel)
+        if [ -n "$PICKER_PID" ]; then
+            kill "$PICKER_PID" 2>/dev/null || true
+            wait "$PICKER_PID" 2>/dev/null || true
+            trap - EXIT INT TERM
+        fi
+
+        if [ $SLURP_STATUS -ne 0 ] || [ -z "$GEOM" ]; then
             # Annulation par l'utilisateur (Escape ou clic droit)
             exit 0
         fi
-        grim -g "$GEOM" "$FILEPATH"
         ;;
 esac
 

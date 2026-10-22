@@ -70,8 +70,10 @@ SYSTEM_PKGS=(
     waybar
     wofi
     kitty
+    hyprland
     hyprlock
     hypridle
+    hyprpicker
     swaybg
     slurp
     grim
@@ -86,19 +88,52 @@ SYSTEM_PKGS=(
     python3-gi
     python3-dbus
     python3-pil
+    python3-nautilus
+    gir1.2-nautilus-4.0
+    gettext
     fonts-noto
     fonts-font-awesome
+    fonts-jetbrains-mono
     meson
     ninja-build
+    cmake
+    build-essential
     libgtk-3-dev
     libwayland-dev
     wtype
     sway-notification-center
+    libxrandr-dev
+    libxinerama-dev
+    libxcursor-dev
+    libxi-dev
+    libgl-dev
+    libglew-dev
+    freeglut3-dev
+    libsdl2-dev
+    liblz4-dev
+    libavcodec-dev
+    libavformat-dev
+    libavutil-dev
+    libswscale-dev
+    libxxf86vm-dev
+    libglm-dev
+    libglfw3-dev
+    libmpv-dev
+    mpv
+    libpulse-dev
+    libfftw3-dev
+    libfreetype-dev
 )
 
 if [ "$INSTALL_DEPS" -eq 1 ]; then
     if command -v apt-get >/dev/null 2>&1; then
-        log_step "Gestionnaire apt détecté (Ubuntu / Debian). Mise à jour des paquets..."
+        log_step "Gestionnaire apt détecté (Ubuntu / Debian)."
+        if ! command -v hyprland >/dev/null 2>&1 && ! apt-cache show hyprland >/dev/null 2>&1; then
+            log_step "Ajout du dépôt PPA cppiber/hyprland pour Ubuntu..."
+            sudo add-apt-repository -y ppa:cppiber/hyprland || true
+            sudo apt-get update
+        fi
+
         MISSING_PKGS=()
         for pkg in "${SYSTEM_PKGS[@]}"; do
             if ! dpkg -s "$pkg" >/dev/null 2>&1; then
@@ -113,13 +148,21 @@ if [ "$INSTALL_DEPS" -eq 1 ]; then
         else
             log_success "Tous les paquets système nécessaires sont déjà installés."
         fi
+
+        # Purge automatique du conflit GNOME Terminal sous Nautilus
+        if dpkg -s nautilus-extension-gnome-terminal >/dev/null 2>&1; then
+            log_step "Désinstallation de nautilus-extension-gnome-terminal (conflit GNOME Terminal)..."
+            sudo apt-get remove -y nautilus-extension-gnome-terminal >/dev/null 2>&1 || true
+            log_success "Conflit GNOME Terminal retiré."
+        fi
     elif command -v pacman >/dev/null 2>&1; then
         log_step "Gestionnaire pacman détecté (Arch Linux). Installation..."
         sudo pacman -S --needed --noconfirm \
-            waybar wofi kitty hyprlock hypridle swaybg slurp grim \
+            hyprland waybar wofi kitty hyprlock hypridle swaybg slurp grim \
             wl-clipboard playerctl pavucontrol jq wireplumber xorg-xrandr \
             libnotify python python-gobject python-dbus python-pillow \
-            noto-fonts ttf-font-awesome || true
+            python-nautilus gettext noto-fonts ttf-font-awesome \
+            meson ninja cmake base-devel || true
     else
         log_warn "Gestionnaire de paquets inconnu. Veuillez vérifier que les utilitaires Wayland sont présents."
     fi
@@ -127,15 +170,42 @@ else
     log_step "Option --no-deps activée : saut de l'étape des paquets système."
 fi
 
-# Vérification optionnelle de linux-wallpaperengine
-if command -v linux-wallpaperengine >/dev/null 2>&1; then
-    log_success "linux-wallpaperengine est installé et disponible dans le PATH."
+# ----------------- INTÉGRATION NAUTILUS & KITTY -----------------
+log_step "Configuration de l'extension Nautilus (clic droit ➔ Kitty)..."
+sudo mkdir -p /usr/share/nautilus-python/extensions /usr/share/glib-2.0/schemas
+# Nettoyage préventif des doublons utilisateur ou locaux
+sudo rm -f /usr/local/share/nautilus-python/extensions/nautilus_open_any_terminal.py
+rm -f "$HOME/.local/share/nautilus-python/extensions/nautilus_open_any_terminal.py"
+if [ -f "$SCRIPT_DIR/ressource/nautilus/nautilus_open_any_terminal.py" ]; then
+    sudo cp "$SCRIPT_DIR/ressource/nautilus/nautilus_open_any_terminal.py" /usr/share/nautilus-python/extensions/
+fi
+if [ -f "$SCRIPT_DIR/ressource/nautilus/com.github.stunkymonkey.nautilus-open-any-terminal.gschema.xml" ]; then
+    sudo cp "$SCRIPT_DIR/ressource/nautilus/com.github.stunkymonkey.nautilus-open-any-terminal.gschema.xml" /usr/share/glib-2.0/schemas/
+    sudo glib-compile-schemas /usr/share/glib-2.0/schemas/ >/dev/null 2>&1 || true
+fi
+gsettings set com.github.stunkymonkey.nautilus-open-any-terminal terminal 'kitty' 2>/dev/null || true
+nautilus -q 2>/dev/null || true
+log_success "Nautilus configuré pour ouvrir Kitty directement (instance unique)."
+
+# ----------------- VÉRIFICATION & COMPILATION AURORA WALLPAPER -----------------
+if command -v aurora-wallpaper >/dev/null 2>&1 || [ -f "$LOCAL_BIN/aurora-wallpaper" ]; then
+    log_success "aurora-wallpaper est installé et disponible dans le PATH."
 else
-    log_warn "linux-wallpaperengine n'est pas détecté. Le fond d'écran statique swaybg fonctionnera en secours immédiat."
-    log_step "Pour installer linux-wallpaperengine : https://github.com/Almamu/linux-wallpaperengine"
+    log_step "Compilation et installation de aurora-wallpaper depuis les sources natives C99..."
+    if make -C "$SCRIPT_DIR/src/aurora_wallpaper" install >/dev/null 2>&1; then
+        log_success "aurora-wallpaper compilé et installé dans $LOCAL_BIN/aurora-wallpaper."
+    else
+        log_warn "Échec de compilation de aurora-wallpaper. Le fond statique swaybg fonctionnera en secours."
+    fi
 fi
 
-# Vérification et patch ergonomique Wofi (sélection au survol souris)
+# ----------------- VÉRIFICATION DU PLUGIN HYPRSPACE -----------------
+if [ -f "$DOTFILES_DIR/hypr/plugins/Hyprspace.so" ]; then
+    chmod +x "$DOTFILES_DIR/hypr/plugins/Hyprspace.so"
+    log_success "Plugin Hyprspace.so validé et exécutable."
+fi
+
+# ----------------- VÉRIFICATION DU PATCH ERGONOMIQUE WOFI -----------------
 WOFI_BIN=$(command -v wofi 2>/dev/null || true)
 if [ -n "$WOFI_BIN" ] && ! strings "$WOFI_BIN" 2>/dev/null | grep -q "on_motion_select"; then
     log_step "Application du patch Wofi (sélection ergonomique active au survol de la souris)..."
@@ -152,6 +222,51 @@ if [ -n "$WOFI_BIN" ] && ! strings "$WOFI_BIN" 2>/dev/null | grep -q "on_motion_
     rm -rf "$TMP_WOFI"
 elif [ -n "$WOFI_BIN" ]; then
     log_success "Wofi est configuré avec le support natif de sélection au survol."
+fi
+
+# ----------------- VÉRIFICATION DU PATCH SWAYNC (CONTEXT-POPOVER & BLACKLIST) -----------------
+SWAYNC_BIN=$(command -v swaync 2>/dev/null || true)
+if [ -n "$SWAYNC_BIN" ] && ! strings "$SWAYNC_BIN" 2>/dev/null | grep -q "popover-btn-blacklist"; then
+    log_step "Application du patch SwayNC (menu contextuel clic droit & blacklist dynamique)..."
+    TMP_SWAYNC=$(mktemp -d /tmp/swaync_build_XXXXXX)
+    if git clone --depth 1 --branch v0.10.1 https://github.com/ErikReider/SwayNotificationCenter.git "$TMP_SWAYNC" 2>/dev/null || \
+       git clone --depth 1 https://github.com/ErikReider/SwayNotificationCenter.git "$TMP_SWAYNC" 2>/dev/null; then
+        if [ -f "$DOTFILES_DIR/swaync/swaync-blacklist.patch" ]; then
+            patch -d "$TMP_SWAYNC" -p1 < "$DOTFILES_DIR/swaync/swaync-blacklist.patch" >/dev/null 2>&1 || true
+            meson setup "$TMP_SWAYNC/build" "$TMP_SWAYNC" --prefix="$HOME/.local" --buildtype=release >/dev/null 2>&1 || true
+            ninja -C "$TMP_SWAYNC/build" install >/dev/null 2>&1 || true
+            if [ -w /usr/local/bin ]; then
+                cp "$HOME/.local/bin/swaync" /usr/local/bin/swaync 2>/dev/null || true
+            fi
+            log_success "Patch SwayNC appliqué et installé dans $LOCAL_BIN/swaync."
+        fi
+    fi
+    rm -rf "$TMP_SWAYNC"
+elif [ -n "$SWAYNC_BIN" ]; then
+    log_success "SwayNC est configuré avec le support du menu contextuel et blacklist."
+fi
+
+# ----------------- VÉRIFICATION DU PATCH HYPRLOCK (ANTI-DEADLOCK PAM) -----------------
+HYPRLOCK_BIN=$(command -v hyprlock 2>/dev/null || true)
+if [ -n "$HYPRLOCK_BIN" ] && ! strings "$HYPRLOCK_BIN" 2>/dev/null | grep -q "_ZN4CPam9terminateEv"; then
+    log_step "Application du patch Hyprlock (résolution deadlock PAM PR #1059)..."
+    TMP_HYPRLOCK=$(mktemp -d /tmp/hyprlock_build_XXXXXX)
+    if git clone --depth 1 --branch v0.9.6 https://github.com/hyprwm/hyprlock.git "$TMP_HYPRLOCK" 2>/dev/null || \
+       git clone --depth 1 https://github.com/hyprwm/hyprlock.git "$TMP_HYPRLOCK" 2>/dev/null; then
+        if [ -f "$DOTFILES_DIR/hypr/hyprlock-pam-deadlock.patch" ]; then
+            patch -d "$TMP_HYPRLOCK" -p1 < "$DOTFILES_DIR/hypr/hyprlock-pam-deadlock.patch" >/dev/null 2>&1 || true
+            cmake -B "$TMP_HYPRLOCK/build" -S "$TMP_HYPRLOCK" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$HOME/.local" >/dev/null 2>&1 || true
+            cmake --build "$TMP_HYPRLOCK/build" --target hyprlock >/dev/null 2>&1 || true
+            cp "$TMP_HYPRLOCK/build/hyprlock" "$LOCAL_BIN/hyprlock" 2>/dev/null || true
+            if [ -w /usr/local/bin ]; then
+                cp "$LOCAL_BIN/hyprlock" /usr/local/bin/hyprlock 2>/dev/null || true
+            fi
+            log_success "Patch Hyprlock appliqué et installé dans $LOCAL_BIN/hyprlock."
+        fi
+    fi
+    rm -rf "$TMP_HYPRLOCK"
+elif [ -n "$HYPRLOCK_BIN" ]; then
+    log_success "Hyprlock est configuré avec le correctif anti-deadlock PAM."
 fi
 
 # ----------------- ÉTAPE 2 : SAUVEGARDE PRÉVENTIVE -----------------
@@ -217,6 +332,7 @@ chmod +x "$DOTFILES_DIR"/hypr/lock.sh 2>/dev/null || true
 chmod +x "$DOTFILES_DIR"/hypr/scripts/*.sh 2>/dev/null || true
 chmod +x "$DOTFILES_DIR"/hypr/scripts/*.py 2>/dev/null || true
 chmod +x "$DOTFILES_DIR"/waybar/scripts/*.py 2>/dev/null || true
+chmod +x "$DOTFILES_DIR"/swaync/scripts/*.py 2>/dev/null || true
 chmod +x "$SCRIPT_DIR"/scripts/*.py 2>/dev/null || true
 chmod +x "$SCRIPT_DIR"/scripts/hyprbar 2>/dev/null || true
 log_success "Permissions appliquées."
@@ -254,13 +370,10 @@ log_info "6. Initialisation des répertoires multimédia et caches..."
 mkdir -p "${XDG_PICTURES_DIR:-$HOME/Images}/Captures d’écran"
 mkdir -p "/tmp/spotify_card_cache"
 
-# Synchronisation optionnelle des shaders Steam Workshop si présent
-WORKSHOP_DIR="$HOME/.steam/steam/steamapps/workshop/content/431960/3566437475"
-if [ -d "$WORKSHOP_DIR" ]; then
-    log_step "Dossier Steam Workshop Lucy détecté. Synchronisation des shaders..."
-    python3 "$SCRIPT_DIR/scripts/wallpaper_tool.py" sync 2>/dev/null || true
-    log_success "Shaders et masques synchronisés vers Steam Workshop."
-fi
+# Préparation & vérification des masques Lucy
+log_step "Vérification et calcul des masques Lucy..."
+python3 "$SCRIPT_DIR/scripts/wallpaper_tool.py" mask 2>/dev/null || true
+log_success "Masques Blackwall et Lucy validés."
 
 # ----------------- ÉTAPE 7 : SERVICES SYSTEMD UTILISATEUR -----------------
 log_info "7. Configuration de l'agent d'authentification Polkit..."

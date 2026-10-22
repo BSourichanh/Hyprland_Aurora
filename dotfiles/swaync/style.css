@@ -252,3 +252,38 @@
   font-size: 0.9rem;
   color: @blue-secondary;
 }
+
+/* Menu contextuel Popover (Blacklist / Fermer) */
+popover.swaync-context-popover {
+  background-color: rgba(10, 15, 30, 0.95);
+  border: 1.5px solid rgba(0, 240, 255, 0.65);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 14px rgba(0, 240, 255, 0.25);
+  padding: 4px;
+}
+
+.swaync-context-popover button {
+  background: rgba(21, 46, 80, 0.50);
+  color: #e1e4f1;
+  border: 1px solid rgba(122, 162, 247, 0.35);
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+}
+
+.swaync-context-popover button:hover {
+  background: rgba(0, 240, 255, 0.20);
+  border-color: #00f0ff;
+  color: #00f0ff;
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.35);
+}
+
+.swaync-context-popover button.popover-btn-blacklist:hover {
+  background: rgba(244, 63, 94, 0.20);
+  border-color: #f43f5e;
+  color: #f43f5e;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.35);
+}
+

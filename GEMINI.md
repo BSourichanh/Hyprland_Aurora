@@ -69,6 +69,26 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 
 ---
 
+## 🔔 Centre de Notifications SwayNC & Ergonomie Souris
+
+1. **Menu Contextuel Clic Droit & Blacklist Dynamique** :
+   - SwayNC natif ferme la notification sur clic droit sans alternative. Le patch natif [`swaync-blacklist.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/swaync/swaync-blacklist.patch) intercepte `button_press_event` (bouton 3 / clic droit) pour afficher une modale Popover GTK Aurora au curseur (`swaync-context-popover`).
+   - Deux actions rapides :
+     - « 🚫 Blacklister [App] » : neutralise l'application ciblée sans redémarrage.
+     - « ✕ Fermer » : dismiss de la notification.
+   - Suspension immédiate du timeout de la notification dès l'ouverture du menu pour éviter sa disparition en cours de lecture.
+2. **Script Helper In-Place (`blacklist-app.py`)** :
+   - Déclenché de façon asynchrone par SwayNC via `Process.spawn_async`.
+   - Injection atomique in-place dans `~/.config/swaync/config.json` sous `notification-visibility` (`state: "ignored"`).
+   - ⚠️ **Préservation absolue des hardlinks** : écriture en flux direct sans unlink pour conserver les inodes partagés avec `dotfiles/swaync/`.
+   - Rechargement instantané via `swaync-client -R` et toast de confirmation via `notify-send`.
+3. **Chaîne de Déploiement du Binaire** :
+   - Source locale : `/tmp/swaync_src/` compilée via `ninja -C /tmp/swaync_src/build`.
+   - Binaires installés : synchronisation conjointe sur `~/.local/bin/swaync`, `/usr/local/bin/swaync` et `/usr/bin/swaync` (service systemd).
+   - Versionnage : régénération systématique du diff unifié dans `dotfiles/swaync/swaync-blacklist.patch`.
+
+---
+
 ## 🎵 Mini-Player Spotify (Waybar)
 
 1. **Règle Anti-Capsule Fantôme** :
@@ -94,6 +114,15 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
      - Sur réception du signal D-Bus `PlaybackStatus` dans l'observateur de `spotify-card.py`.
      - Directement dans les handlers `on-click` pour un rafraîchissement visuel instantané.
 
+6. **Triplet Matériel Aurora (`cpu`, `custom/gpu`, `memory`)** :
+   - `cpu` : charge processeur en Bleu `#7aa2f7` (``).
+   - `custom/gpu` : streaming 2s via `gpu.py` interrogeant les métriques kernel DRM fdinfo (`/proc/*/fdinfo/*` i915) pour Intel UHD 630 sans dépendance externe. Icône `󰢮` en Cyan `#00f0ff`.
+   - `memory` : pourcentage RAM en Violet `#9778d0` (`󰍅`).
+
+7. **Compteur de Notifications Dynamique (`custom/notification`)** :
+   - Streaming filtré unbuffered `swaync-client -swb | sed -u 's/"text": "0"/"text": ""/'`.
+   - Rendu en exposant rose néon `<sup>{text}</sup>` (`#f43f5e`) : masquage transparent si 0 notification, affichage numérique instantané dès réception.
+
 ---
 
 ## 🔒 Protocole de Verrouillage (`lock.sh` / `hyprlock.conf`)
@@ -116,35 +145,49 @@ Document technique de référence pour l'environnement Hyprland (Waybar, Wofi, S
 5. **Horloge Hyprlock & Résilience DPMS (`hyprlock.conf`)** :
    - ⚠️ **Proscrire strictement `$TIME`** : Sujet à une condition de course (*race condition*) dans le thread interne `ResourceGatherer` lors des coupures/sorties de veille DPMS, provoquant un arrêt total des rafraîchissements de l'heure.
    - **Règle absolue** : Utiliser impérativement un timer système explicite asservi au noyau Linux : `text = cmd[update:1000] date +"%H:%M"` (ou `+"%H:%M:%S"`).
+6. **Résilience Multi-Processus & Patch Anti-Deadlock (`hyprlock-pam-deadlock.patch`)** :
+   - Correctif natif amont (PR #1059) neutralisant le blocage du thread PAM (`std::thread::join()`) à la sortie de session (`isFadingOutOrTerminating` vérifiant `m_bTerminate`).
+   - Sonde de détection auto-cicatrisante dans `lock.sh` : purge instantanée de tout processus `hyprlock` fantôme sans surface Wayland active (`hyprctl layers | grep "namespace: hyprlock"`).
 
 ---
 
-## 🖼️ Wallpaper Engine & Lucy Theme (`3566437475`)
+## 📸 Capture d'Écran & Intégration Terminal
 
-> 📖 **Spécification Complète** : Voir [`ressource/LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour tous les détails exhaustifs (shaders, passes, maths). Ne jamais rescanner récursivement `ressource/`.
+1. **Gel d'Écran Déterministe (`screenshot.sh`)** :
+   - Fige instantanément tous les écrans via `hyprpicker -r -z &` dès l'ouverture du mode interactif (Lucy, vidéos et animations arrêtées net).
+   - Restauration garantie de l'affichage via `trap 'kill $PICKER_PID' EXIT INT TERM` même lors d'une annulation par <kbd>Échap</kbd> ou clic droit.
+2. **Règles de Calques Sans Animation (Hyprland 0.56 / Hyprlang)** :
+   - ⚠️ **Syntaxe par bloc déclaratif obligatoire** : Chaque champ exige une valeur (`no_anim = true`). Proscrire l'ancienne forme compacte `layerrule = noanim, selection` qui lève une erreur de parsing `missing a value`.
+   - Neutralise le fondu `fade` de fermeture de `slurp` et élimine toute bordure photographiée sur l'image finale.
+3. **Menu Contextuel Nautilus ➔ Kitty** :
+   - Déploiement en **instance unique** sous `/usr/share/nautilus-python/extensions/` pour éliminer tout doublon dans le clic droit.
+   - Purge stricte du paquet propriétaire `nautilus-extension-gnome-terminal`.
 
-1. **Multi-Processus, Démon Hotplug & Démarrage Sélectif** :
-   - 1 processus dédié indépendant par moniteur (`DP-1` et `DP-2`).
-   - Démon continu `./scripts/wallpaper_tool.py daemon` (lancé dans `hyprland.conf`) écoutant `.socket2.sock` (`monitoradded`, `monitorremoved`, `configreloaded`) avec temporisation anti-rebond (0.4s).
-   - Commande `./scripts/wallpaper_tool.py ensure [screen]` : valide la présence réelle de la couche Wayland `Bottom` (`hyprctl layers -j`).
-   - Purge automatique des processus zombies (qui ont perdu leur surface suite à une extinction) et démarrage sélectif de l'écran manquant sans jamais couper ni redémarrer l'écran resté allumé.
+---
+
+## 🖼️ Aurora Wallpaper Engine & Lucy Theme (Natif C99)
+
+> 📖 **Spécification Complète** : Micro-moteur Wayland Layer Shell C99 (`src/aurora_wallpaper/aurora-wallpaper`) remplaçant l'ancien `linux-wallpaperengine`.
+
+1. **Architecture Single-Pass & FBO Mutualisé Multi-Écrans** :
+   - 1 seul processus unifié gérant simultanément tous les moniteurs connectés (`DP-1` et `DP-2`).
+   - Rendu GLSL unifié exécuté **1 seule fois** dans un Framebuffer Object partagé ($1920 \times 1080$), puis copié (*blit*) instantanément sur chaque écran.
+   - Charge GPU divisée par 5 (~33% global sur Intel UHD 630 vs ~172% cumulé précédemment), 18 Mo RAM (zéro dépendance V8/Steam/SDL/PulseAudio).
+2. **Démon Hotplug IPC Hyprland** :
+   - Démon continu `./scripts/wallpaper_tool.py daemon` écoutant `.socket2.sock` (`monitoradded`, `monitorremoved`, `configreloaded`) avec temporisation anti-rebond (0.4s).
+   - Commande `./scripts/wallpaper_tool.py ensure` : valide la présence réelle de la couche Wayland `Bottom` (`hyprctl layers -j`).
    - Mutex atomique `flock` sur `/tmp/wallpaper_restart.lock` et verrou singleton `/tmp/wallpaper_daemon.lock`.
-2. **Moteur, Cadence & Optimisation Processus (`dotfiles/hypr/wallpaper_renderer.json`)** :
-   - **GPU (Défaut)** : Intel UHD 630 @ **30 FPS** (`/dev/dri/renderD128`).
-   - **CPU (Secours)** : Mesa LLVMpipe @ **20 FPS** (`LIBGL_ALWAYS_SOFTWARE=1`).
-   - **Flags CLI Basse Consommation** : `--silent --no-audio-processing --disable-mouse --fullscreen-pause-only-active` couplés à `SDL_AUDIODRIVER=dummy` (élimine les 6 threads audio PulseAudio/SDL et le polling souris, pause atomique en plein écran, empreinte CPU abaissée à ~3.5% par écran / ~0.6% machine).
 3. **Hiérarchie des Couches Wayland** :
    - `Layer 0 (Background)` : `swaybg` (wallpaper statique de secours instantané ~10 ms).
-   - `Layer 1 (Bottom)` : `linux-wallpaperengine` (Lucy animée).
+   - `Layer 1 (Bottom)` : `aurora-wallpaper` (Lucy & Blackwall animés 30 FPS fixes).
    - `Layer 2 (Top)` : `waybar`.
    - `Layer 3 (Overlay)` : Wofi, Hyprlock, Spotify Card.
-4. **Shaders & Passes Critiques** :
-   - ⚠️ `edge_glow` (id 698) dans `scene.json` **doit rester désactivé** (`"visible": false`) : surexposition totale du visage sous Linux OpenGL.
-   - `shine` (id 427) : cadence douce (`noisespeed: 0.035`, `noisescale: 1.5`, `noiseamount: 0.25`) évitant tout scintillement rapide sur les yeux à 60 FPS.
-   - `shake.frag` : glitch géométrique épuré et chirurgical (tranches fines partielles, micro-décrochages 2D, cadence aérée ~4.2s), zéro surcharge, zéro aberration chromatique ni voile de couleur.
-   - `blackwall.frag` : passe GLSL 60 FPS remplaçant les particules ; Fast-Path `if (mask <= 0.001) return;` court-circuitant 65% de l'écran.
-5. **Déploiement Automatique** :
-   - Toute modification sous `ressource/` doit être suivie immédiatement de `./scripts/wallpaper_tool.py sync && ./scripts/wallpaper_tool.py restart`.
+4. **Shader Unifié (`shader.h`)** :
+   - Grille cybernétique Blackwall et nébuleuse rouge animée procéduralement.
+   - Flux de données doubles (micro et principal) avec étincelles Cyan `#00f0ff`.
+   - Détourage subpixel anti-aliasing via masque Blackwall (`ressource/blackwall/blackwall_mask.png`).
+   - Glitch Relic géométrique cadencé sans aberration chromatique et ondulation organique de respiration.
+   - Fast-Path GPU court-circuitant ~65% de l'écran sous Lucy.
 
 ---
 
@@ -157,7 +200,9 @@ Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.
 - `~/.config/kitty/` ➔ `dotfiles/kitty/`
 - `~/.config/swaync/` ➔ `dotfiles/swaync/`
 
-⚠️ **Règle absolue** : Ne jamais briser les hard links lors des écritures. Auditer via `./scripts/wallpaper_tool.py check-links` (33 fichiers).
+⚠️ **Règle absolue** : Ne jamais briser les hard links lors des écritures.
+- Les scripts automatisés écrivant dans la configuration (ex. `blacklist-app.py`) doivent impérativement opérer en flux *in-place* direct (`r+`, `seek(0)`, `truncate()`) sans opération de suppression ni de renommage (`unlink` / `replace`).
+- Auditer systématiquement l'intégrité via `./scripts/wallpaper_tool.py check-links` (34 fichiers surveillés).
 
 ---
 
@@ -171,6 +216,13 @@ Les fichiers sous `dotfiles/` partagent les mêmes inodes (liens durs) avec `~/.
    - `hypruse` : Serveur MCP Wayland natif (`zwlr_virtual_pointer_v1`) avec garde-fou `HYPRUSE_AUTH_GUARD=1` (blocage Polkit/Sudo).
    - Coupure d'urgence matérielle dans `hyprland.conf` : `bind = $mainMod SHIFT, BackSpace, exec, hypruse stop`.
    - `aurora-mcp` : Micro-serveur MCP local FastMCP pour diagnostic consolidé unifié (1 appel) et pilotage de Lucy, Waybar et Spotify.
+6. **Résilience des Surfaces Wayland & Détection Anti-Zombie** :
+   - Ne jamais évaluer la présence effective d'une interface graphique ou d'un écran de verrouillage uniquement via `pidof` ou `pgrep`.
+   - Corréler systématiquement avec l'arborescence des calques Wayland (`hyprctl layers | grep "namespace: <ns>"`).
+   - Tout processus fantôme subsistant sans surface active doit être purgé immédiatement avant toute nouvelle exécution (`killall -9 <proc>`).
+7. **Déploiement Tripartite des Binaires Patchés** :
+   - Pour les composants système sous patch natif (`wofi`, `swaync`, `hyprlock`), maintenir la synchronisation conjointe sur `~/.local/bin/`, `/usr/local/bin/` et `/usr/bin/` (avec préservation du binaire d'origine sous `<binaire>.orig`).
+   - Régénérer et hardlinker systématiquement le fichier `.patch` unifié correspondant dans `dotfiles/<composant>/`.
 
 ---
 
@@ -186,15 +238,13 @@ aurora-mcp status|audit
 # Hyprland
 hyprctl reload
 
-# Wallpaper Engine & Lucy CLI (scripts/wallpaper_tool.py)
-./scripts/wallpaper_tool.py status         # État PIDs, moniteurs, CPU%, RAM, couches
+# Aurora Wallpaper Engine CLI (scripts/wallpaper_tool.py)
+./scripts/wallpaper_tool.py status         # État PID, moniteurs, CPU%, RAM, couches
 ./scripts/wallpaper_tool.py daemon         # Démon d'écoute hotplug IPC (restauration auto)
-./scripts/wallpaper_tool.py renderer [gpu|cpu]  # Basculer moteur (GPU 30 FPS / CPU 20 FPS)
-./scripts/wallpaper_tool.py ensure [screen]# Démarrage sélectif sans relancer l'autre écran
-./scripts/wallpaper_tool.py restart        # Relancer DP-1 et DP-2 proprement
+./scripts/wallpaper_tool.py ensure         # Garantir la présence de aurora-wallpaper
+./scripts/wallpaper_tool.py restart        # Relancer aurora-wallpaper proprement
 ./scripts/wallpaper_tool.py mask           # Recalculer masque Blackwall subpixel
-./scripts/wallpaper_tool.py sync           # Déployer ressource/ vers Steam Workshop
-./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 33 hard links
+./scripts/wallpaper_tool.py check-links    # Auditer intégrité des 34 hard links
 
 # Validation syntaxique rapide
 bash -n dotfiles/hypr/lock.sh dotfiles/hypr/scripts/*.sh

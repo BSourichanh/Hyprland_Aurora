@@ -15,7 +15,7 @@ dotfiles/kitty/
 
 ## 🎨 Spécifications Visuelles & Intégration
 
-- **Translucidité & Flou** : `background_opacity 0.85`. Combiné au flou de composition d'Hyprland, il offre un effet de verre dépoli lisible et performant.
+- **Translucidité & Flou** : `background_opacity 0.50`. Combiné au flou de composition d'Hyprland, il offre un effet de verre dépoli lisible et performant.
 - **Marges Internes (Padding)** : `window_padding_width 14`. Évite que le texte de la console n'entre en collision avec les coins arrondis à 17px de la fenêtre Hyprland.
 - **Typographie** : Police à espacement fixe (`font_family monospace`), taille `11.5pt`.
 - **Fermeture Silencieuse** : `confirm_os_window_close 0` pour une fermeture instantanée sans avertissement bloquant.

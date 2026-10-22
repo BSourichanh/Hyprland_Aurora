@@ -5,11 +5,12 @@
 __pycache__/
 *.pyc
 
-# Submodule / external build directories
-linux-wallpaperengine/
+# Local compiled engine binary
+src/aurora_wallpaper/aurora-wallpaper
 
 # Compiled plugin binaries
 dotfiles/hypr/plugins/*.so
+!dotfiles/hypr/plugins/Hyprspace.so
 
 # Temporary test artifacts
 scratch/

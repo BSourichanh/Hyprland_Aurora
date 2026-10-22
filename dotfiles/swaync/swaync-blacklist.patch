@@ -1,0 +1,85 @@
+diff --git a/src/notification/notification.vala b/src/notification/notification.vala
+index b5b2db8..2b80424 100644
+--- a/src/notification/notification.vala
++++ b/src/notification/notification.vala
+@@ -237,8 +237,8 @@ namespace SwayNotificationCenter {
+ 
+             this.button_press_event.connect ((event) => {
+                 if (event.button != Gdk.BUTTON_SECONDARY) return false;
+-                // Right click
+-                this.close_notification ();
++                // Right click: show context menu (Blacklist / Close)
++                this.show_context_menu (event);
+                 return true;
+             });
+ 
+@@ -605,6 +605,69 @@ namespace SwayNotificationCenter {
+             });
+         }
+ 
++        private void blacklist_current_app () {
++            string app = param.app_name ?? param.desktop_entry;
++            if (app == null || app.length == 0) return;
++            string entry = param.desktop_entry ?? "";
++            try {
++                string script = Path.build_filename (
++                    Environment.get_user_config_dir (),
++                    "swaync",
++                    "scripts",
++                    "blacklist-app.py"
++                );
++                string[] argv = { script, app, entry };
++                Pid pid;
++                Process.spawn_async (
++                    null,
++                    argv,
++                    null,
++                    SpawnFlags.SEARCH_PATH,
++                    null,
++                    out pid
++                );
++            } catch (Error e) {
++                warning ("Failed to blacklist application: %s\n", e.message);
++            }
++        }
++
++        private void show_context_menu (Gdk.EventButton event) {
++            remove_noti_timeout ();
++            var popover = new Gtk.Popover (event_box);
++            popover.get_style_context ().add_class ("swaync-context-popover");
++            Gdk.Rectangle rect = { (int) event.x, (int) event.y, 1, 1 };
++            popover.set_pointing_to (rect);
++            popover.set_position (Gtk.PositionType.BOTTOM);
++
++            var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 6);
++            box.margin_start = 8;
++            box.margin_end = 8;
++            box.margin_top = 8;
++            box.margin_bottom = 8;
++
++            string app = param.app_name ?? param.desktop_entry ?? "l'application";
++            var btn_blacklist = new Gtk.Button.with_label ("🚫 Blacklister " + app);
++            btn_blacklist.get_style_context ().add_class ("popover-btn-blacklist");
++            btn_blacklist.clicked.connect (() => {
++                popover.popdown ();
++                blacklist_current_app ();
++                this.close_notification ();
++            });
++            box.add (btn_blacklist);
++
++            var btn_close = new Gtk.Button.with_label ("✕ Fermer");
++            btn_close.get_style_context ().add_class ("popover-btn-close");
++            btn_close.clicked.connect (() => {
++                popover.popdown ();
++                this.close_notification ();
++            });
++            box.add (btn_close);
++
++            popover.add (box);
++            popover.show_all ();
++            popover.popup ();
++        }
++
+         private void set_icon () {
+             var image_visibility = ConfigModel.instance.image_visibility;
+             if (image_visibility == ImageVisibility.NEVER) {

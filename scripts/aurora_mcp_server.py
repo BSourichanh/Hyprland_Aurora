@@ -144,19 +144,11 @@ def get_aurora_status() -> Dict[str, Any]:
     total_cpu = 0.0
     total_ram = 0.0
     try:
-        pg_res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True, text=True)
+        pg_res = subprocess.run(["pgrep", "-f", "aurora-wallpaper"], capture_output=True, text=True)
         if pg_res.returncode == 0:
             for line in pg_res.stdout.strip().splitlines():
-                if line:
+                if line and line.isdigit():
                     pid = int(line)
-                    cmdline_f = Path(f"/proc/{pid}/cmdline")
-                    screen = "unknown"
-                    if cmdline_f.exists():
-                        args = cmdline_f.read_bytes().split(b"\x00")
-                        for idx, arg in enumerate(args):
-                            if arg == b"--screen-root" and idx + 1 < len(args):
-                                screen = args[idx + 1].decode("utf-8", errors="ignore")
-                    
                     # RAM & CPU
                     ram_mb = 0.0
                     stat_f = Path(f"/proc/{pid}/status")
@@ -178,7 +170,7 @@ def get_aurora_status() -> Dict[str, Any]:
                     total_ram += ram_mb
                     wp_procs.append({
                         "pid": pid,
-                        "screen": screen,
+                        "engine": "aurora-wallpaper",
                         "cpu_pct": cpu_pct,
                         "ram_mb": round(ram_mb, 1)
                     })

@@ -12,13 +12,11 @@ dotfiles/hypr/
 ├── hyprviz.conf        # Paramètres d'apparence harmonisés (rounding 17px, border 2px, dégradé néon)
 ├── hypridle.conf       # Démon d'inactivité (verrouillage 5 min, extinction écrans)
 ├── hyprlock.conf       # Interface de déverrouillage graphique (champ mot de passe néon, flou GPU)
+├── hyprlock-pam-deadlock.patch # Patch C++ prévenant le deadlock du thread PAM lors du déverrouillage
 ├── lock.sh             # Script de verrouillage sécurisé avec Safe Cleanup Handler (RAII)
-├── wallpaper_renderer.json # Persistance du moteur Lucy actif (GPU/CPU) et des FPS (30/20)
-├── wallpaper-renderer.desktop # Lanceur d'applications Wofi pour le sélecteur
 ├── scripts/
 │   ├── power-menu.sh   # Menu de session et d'alimentation Aurora (SUPER + S)
 │   ├── screenshot.sh   # Outil de capture d'écran polyvalent (Print Screen, sélection, écran, fenêtre)
-│   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU (30 FPS) / CPU (20 FPS)
 │   ├── reload.sh       # Script de rechargement complet (Hyprland + Waybar + notification)
 │   ├── workspace-autocompact.py # Auto-compacteur dynamique d'espaces de travail (bornes disjointes 1-5 et 6-10) avec neutralisation sous verrouillage
 │   └── wofi-toggle.sh  # Lanceur d'applications Wofi avec backdrop transparent (wait -n, 0% CPU)
@@ -49,7 +47,7 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
    - Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` actif durant toute la session verrouillée.
    - Bascule immédiate de chaque écran vers des espaces de travail vides réservés (`98` pour DP-2, `99` pour DP-1, `persistent:false`).
    - Pose du drapeau atomique `/tmp/hypr_locked` neutralisant le démon `workspace-autocompact.py` pour empêcher tout démasquage accidentel des fenêtres.
-   - En cas d'événement `monitoradded` (rallumage d'un écran) : ré-application instantanée de l'espace vide dédié et relance sélective de Wallpaper Engine (`wallpaper_tool.py ensure <screen>`) sans jamais redémarrer l'autre écran.
+   - En cas d'événement `monitoradded` (rallumage d'un écran) : ré-application instantanée de l'espace vide dédié et relance sélective de `aurora-wallpaper` (`wallpaper_tool.py ensure`) sans jamais redémarrer l'autre écran.
 2. **Isolation Totale de Waybar** :
    - Arrêt complet du processus (`killall waybar`) et des sous-processus Spotify à l'entrée en verrouillage. Cela élimine l'artefact GTK3 où Waybar réapparaissait avec `visible = true` sur tout écran rebranché lors de l'utilisation de `SIGUSR1`.
    - Fermeture forcée des popups flottants (`wofi`, carte Spotify).
@@ -64,6 +62,9 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
 5. **Horloge Hyprlock Anti-Freeze (`hyprlock.conf`)** :
    - Remplacement de la variable passive `$TIME` (vulnérable aux race conditions internes du *ResourceGatherer* lors des coupures d'affichage DPMS) par `cmd[update:1000] date +"%H:%M"`.
    - Asservissement direct à un timer système noyau Linux (`timerfd`) garantissant un rafraîchissement d'heure déterministe à la seconde près.
+6. **Résilience Multi-Processus & Patch Anti-Deadlock (`hyprlock-pam-deadlock.patch`)** :
+   - Correctif natif amont (PR #1059) neutralisant le blocage récurrent du thread PAM (`std::thread::join()`) lors de la sortie de session.
+   - Sonde de détection auto-cicatrisante dans `lock.sh` : purge instantanée de tout processus `hyprlock` zombie orphelin ne disposant plus de surface Wayland active (`hyprctl layers | grep "namespace: hyprlock"`).
 
 ---
 
@@ -79,9 +80,11 @@ Le script [`power-menu.sh`](file:///home/user/Documents/antigravity/hyprland_pro
 ## 📸 Outil de Capture d'Écran Aurora (`screenshot.sh`)
 
 Le script [`screenshot.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/scripts/screenshot.sh) gère les captures d'écran sous Wayland :
-- **Réticule Aurora thémé** : `slurp` configuré avec bordure cyan néon 2px (`#00f0ff`), fond sombre Tokyo Night et lueur douce.
+- **Gel Instantané de l'Affichage (Freeze Screen)** : Utilisation de `hyprpicker -r -z` figeant immédiatement l'ensemble des moniteurs à l'ouverture du mode sélection. Élimine tout décalage temporel ou animation en mouvement (Lucy, vidéos, curseur) pendant le tracé de la zone.
+- **Élimination Définitive des Bordures Résiduelles** : Règles de calques déclaratives Hyprland 0.56 (`selection_noanim` et `hyprpicker_noanim`) désactivant toute animation de sortie sur les couches de sélection, empêchant `grim` de photographier l'estompement du cadre `slurp`.
+- **Réticule Aurora affiné** : `slurp` configuré avec bordure cyan néon 1px (`#00f0ff`), fond sombre Tokyo Night semi-transparent et sécurité RAII (`trap` libérant l'affichage en cas d'annulation avec <kbd>Échap</kbd>).
 - **Modes pris en charge** :
-  - `area` (défaut) : Sélection interactive rectangulaire (<kbd>Print</kbd> ou <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>).
+  - `area` (défaut) : Sélection interactive rectangulaire gelée (<kbd>Print</kbd> ou <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>).
   - `screen` : Moniteur actif sous le curseur (<kbd>SHIFT</kbd> + <kbd>Print</kbd>).
   - `window` : Fenêtre sous focus actif (<kbd>SUPER</kbd> + <kbd>Print</kbd>).
   - `full` : Intégralité des écrans réunis (<kbd>CTRL</kbd> + <kbd>Print</kbd>).

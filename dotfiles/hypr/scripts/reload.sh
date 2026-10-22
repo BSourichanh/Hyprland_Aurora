@@ -8,6 +8,9 @@ if [ -x "$HOME/.local/bin/hyprbar" ]; then
 else
     killall waybar 2>/dev/null
     pkill -9 -f "spotify-card.py" 2>/dev/null
+    pkill -f "spotify.py" 2>/dev/null
+    pkill -f "gpu.py" 2>/dev/null
+    pkill -f "swaync-client -swb" 2>/dev/null
     sleep 0.3
     hyprctl dispatch exec waybar >/dev/null 2>&1
     hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" >/dev/null 2>&1

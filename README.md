@@ -47,7 +47,7 @@ cd Hyprland_Aurora
 ### Ce que fait automatiquement `./setup.sh` :
 1. **Dépendances système** : Détecte votre gestionnaire de paquets (`apt`, `pacman`) et installe les composants Wayland, polices, polkit et bibliothèques Python requises (saut possible via `./setup.sh --no-deps`).
 2. **Sauvegarde préventive** : Archive automatiquement vos configurations existantes dans `~/.config/aurora_backup_<date>/`.
-3. **Hard Links stricts** : Établit les 33 hard links physiques (mêmes inodes) entre `dotfiles/` et `~/.config/` garantissant la synchronisation bidirectionnelle immédiate.
+3. **Hard Links stricts** : Établit les 34 hard links physiques (mêmes inodes) entre `dotfiles/` et `~/.config/` garantissant la synchronisation bidirectionnelle immédiate.
 4. **Permissions & Exécutables** : Règle les permissions `chmod +x` sur tous les scripts et installe l'utilitaire de gestion `hyprbar` dans `~/.local/bin/hyprbar`.
 5. **Shaders Steam Workshop** : Synchronise automatiquement les shaders et textures de Lucy si le dossier Wallpaper Engine est détecté.
 6. **Audit d'intégrité** : Valide la conformité complète des liaisons via `./scripts/wallpaper_tool.py check-links`.
@@ -70,6 +70,13 @@ cd Hyprland_Aurora
   - **Barre de progression dynamique** : Affichage temps réel de la jauge vectorielle textuelle `───●────` et de l'horodatage (`MM:SS / MM:SS`) via streaming D-Bus natif (`spotify.py --progress`).
   - **Harmonisation chromatique 180°** : Dégradé vertical partagé (`linear-gradient(180deg, #9778d0 0%, #7aa2f7 50%, #00f0ff 100%)`) assurant une ligne haute violette et une ligne basse cyan rigoureusement continues, sans discontinuité diagonale.
   - **Repli total 0px (Anti-capsule fantôme)** : Conteneur parent à zéro bordure (`#spotify-player`). À l'arrêt de la lecture ou au démarrage de session, les modules s'effondrent à 0px sans laisser d'artefact visuel résiduel.
+- **Triplet Matériel Aurora (CPU > GPU > RAM)** :
+  - **CPU (`cpu`)** : Charge processeur en Bleu `#7aa2f7` (``).
+  - **GPU (`custom/gpu`)** : Métriques kernel DRM fdinfo (`/proc/*/fdinfo/*` i915) pour Intel UHD 630 sans dépendance externe. Architecture Leader-Follower via `/dev/shm` divisant les lectures système par 2 en configuration multi-écrans. Icône `󰢮` en Cyan `#00f0ff`.
+  - **RAM (`memory`)** : Pourcentage de mémoire vive en Violet `#9778d0` (`󰍅`).
+- **Compteur de Notifications Dynamique (`custom/notification`)** :
+  - Flux continu sans tampon `swaync-client -swb | sed -u 's/"text": "0"/"text": ""/'`.
+  - Badge numérique en exposant rose néon `{icon}<span foreground='#f43f5e'><sup>{text}</sup></span>` : masqué si 0 alerte, visible dès la première notification reçue.
 - **Architecture Événementielle Zéro-Polling (`signal: 11`)** :
   - Élimination stricte des forks répétitifs de sous-processus Python (`custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`).
   - Configuration de `signal: 11` avec `interval: 30` (filet de sécurité passif) dans `config.jsonc`.
@@ -115,6 +122,7 @@ cd Hyprland_Aurora
 - **Confidentialité des Notifications (SwayNC)** : Activation automatique du mode Ne Pas Déranger (`swaync-client -dn`) et fermeture forcée du volet pour supprimer toute bulle de notification sur l'écran de verrouillage. Restauration de l'état DND au déverrouillage.
 - **Neutralisation de l'Auto-Compacteur** : Drapeau atomique `/tmp/hypr_locked` empêchant `workspace-autocompact.py` de déplacer des workspaces pendant le verrouillage.
 - **Horloge Anti-Freeze Résiliente DPMS** : Remplacement de la variable passive `$TIME` (sujette aux race conditions internes lors des coupures d'écran) par un timer système explicite asservi au noyau Linux (`text = cmd[update:1000] date +"%H:%M"`), garantissant une heure exacte même après de longues sorties de veille.
+- **Résilience Multi-Processus & Patch PAM Anti-Deadlock (`hyprlock-pam-deadlock.patch`)** : Correctif natif amont (PR #1059) neutralisant le blocage du thread PAM (`std::thread::join()`) à la sortie de session, couplé à une sonde auto-cicatrisante sur surfaces Wayland actives (`hyprctl layers`).
 - **Pattern RAII / Restauration Dynamique** : Restauration des workspaces d'origine encapsulée dans une routine `cleanup()` exécutée sur tous les signaux (`EXIT`, `INT`, `TERM`), ciblant uniquement les écrans réellement allumés.
 
 ### 5. Menu de Session & Alimentation Épuré (`power-menu.sh` & `power-menu.css`)
@@ -129,9 +137,11 @@ cd Hyprland_Aurora
 
 ### 6. Outil de Capture d'Écran Aurora (`screenshot.sh`)
 - **Intégration native sur Impr écran** : Déclenché par la touche <kbd>Print</kbd> ou <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>.
-- **Réticule Aurora thémé** : Outil `slurp` assorti avec bordures cyan 2px (`#00f0ff`) et fond Tokyo Night semi-transparent.
-- **Multi-modes** : Sélection rectangulaire, plein écran du moniteur actif (<kbd>SHIFT</kbd> + <kbd>Print</kbd>), fenêtre active (<kbd>SUPER</kbd> + <kbd>Print</kbd>) ou multi-écrans intégral (<kbd>CTRL</kbd> + <kbd>Print</kbd>).
-- **Presse-papiers & Notifications** : Copie immédiate dans le presse-papiers Wayland (`wl-copy`) et notification avec vignette miniature.
+- **Gel Instantané de l'Affichage (Freeze Screen)** : Utilisation de `hyprpicker -r -z` figeant immédiatement l'ensemble des moniteurs dès l'ouverture du mode sélection. Zéro décalage temporel ou animation en mouvement (Lucy, vidéos, Spotify) pendant la sélection rectangulaire.
+- **Élimination Définitive des Bordures Résiduelles** : Règles de calque déclaratives Hyprland (`selection_noanim` et `hyprpicker_noanim`) désactivant toute animation de sortie sur les couches de sélection, empêchant `grim` de photographier l'estompement du cadre `slurp`.
+- **Réticule Aurora affiné** : Outil `slurp` assorti avec bordures cyan 1px (`#00f0ff`) et fond Tokyo Night semi-transparent.
+- **Multi-modes** : Sélection rectangulaire gelée, plein écran du moniteur actif (<kbd>SHIFT</kbd> + <kbd>Print</kbd>), fenêtre active (<kbd>SUPER</kbd> + <kbd>Print</kbd>) ou multi-écrans intégral (<kbd>CTRL</kbd> + <kbd>Print</kbd>).
+- **Presse-papiers & Notifications** : Copie immédiate dans le presse-papiers Wayland (`wl-copy`), libération déterministe RAII (`trap`) et notification avec vignette miniature.
 
 ### 7. Centre de Notifications & Contrôle Aurora (SwayNC)
 - **Thématisation Aurora GTK3** :
@@ -140,6 +150,9 @@ cd Hyprland_Aurora
   - Flou matériel Hyprland avec règles dédiées (`layerrule = blur, swaync-control-center` et `layerrule = blur, swaync-notification-window`).
 - **Widgets Intégrés & Contrôles** :
   - Volet latéral rétractable déclenché par le raccourci <kbd>SUPER</kbd> + <kbd>N</kbd> (`swaync-client -t -sw`).
+  - Menu contextuel au clic droit via patch natif Vala ([`swaync-blacklist.patch`](dotfiles/swaync/swaync-blacklist.patch)) ouvrant un Popover GTK Aurora :
+    - « 🚫 Blacklister [App] » : injection atomique *in-place* dans `config.json` via [`blacklist-app.py`](dotfiles/swaync/scripts/blacklist-app.py) sans rupture des hardlinks.
+    - « ✕ Fermer » : dismiss de la notification avec suspension de l'expiration au survol.
   - Interrupteur Ne Pas Déranger (DND) stylisé avec retour d'état instantané.
   - Widget de contrôle multimédia MPRIS et historique des notifications classées avec boutons d'effacement individuel ou global.
   - Différenciation chromatique des urgences : alertes critiques signalées par des accents rouge néon (`#f43f5e`).
@@ -147,15 +160,19 @@ cd Hyprland_Aurora
   - Bascule automatique en mode DND (`swaync-client -dn`) et fermeture du volet à l'entrée dans `lock.sh`.
   - Zéro fuite visuelle : aucune bulle de notification n'apparaît sur l'écran verrouillé ; les alertes restent enregistrées en arrière-plan et sont consultables au déverrouillage.
 
-### 8. Fond d'Écran Animé Lucy & Rendu GPU 30 FPS
-- **Rendu Matériel Équilibré & Empreinte Basse Consommation** : Animation fluide à 30 FPS sur iGPU Intel UHD 630 sans écran blanc multi-écrans (`DP-1` et `DP-2`), stabilisée à **~3.0% d'un cœur** (~0.5% machine totale par écran).
-- **Optimisation Threads & Isolation Audio** : Neutralisation des threads audio parasites (`SDL_AUDIODRIVER=dummy`, `--silent --no-audio-processing`) et du polling souris (`--disable-mouse`), couplée à la mise en pause atomique en plein écran (`--fullscreen-pause-only-active`).
-- **Démon d'Auto-Guérison Hotplug (`wallpaper_daemon.sh`)** : Démon continu supervisant `.socket2.sock` et intégrant un heartbeat de 2.0s. Vérifie en permanence la présence de la couche Wayland `Bottom` (`hyprctl layers -j`) et restaure sélectivement le moniteur manquant sans jamais couper ni redémarrer l'autre écran (résilience au réveil DPMS).
-- **Démarrage Sélectif par Écran (`ensure`)** : Détection des surfaces matérielles réelles et purge automatique des processus zombies.
-- **Sélecteur GPU / CPU** : Basculement instantané via Wofi (<kbd>SUPER</kbd> + <kbd>R</kbd> ➔ "gpu" / "cpu") ou via CLI (`./scripts/wallpaper_tool.py renderer [gpu|cpu]`).
-- **Shaders Blackwall & Shake Optimisés** :
-  - `blackwall.frag` : Shader GLSL natif avec fast-path éliminant le calcul sur ~65% des pixels et détourage subpixel sans halo opaque.
-  - `shake.frag` : Glitch Relic géométrique pur sans distorsion RVB, avec fast-path précoce (90% du temps en repos absolu), arithmétique GPU à cycle unique (`fract`) et tranches variables strictement bornées (50px à 75px en hauteur, 25% à 50% en largeur).
+### 8. Fond d'Écran Animé Lucy & Micro-Moteur Natif C99 (`aurora-wallpaper`)
+- **Architecture Single-Pass GLSL & FBO Partagé Multi-Écrans** : Micro-moteur Wayland C99 natif (`src/aurora_wallpaper/`) exécutant le rendu GLSL 1 seule fois dans un Framebuffer Object ($1920 \times 1080$), puis copié instantanément sur chaque moniteur (`DP-1` et `DP-2`).
+- **Consommation & Empreinte Matérielle** : Cadence de 30 FPS fixes, consommation de ~1.9% CPU globale sur Intel UHD 630 (divisée par 5 par rapport à Wallpaper Engine), 72 Mo de RAM, zéro dépendance Node/V8/PulseAudio/SDL.
+- **Démon d'Auto-Guérison Hotplug (`wallpaper_tool.py daemon`)** : Démon continu supervisant `.socket2.sock` avec temporisation anti-rebond (0.4s). Valide en temps réel la présence de la couche Wayland `Bottom` (`hyprctl layers -j`) et restaure automatiquement la surface lors du rebranchement d'écran ou du réveil DPMS.
+- **Hiérarchie Stricte des Calques Wayland** :
+  - *Layer 0 (Background)* : `swaybg` (fond statique de secours instantané ~10 ms).
+  - *Layer 1 (Bottom)* : `aurora-wallpaper` (Lucy & Blackwall animés 30 FPS).
+  - *Layer 2 (Top)* : `waybar`.
+  - *Layer 3 (Overlay)* : Wofi, Hyprlock, Spotify Card.
+- **Shader Unifié (`shader.h`)** :
+  - Grille cybernétique Blackwall et nébuleuse animée avec fast-path court-circuitant ~65% de l'écran sous Lucy.
+  - Flux de données doubles avec étincelles Cyan `#00f0ff`.
+  - Glitch Relic géométrique cadencé et ondulation organique de respiration.
 
 ### 9. Écosystème MCP & Automatisation IA (Model Context Protocol)
 - **Micro-serveur FastMCP Aurora (`scripts/aurora_mcp_server.py`)** :
@@ -178,25 +195,25 @@ hyprland_project/
 │   │   ├── hyprviz.conf       # Paramètres d'apparence complémentaires harmonisés (border_size = 2)
 │   │   ├── hypridle.conf      # Gestionnaire d'inactivité (verrouillage auto après 5 min)
 │   │   ├── hyprlock.conf      # Écran de verrouillage stylisé avec champ de mot de passe dégradé
+│   │   ├── hyprlock-pam-deadlock.patch # Patch C++ anti-deadlock PAM (PR #1059)
 │   │   ├── lock.sh            # Script de verrouillage sécurisé avec Safe Cleanup RAII
-│   │   ├── wallpaper_renderer.json # Persistance du moteur Lucy actif (GPU/CPU) et des FPS (30/20)
-│   │   ├── wallpaper-renderer.desktop # Lanceur d'applications Wofi pour le sélecteur
 │   │   ├── plugins/
+│   │   │   ├── Hyprspace.so   # Plugin Mission Control (SUPER + TAB)
 │   │   │   └── hyprspace-multimonitor.patch # Patch natif filtrant les workspaces par écran
 │   │   ├── scripts/
 │   │   │   ├── wallpaper_daemon.sh # Démon de résilience hotplug et réveil DPMS
 │   │   │   ├── workspace-autocompact.py # Auto-compactage dynamique des workspaces (DP-2 / DP-1)
 │   │   │   ├── power-menu.sh  # Menu d'alimentation et session Aurora (SUPER + S)
 │   │   │   ├── screenshot.sh  # Capture d'écran (Print Screen, sélection, écran, fenêtre)
-│   │   │   ├── wallpaper-select-renderer.sh # Sélecteur graphique Wofi GPU/CPU
 │   │   │   ├── reload.sh      # Rechargement unifié Hyprland & Waybar (SUPER + SHIFT + R)
 │   │   │   └── wofi-toggle.sh # Lanceur Wofi avec gestion de clic extérieur (wait -n, 0% CPU)
 │   │   └── theme-summer/      # Fonds d'écran et ressources graphiques
 │   ├── waybar/
-│   │   ├── config.jsonc       # Disposition et modules de la barre Waybar (signal: 11)
+│   │   ├── config.jsonc       # Disposition et modules de la barre Waybar (signal: 11, CPU>GPU>RAM)
 │   │   ├── style.css          # Feuille de style GTK3 avec dégradés néon et bulles unifiées
 │   │   ├── bar-bg.svg         # Calque vectoriel de fond (translucidité 0.20 + dégradé continu 2px)
 │   │   └── scripts/
+│   │       ├── gpu.py         # Métriques GPU Intel UHD 630 sans dépendance (Leader-Follower /dev/shm)
 │   │       ├── spotify-card.py# Daemon GTK3 (Patterns Repository, Facade, Command, Observer)
 │   │       └── spotify.py     # Helper MPRIS modulaire (Command Pattern, Facade D-Bus)
 │   ├── wofi/
@@ -207,16 +224,23 @@ hyprland_project/
 │   ├── swaync/
 │   │   ├── config.json        # Structure des widgets (DND, MPRIS, liste) et dimensions (420px)
 │   │   ├── style.css          # Feuille de style GTK3 (glassmorphism 0.80, coins 17px, bordures cyan 2px)
+│   │   ├── swaync-blacklist.patch # Patch natif Vala pour menu contextuel clic droit
+│   │   ├── scripts/
+│   │   │   └── blacklist-app.py # Insertion in-place dans notification-visibility (respect hardlinks)
 │   │   └── README.md          # Documentation technique dédiée au centre de notifications
 │   └── kitty/
-│       └── kitty.conf         # Configuration du terminal Kitty (transparence 0.85, Tokyo Night)
+│       └── kitty.conf         # Configuration du terminal Kitty (transparence 0.50, Tokyo Night)
 ├── assets/                    # Captures d'écran et aperçus visuels du thème
-├── ressource/                 # Modèle, shaders Blackwall et textures Wallpaper Engine (Lucy)
+├── ressource/                 # Modèle, textures et masques subpixel Blackwall (Lucy)
+│   └── nautilus/              # Extension Nautilus python pour ouverture directe Kitty
+├── src/
+│   └── aurora_wallpaper/      # Micro-moteur Wayland C99 natif (Single-Pass GLSL + FBO 30 FPS)
 ├── scripts/
-│   ├── wallpaper_tool.py      # Outils CLI (pack/unpack, mask, sync, audit, renderer, daemon)
+│   ├── hyprbar                # Gestionnaire CLI Waybar et carte Spotify (anti-fuite de processus)
+│   ├── wallpaper_tool.py      # Outils CLI (moteur natif, mask, audit 34 hardlinks, daemon)
 │   └── aurora_mcp_server.py   # Serveur MCP local FastMCP pour l'automatisation IA
 ├── GEMINI.md                  # Directives d'architecture et consignes de développement
-├── setup.sh                   # Script d'installation idempotente et validation des 33 hard links
+├── setup.sh                   # Script d'installation idempotente et validation des 34 hard links
 └── README.md                  # Documentation générale du projet
 ```
 
@@ -238,7 +262,7 @@ Chaque sous-système dispose de sa propre documentation technique dédiée :
 
 ## 🔗 Gestion des Liens Système
 
-Les fichiers de configuration réels de votre compte utilisateur dans `~/.config/` sont liés directement aux fichiers de ce dépôt (33 hard links stricts) :
+Les fichiers de configuration réels de votre compte utilisateur dans `~/.config/` sont liés directement aux fichiers de ce dépôt (34 hard links stricts) :
 
 | Emplacement Système | Cible dans le Dépôt |
 | :--- | :--- |
@@ -303,13 +327,13 @@ hyprbar status   # Vérifier l'état et les PIDs actifs
 ./scripts/wallpaper_tool.py mask           # Régénère le masque de détourage subpixel & compile le .tex
 ./scripts/wallpaper_tool.py sync           # Déploie shaders et assets vers le dossier Steam Workshop
 ./scripts/wallpaper_tool.py restart        # Redémarre proprement les instances par écran (défaut 30 FPS)
-./scripts/wallpaper_tool.py check-links    # Valide l'intégrité des 33 hard links dotfiles/ <-> ~/.config/
+./scripts/wallpaper_tool.py check-links    # Valide l'intégrité des 34 hard links dotfiles/ <-> ~/.config/
 ```
 
 ### 3. Micro-serveur MCP Aurora (`aurora-mcp`)
 ```bash
 aurora-mcp status  # Diagnostic consolidé unifié (Lucy, Waybar, Spotify, Workspaces, Moniteurs)
-aurora-mcp audit   # Audit de conformité des 33 hard links physiques
+aurora-mcp audit   # Audit de conformité des 34 hard links physiques
 ```
 
 ---
@@ -319,7 +343,7 @@ aurora-mcp audit   # Audit de conformité des 33 hard links physiques
 Pour faire fonctionner l'ensemble de ces fonctionnalités :
 
 - **Composants système** : `hyprland`, `waybar`, `wofi`, `sway-notification-center` (`swaync`), `kitty`, `hyprlock`, `hypridle`, `swaybg`, `hyprpolkitagent`.
-- **Moteur de fond d'écran dynamique** : `linux-wallpaperengine` (CLI Wayland / `wlr-layer-shell`), Steam (Workshop Wallpaper Engine pour les assets).
+- **Moteur de fond d'écran dynamique** : `aurora-wallpaper` (Micro-moteur natif C99 / Wayland `wlr-layer-shell` + EGL/GLES2).
 - **Utilitaires Wayland** : `slurp`, `grim`, `wl-clipboard` (`wl-copy`), `playerctl`, `pavucontrol`, `jq`, `wireplumber` (`wpctl`), `xrandr`, `wtype`.
 - **Python & Bibliothèques** : `python3`, `python3-gi`, `python3-dbus`, `python3-pil` (Pillow).
 - **Polices recommandées** : `Noto Sans`, `FontAwesome` (pour les icônes de la barre et du popup).

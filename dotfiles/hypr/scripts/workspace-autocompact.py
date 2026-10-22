@@ -89,12 +89,10 @@ def compact_workspaces():
     # Ne jamais compacter si la session est verrouillée (évite de démasquer les fenêtres)
     if os.path.exists("/tmp/hypr_locked"):
         return False
-    try:
-        import subprocess
-        if subprocess.run(["pidof", "hyprlock"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
-            return False
-    except Exception:
-        pass
+    # Vérification de présence effective de la surface Wayland hyprlock (anti-zombie)
+    layers_raw = hypr_cmd("j/layers")
+    if '"hyprlock"' in layers_raw:
+        return False
 
     configs = get_monitor_configs()
     monitors = hypr_json("j/monitors")

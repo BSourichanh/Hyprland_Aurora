@@ -2,9 +2,16 @@
 # Protocole de Verrouillage Sécurisé Hyprland / Aurora Theme
 # Support multi-écrans dynamique & protection anti-fuite de workspaces
 
-# Empêcher le lancement si hyprlock tourne déjà
+# Empêcher les doublons et purger tout processus hyprlock fantôme/bloqué
 if pidof hyprlock >/dev/null; then
-    exit 0
+    if hyprctl layers 2>/dev/null | grep -q "namespace: hyprlock"; then
+        # Session légitimement verrouillée avec surface active
+        exit 0
+    else
+        # Processus fantôme / bloqué sans surface Wayland : purge immédiate
+        killall -9 hyprlock 2>/dev/null
+        sleep 0.1
+    fi
 fi
 
 LOCK_FLAG="/tmp/hypr_locked"
@@ -122,6 +129,18 @@ def enforce_lock():
                 cmds.append("dispatch focusmonitor DP-1;dispatch workspace 99")
             elif name not in ("DP-1", "DP-2") and act != 97:
                 cmds.append(f"dispatch focusmonitor {name};dispatch workspace 97")
+        # Expulsion immédiate de toute fenêtre surgissant sur les espaces de verrouillage
+        raw_c = query("j/clients")
+        if raw_c:
+            clients = json.loads(raw_c)
+            for c in clients:
+                if c.get("class") == "Paros":
+                    continue
+                ws_id = c.get("workspace", {}).get("id")
+                addr = c.get("address")
+                if ws_id in (97, 98, 99) and addr:
+                    target_ws = 2 if ws_id == 98 else (6 if ws_id == 99 else 1)
+                    cmds.append(f"dispatch movetoworkspacesilent {target_ws},address:{addr}")
         if cmds:
             query("[[BATCH]]" + ";".join(cmds))
     except Exception:
@@ -162,7 +181,9 @@ while os.path.exists(lock_file):
                 time.sleep(0.3)
                 enforce_lock()
                 subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(["pkill", "-f", "spotify.py --progress"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "-f", "spotify.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "-f", "gpu.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "-f", "swaync-client -swb"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 now = time.time()
                 if now - last_restart > 0.8 and os.path.exists(tool_path):
                     last_restart = now
@@ -170,7 +191,7 @@ while os.path.exists(lock_file):
                     if mon in ("DP-1", "DP-2"):
                         cmd.append(mon)
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            elif ev in ("workspace", "workspacev2", "focusedmon"):
+            elif ev in ("workspace", "workspacev2", "focusedmon", "openwindow", "mapwindow"):
                 enforce_lock()
     except Exception:
         break
@@ -192,9 +213,46 @@ WAYBAR_WAS_RUNNING=0
 if pgrep -x waybar >/dev/null; then
     WAYBAR_WAS_RUNNING=1
     killall waybar 2>/dev/null
-    pkill -f "spotify.py --progress" 2>/dev/null
-    sleep 0.1
+    pkill -f "spotify.py" 2>/dev/null
+    pkill -f "gpu.py" 2>/dev/null
+    pkill -f "swaync-client -swb" 2>/dev/null
+    sleep 0.15
 fi
+
+# Expulsion immédiate de toute fenêtre surgie sur les workspaces réservés (ex: un-minimize Spotify sur perte de tray)
+python3 -c '
+import os, sys, json, socket
+runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+if not runtime_dir or not his: sys.exit(0)
+cmd_sock = os.path.join(runtime_dir, "hypr", his, ".socket.sock")
+try:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.connect(cmd_sock)
+        s.sendall(b"j/clients")
+        res = b""
+        while True:
+            c = s.recv(4096)
+            if not c: break
+            res += c
+    clients = json.loads(res.decode("utf-8", errors="replace"))
+    cmds = []
+    for c in clients:
+        if c.get("class") == "Paros":
+            continue
+        ws_id = c.get("workspace", {}).get("id")
+        addr = c.get("address")
+        if ws_id in (97, 98, 99) and addr:
+            target_ws = 2 if ws_id == 98 else (6 if ws_id == 99 else 1)
+            cmds.append(f"dispatch movetoworkspacesilent {target_ws},address:{addr}")
+    if cmds:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.connect(cmd_sock)
+            s.sendall(("[[BATCH]]" + ";".join(cmds)).encode("utf-8"))
+            s.recv(4096)
+except Exception:
+    pass
+' >/dev/null 2>&1
 
 # Gestionnaire de nettoyage déterministe (Safe Cleanup / RAII)
 CLEANED=0
@@ -243,7 +301,7 @@ if os.path.exists(state_file):
         focused_mon = orig.get("__focused__")
         for m in monitors:
             name = m.get("name")
-            if name in orig and name != "__focused__":
+            if name in orig:
                 orig_ws = orig[name]
                 cmds.append(f"dispatch focusmonitor {name};dispatch workspace {orig_ws}")
         if focused_mon and any(m.get("name") == focused_mon for m in monitors):

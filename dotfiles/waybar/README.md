@@ -12,6 +12,7 @@ dotfiles/waybar/
 ├── style.css               # Feuilles de style GTK3 (dégradés néon, règles d'arrondis et bulles)
 ├── bar-bg.svg              # Calque vectoriel de fond (1900x34, rx=16, ry=16, opacité 20%, contour 2px)
 └── scripts/
+    ├── gpu.py              # Surveillance GPU Intel UHD 630 sans dépendance (Leader-Follower /dev/shm)
     ├── spotify.py          # Helper MPRIS CLI haute performance (Command Pattern, Facade D-Bus)
     └── spotify-card.py     # Démon GTK3 de carte interactive (Repository, Facade, IPC Service, Observer)
 ```
@@ -44,6 +45,19 @@ Cette méthode CSS est privilégiée sur les modules car elle s'adapte dynamique
 - **Visible (`#workspaces button.visible`)** : Bordure cyan 1.5px, fond teinté cyan translucide, texte cyan `#00f0ff` (identifie l'espace affiché sur l'écran non focus).
 - **Inactif (`#workspaces button`)** : Texte bleu-gris discret `#7a8fae`, fond transparent, surbrillance au survol.
 
+### 4. Triplet Matériel Aurora (CPU > GPU > RAM)
+- **Ordre strict des modules de droite** : `cpu` ➔ `custom/gpu` ➔ `memory`.
+- **CPU (`cpu`)** : Charge processeur cadencée à 3s, affichée en Bleu Tokyo Night `#7aa2f7` (``).
+- **GPU (`custom/gpu` via `gpu.py`)** :
+  - Interrogation directe sans dépendance externe des métriques DRM fdinfo du noyau Linux (`/proc/*/fdinfo/*`) et sysfs pour Intel UHD 630 (rendu 3D, décodage vidéo, fréquence MHz, VRAM allouée).
+  - **Architecture Leader-Follower (`/dev/shm`)** : Singleton géré par verrou exclusif `fcntl.flock` sur `/dev/shm/waybar_gpu.lock`. La première instance échantillonne les fds kernel et écrit le cache partagé atomiquement ; la seconde instance (écran secondaire) lit directement la mémoire partagée sans scruter `/proc`, divisant par deux le coût CPU.
+  - Rendu en Cyan néon `#00f0ff` (`󰢮`).
+- **RAM (`memory`)** : Charge mémoire vive en Violet néon `#9778d0` (`󰍅`).
+
+### 5. Compteur de Notifications Dynamique (`custom/notification`)
+- Streaming unbuffered via `swaync-client -swb | sed -u 's/"text": "0"/"text": ""/'`.
+- Badge numérique en exposant rose néon `{icon}<span foreground='#f43f5e'><sup>{text}</sup></span>` : s'effondre de manière invisible si 0 notification, affiche instantanément le décompte dès réception d'une alerte.
+
 ---
 
 ## 🎵 Architecture du Mini-Lecteur Spotify
@@ -67,11 +81,12 @@ Cette méthode CSS est privilégiée sur les modules car elle s'adapte dynamique
 
 ## 🛠️ Commandes d'Administration
 
-Le script global `hyprbar` permet de piloter la barre et ses démons :
+Le script global `hyprbar` permet de piloter la barre et ses démons, tout en garantissant l'éradication des processus orphelins (`swaync-client -swb`, `spotify.py`, `gpu.py`) :
 
 ```bash
-hyprbar restart   # Redémarrage complet propre de Waybar et de spotify-card
+hyprbar restart   # Redémarrage complet propre de Waybar, spotify-card et purge orphelins
 hyprbar reload    # Rechargement à chaud de la configuration CSS (SIGUSR2)
 hyprbar toggle    # Masquer / Afficher la barre (SIGUSR1)
+hyprbar stop      # Arrêt complet de Waybar et des processus de streaming associés
 hyprbar status    # Afficher les PIDs et l'état des services
 ```

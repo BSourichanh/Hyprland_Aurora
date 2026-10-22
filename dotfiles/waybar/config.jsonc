@@ -5,7 +5,7 @@
     "margin-top": 6,
     "margin-left": 10,
     "margin-right": 10,
-    "spacing": 6,
+    "spacing": 2,
     "modules-left": [
         "hyprland/workspaces"
     ],
@@ -14,8 +14,12 @@
         "clock"
     ],
     "modules-right": [
+        "cpu",
+        "custom/gpu",
+        "memory",
         "pulseaudio",
         "network",
+        "custom/notification",
         "tray"
     ],
     "hyprland/workspaces": {
@@ -67,8 +71,8 @@
         }
     },
     "pulseaudio": {
-        "format": "<span color='#00f0ff'>{icon}</span>  {volume}%",
-        "format-muted": "<span color='#64748b'>\uf026</span>  Muet",
+        "format": "<span color='#00f0ff'>{icon}</span>&#8194;{volume}%",
+        "format-muted": "<span color='#64748b'>\uf026</span>&#8194;Muet",
         "format-icons": {
             "default": [
                 "\uf026",
@@ -79,10 +83,46 @@
         "on-click": "pavucontrol"
     },
     "network": {
-        "format-wifi": "<span color='#00f0ff'>\uf1eb</span>  {essid}",
-        "format-ethernet": "<span color='#00f0ff'>\uf0e8</span>  Connect\u00e9",
-        "format-disconnected": "<span color='#f87171'>\u26a0</span>  D\u00e9connect\u00e9",
+        "format-wifi": "<span color='#00f0ff'>\uf1eb</span>&#8194;{essid}",
+        "format-ethernet": "<span color='#00f0ff'>\uf0e8</span>&#8194;Connect\u00e9",
+        "format-disconnected": "<span color='#f87171'>\u26a0</span>&#8194;D\u00e9connect\u00e9",
         "tooltip-format": "{ifname} : {ipaddr}"
+    },
+    "custom/gpu": {
+        "exec": "~/.config/waybar/scripts/gpu.py",
+        "return-type": "json",
+        "restart-interval": 3,
+        "tooltip": true
+    },
+    "cpu": {
+        "interval": 3,
+        "format": "<span color='#7aa2f7'>\uf2db</span>&#8194;{usage}%",
+        "tooltip": true
+    },
+    "memory": {
+        "interval": 5,
+        "format": "<span color='#9778d0'>\uefc5</span>&#8194;{percentage}%",
+        "tooltip-format": "RAM : {used:0.1f}G / {total:0.1f}G ({percentage}%)"
+    },
+    "custom/notification": {
+        "tooltip": true,
+        "format": "{icon}<span foreground='#f43f5e'><sup>{text}</sup></span>",
+        "format-icons": {
+            "notification": "",
+            "none": "",
+            "dnd-notification": "",
+            "dnd-none": "",
+            "inhibited-notification": "",
+            "inhibited-none": "",
+            "dnd-inhibited-notification": "",
+            "dnd-inhibited-none": ""
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb | sed -u 's/\"text\": \"0\"/\"text\": \"\"/'",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        "escape": true
     },
     "tray": {
         "icon-size": 16,

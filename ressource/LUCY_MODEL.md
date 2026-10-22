@@ -72,13 +72,13 @@ Le fichier [`scene.json`](file:///home/user/Documents/antigravity/hyprland_proje
 - **Éclairage & Ambiance** : `ambientcolor: "0.30 0.30 0.30"`, `clearcolor: "0.70 0.70 0.70"`.
 - **Post-Processing HDR & Bloom** :
   - `hdr: true`
-  - `bloom: true`
+  - `bloom: false` (désactivé pour optimisation iGPU Intel)
   - `bloomstrength: 10.0`
   - `bloomthreshold: 0.58`
   - `bloomhdrstrength: 4.08`
   - `bloomhdrthreshold: 1.0`
   - `bloomhdrscatter: 1.619`
-  - `bloomhdriterations: 8`
+  - `bloomhdriterations: 0`
   - `bloomtint: "1.00 1.00 1.00"`
 
 ### 3.2 Objets & Hiérarchie des Couches
@@ -92,13 +92,13 @@ graph TD
     Root --> Obj3[Obj 3: Fullscreen id:1355 - Post-Processing Glitch]
 
     Obj2 --> E0["Blackwall (id:9001, ON)"]
-    Obj2 --> E1["Sharpen (id:21, ON)"]
+    Obj2 --> E1["Sharpen (id:21, OFF)"]
     Obj2 --> E2["Waterwaves (id:141, ON)"]
-    Obj2 --> E3["Shine (id:427, ON - Atténué)"]
+    Obj2 --> E3["Shine (id:427, OFF)"]
     Obj2 --> E4["Shake (id:711, ON)"]
     Obj2 --> E5["Blur (id:757, OFF)"]
     Obj2 --> E6["Bokeh Blur (id:876, OFF)"]
-    Obj2 --> E7["Waterwaves (id:130, ON)"]
+    Obj2 --> E7["Waterwaves (id:130, OFF)"]
     Obj2 --> E8["Edge Glow (id:698, OFF - INTERDIT)"]
 
     Obj3 --> G0["Shake_Glitch_3 (id:1366, JS Timer)"]
@@ -106,9 +106,9 @@ graph TD
 
 #### Détail des Effets sur Lucy (`Obj 2: Diseño sin título`) :
 1. **`Blackwall` (id: 9001, actif)** : Fond procédural GLSL haute performance développé sur mesure pour Linux.
-2. **`sharpen_filter` (id: 21, actif)** : Filtre d'accentuation pour maximiser la netteté des traits du personnage.
-3. **`waterwaves` (ids: 141 & 130, actifs)** : Déformation sinusoïdale fluide simulant la respiration et le vent dans les mèches.
-4. **`shine` (id: 427, actif étalonné)** : Passe d'illumination spéculaire dont la vitesse et l'échelle de bruit ont été ralenties (`noisespeed: 0.035`, `noisescale: 1.5`, `noiseamount: 0.25`) pour éliminer tout clignotement oculaire rapide à 60 FPS tout en préservant le piqué et les ombres profondes d'origine.
+2. **`sharpen_filter` (id: 21, désactivé)** : Désactivé (`visible: false`) pour éliminer 1,1 milliard d'accès textures/seconde.
+3. **`waterwaves` (id: 141 actif, id: 130 désactivé)** : Déformation sinusoïdale fluide simulant la respiration sans doublon.
+4. **`shine` (id: 427, désactivé)** : Désactivé (`visible: false`) pour éliminer ses 5 passes de texture sur l'iGPU.
 5. **`shake` (id: 711, actif)** : Micro-secousses cinématiques d'ambiance.
 6. **`blur` (id: 757) & `bokeh_blur` (id: 876)** : Désactivés (`visible: false`) pour préserver les performances GPU.
 7. ⚠️ **`edge_glow` (id: 698, STRICTEMENT DÉSACTIVÉ)** :
@@ -128,11 +128,8 @@ graph TD
 
 ### 4.1 Shader Glitch Relic Rework (`shake.frag`)
 - **Emplacement Miroir (Git)** : [`ressource/shaders/workshop/2125458920/effects/shake.frag`](file:///home/user/Documents/antigravity/hyprland_project/ressource/shaders/workshop/2125458920/effects/shake.frag)
-- **Destination Workshop** : `~/.steam/.../3566437475/shaders/workshop/2125458920/effects/shake.frag`
-- **Mécanisme VFS & Priorité du Runtime** :
-  - `linux-wallpaperengine` monte par défaut `scene.pkg` à la racine `/` du VFS virtuel (`WallpaperApplication.cpp:88`).
-  - Si `scene.pkg` est présent, les shaders originaux du créateur (aberration chromatique baveuse, flashs jaune Relic, scanlines assombrissantes) écrasent les fichiers décompressés sur disque.
-  - La routine `sync_to_workshop()` décompresse automatiquement les 80 fichiers de l'archive et renomme `scene.pkg` en `scene.pkg.orig` pour garantir le chargement exclusif du shader customisé.
+- **Intégration Moteur Natif** :
+  - La logique de glitch Relic chirurgicale est intégrée directement dans le shader unifié de `aurora-wallpaper` (`src/aurora_wallpaper/shader.h`).
 
 #### A. Principes Visuels & Fidélité Chromatique Absolue (Zéro Dispersion)
 1. **Suppression Totale de l'Aberration Chromatique** :
@@ -350,7 +347,7 @@ void main() {
   - `raylength: 0.0` et `scale: "0 0"` : désactivation totale de l'étalement spatial des rayons et du flou.
 
 ### 4.3 Passe Blackwall GLSL Native (`ressource/blackwall/blackwall.frag`)
-- **Contexte** : Le système de particules Windows d'origine ne compile pas sous `linux-wallpaperengine`. Il a été remplacé par une passe procédurale GLSL 60 FPS autonome.
+- **Contexte** : Le système de particules Windows d'origine a été remplacé par une passe procédurale GLSL autonome intégrée dans le shader unifié de `aurora-wallpaper`.
 - **Fast-Path GPU Zero-Overhead** :
   ```glsl
   if (mask <= 0.001) {
@@ -422,36 +419,21 @@ Wallpaper Engine utilise un conteneur binaire propriétaire pour encapsuler ses 
 
 ## 7. Moteur d'Exécution & Architecture Multi-Écrans
 
-### 7.1 Résolution du Bug d'Écran Blanc (Patch `app.asar`)
-- Sous Wayland / Hyprland, instancier plusieurs moniteurs sous un même processus binaire (`linux-wallpaperengine --screen-root DP-1 --screen-root DP-2`) provoque la corruption du contexte EGL et un écran blanc sur l'écran secondaire.
-- **Solution appliquée** : Découpage multi-processus dans `/usr/lib/linux-wallpaper-engine/resources/app.asar` (méthode `spawnForScreens`). Chaque écran dispose d'un processus dédié indépendant.
+### 7.1 Architecture Single-Pass & FBO Mutualisé (`aurora-wallpaper`)
+- L'ancien `linux-wallpaperengine` a été remplacé par `aurora-wallpaper`, un micro-moteur Wayland natif C99 (`zwlr_layer_shell_v1` + EGL/GLES2).
+- **Rendu Mutualisé** : Le shader GLSL unifié tourne **une seule fois** dans un Framebuffer Object partagé ($1920 \times 1080$), puis est copié (*blit*) instantanément sur tous les écrans (`DP-1` et `DP-2`).
+- **Charge GPU & RAM** : Empreinte GPU réduite de 89% à 33% de temps moteur, 18 Mo de RAM (zéro dépendance V8/Chromium/Steam/PulseAudio).
 
-### 7.2 Configuration du Rendu (GPU vs CPU)
-Le fichier [`dotfiles/hypr/wallpaper_renderer.json`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/wallpaper_renderer.json) pilote le moteur :
-
-```json
-{
-  "renderer": "gpu",
-  "fps_gpu": 60,
-  "fps_cpu": 20
-}
-```
-
-- **Mode GPU (Recommandé & Actif)** :
-  - Périphérique matériel : `/dev/dri/renderD128` (Intel UHD Graphics 630).
-  - Cadence : **60 FPS**.
-  - Fréquence iGPU dynamique : 350 MHz à 1050 MHz.
-  - Consommation CPU : ~6% à 9% par écran.
-- **Mode CPU (Secours / Économie)** :
-  - Moteur logiciel : Mesa LLVMpipe (`LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe`).
-  - Cadence : **20 FPS**.
-  - Pression CPU : ~18% à 25%.
+### 7.2 Cadence & Performances
+- Cadence : **30 FPS fixes** (33.3 ms / trame).
+- Fréquence iGPU dynamique : ~1050 MHz.
+- Consommation CPU globale : < 1.5% machine.
 
 ### 7.3 Empilement des Couches Wayland (Hyprland Layer Shell)
 ```
 Layer 3 (Overlay)    : Wofi, Hyprlock, Spotify Card Flottante
 Layer 2 (Top)        : Waybar (barre supérieure translucide)
-Layer 1 (Bottom)     : linux-wallpaperengine (Lucy 60 FPS sur DP-1 & DP-2)
+Layer 1 (Bottom)     : aurora-wallpaper (Lucy 30 FPS sur DP-1 & DP-2)
 Layer 0 (Background) : swaybg (fond statique secours en ~10 ms)
 ```
 
@@ -461,11 +443,10 @@ Layer 0 (Background) : swaybg (fond statique secours en ~10 ms)
 
 | Commande | Action & Effet |
 | :--- | :--- |
-| `./scripts/wallpaper_tool.py status` | Affiche l'état des processus, PIDs, moniteurs, charge CPU, RAM et couches Wayland |
-| `./scripts/wallpaper_tool.py renderer` | Affiche le mode de rendu actif et les cadences FPS |
-| `./scripts/wallpaper_tool.py renderer gpu` | Bascule Lucy sur GPU Intel UHD 630 @ **60 FPS** |
-| `./scripts/wallpaper_tool.py renderer cpu` | Bascule Lucy sur rendu logiciel Mesa LLVMpipe @ 20 FPS |
-| `./scripts/wallpaper_tool.py mask` | Recalcule le masque subpixel Blackwall et génère `blackwall_mask.tex` |
-| `./scripts/wallpaper_tool.py sync` | Déploie `ressource/` (shaders, textures, scene.json) vers le Steam Workshop |
-| `./scripts/wallpaper_tool.py restart` | Redémarre proprement les processus sur `DP-1` et `DP-2` |
+| `./scripts/wallpaper_tool.py status` | Affiche l'état du processus aurora-wallpaper, charge CPU, RAM et couches Wayland |
+| `./scripts/wallpaper_tool.py mask` | Recalcule le masque subpixel Blackwall (`blackwall_mask.png`) |
+| `./scripts/wallpaper_tool.py restart` | Redémarre proprement aurora-wallpaper sur tous les écrans connectés |
+| `./scripts/wallpaper_tool.py ensure` | Garantit la présence du fond d'écran sans redémarrer inutilement |
+| `./scripts/wallpaper_tool.py daemon` | Lance le démon d'écoute événementielle IPC hotplug Hyprland |
 | `./scripts/wallpaper_tool.py check-links` | Audite la stricte intégrité des hard links entre `dotfiles/` et `~/.config/` |
+

@@ -6,9 +6,9 @@
   },
   "general": {
     "ambientcolor": "0.30000 0.30000 0.30000",
-    "bloom": true,
+    "bloom": false,
     "bloomhdrfeather": 0.25,
-    "bloomhdriterations": 8,
+    "bloomhdriterations": 0,
     "bloomhdrscatter": 1.619,
     "bloomhdrstrength": 2.5,
     "bloomhdrthreshold": 1.0,
@@ -112,7 +112,7 @@
               "id": 22
             }
           ],
-          "visible": true
+          "visible": false
         },
         {
           "file": "effects/waterwaves/effect.json",
@@ -191,7 +191,7 @@
               "id": 432
             }
           ],
-          "visible": true
+          "visible": false
         },
         {
           "file": "effects/shake/effect.json",
@@ -342,7 +342,7 @@
               ]
             }
           ],
-          "visible": true
+          "visible": false
         },
         {
           "file": "effects/workshop/2801687435/edge_glow/effect.json",

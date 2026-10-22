@@ -1,7 +1,7 @@
 * {
     border: none;
     border-radius: 0;
-    font-family: "Noto Sans", "FontAwesome", sans-serif;
+    font-family: "Noto Sans", "JetBrainsMono Nerd Font", "FontAwesome", sans-serif;
     font-size: 13px;
     font-weight: 500;
     min-height: 0;
@@ -80,13 +80,25 @@ window#waybar {
 }
 
 /* Modules de droite */
-#pulseaudio, #network, #tray {
-    padding: 0 10px;
-    margin: 3px 2px;
+#custom-gpu, #cpu, #memory, #pulseaudio, #network, #custom-notification, #tray {
+    padding: 0 7px;
+    margin: 3px 1px;
     color: #e1e4f1;
     border: 1.5px solid rgba(0, 240, 255, 0.6);
     border-radius: 10px;
     background: rgba(10, 15, 30, 0.50);
+}
+
+#custom-gpu {
+    color: #00f0ff;
+}
+
+#cpu {
+    color: #7aa2f7;
+}
+
+#memory {
+    color: #9778d0;
 }
 
 #pulseaudio {
@@ -97,8 +109,13 @@ window#waybar {
     color: #7dd3fc;
 }
 
+#custom-notification {
+    color: #00f0ff;
+    padding: 0 6px;
+}
+
 #tray {
-    padding: 0 8px;
+    padding: 0 6px;
 }
 
 #tray > .passive {

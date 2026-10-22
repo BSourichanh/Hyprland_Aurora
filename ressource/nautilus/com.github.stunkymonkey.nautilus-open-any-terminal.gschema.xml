@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="nautilus-open-any-terminal">
+  <enum id="com.github.stunkymonkey.nautilus-open-any-terminal.flatpak">
+    <value nick="off" value="0"/>
+    <value nick="system" value="1"/>
+    <value nick="user" value="2"/>
+  </enum>
+  <schema id="com.github.stunkymonkey.nautilus-open-any-terminal" path="/com/github/stunkymonkey/nautilus-open-any-terminal/">
+    <key name="keybindings" type="s">
+      <default>'&lt;Ctrl&gt;&lt;Alt&gt;t'</default>
+      <summary>Keyboard shortcut used in Nautilus for Open Here extension</summary>
+      <description></description>
+    </key>
+    <key name="bind-remote" type="b">
+      <default>false</default>
+      <summary>Whether the keyboard shortcut opens a remote terminal in remote directories</summary>
+      <description></description>
+    </key>
+    <key name="terminal" type="s">
+      <default>'ptyxis'</default>
+      <summary>Terminal used in Nautilus for Open Here extension</summary>
+      <description></description>
+    </key>
+    <key name="custom-local-command" type="s">
+      <default>""</default>
+      <summary>Command that opens a local terminal if terminal is set to "custom"</summary>
+      <description>
+        Every occurrence of "%s" in the command will be replaced with the path where the terminal should be opened.
+        Any number of "%s" in the command are valid, including 0.
+      </description>
+    </key>
+    <key name="custom-remote-command" type="s">
+      <default>""</default>
+      <summary>Command that opens a remote terminal if terminal is set to "custom"</summary>
+      <description>
+        Every occurrence of "%s" in the command will be replaced with an ssh command that connects to the remote server.
+        There should be at least 1 "%s" in the command.
+      </description>
+    </key>
+    <key name="use-generic-terminal-name" type="b">
+      <default>false</default>
+      <summary>Whether to display specific or generic terminal name.</summary>
+      <description>
+        If false, "Alacritty", "Xterm" or other specific terminal names will be used.
+
+        If true, "Terminal" or it's translation will be used.
+      </description>
+    </key>
+    <key name="new-tab" type="b">
+      <default>false</default>
+      <summary>Whether the new terminal should be opened in a new tab or in a new window</summary>
+      <description></description>
+    </key>
+    <key name="flatpak" enum="com.github.stunkymonkey.nautilus-open-any-terminal.flatpak">
+      <default>"off"</default>
+      <summary>Whether the command used should be a flatpak version of the selected terminal</summary>
+      <description>
+        'off': disables flatpak.
+
+        'system': runs flatpak command with --system flag (default flatpak behavior).
+
+        'user': runs flatpak command with --user flag.
+      </description>
+    </key>
+  </schema>
+</schemalist>
