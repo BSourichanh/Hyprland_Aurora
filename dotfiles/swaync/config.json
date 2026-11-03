@@ -51,5 +51,31 @@
       "image-size": 80,
       "image-radius": 12
     }
+  },
+  "notification-visibility": {
+    "blacklist-entry-snap-antigravity": {
+      "state": "ignored",
+      "desktop-entry": "^(?i)snap\\.antigravity$"
+    },
+    "blacklist-snap-antigravity": {
+      "state": "ignored",
+      "desktop-entry": "^(?i)snap\\.antigravity(\\..*)?$"
+    },
+    "blacklist-app-antigravity": {
+      "state": "ignored",
+      "app-name": "^(?i)Antigravity$"
+    },
+    "blacklist-entry-snap-antigravity-ide-snap": {
+      "state": "ignored",
+      "desktop-entry": "^(?i)snap\\.antigravity\\-ide\\-snap$"
+    },
+    "blacklist-snap-antigravity-ide-snap": {
+      "state": "ignored",
+      "desktop-entry": "^(?i)snap\\.antigravity\\-ide\\-snap(\\..*)?$"
+    },
+    "blacklist-app-antigravity-ide-snap": {
+      "state": "ignored",
+      "app-name": "^(?i)antigravity\\-ide\\-snap$"
+    }
   }
 }

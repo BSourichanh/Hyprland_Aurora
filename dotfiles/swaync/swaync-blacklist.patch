@@ -1,5 +1,5 @@
 diff --git a/src/notification/notification.vala b/src/notification/notification.vala
-index b5b2db8..2b80424 100644
+index b5b2db8..2bf8399 100644
 --- a/src/notification/notification.vala
 +++ b/src/notification/notification.vala
 @@ -237,8 +237,8 @@ namespace SwayNotificationCenter {
@@ -13,14 +13,55 @@ index b5b2db8..2b80424 100644
                  return true;
              });
  
-@@ -605,6 +605,69 @@ namespace SwayNotificationCenter {
+@@ -605,6 +605,110 @@ namespace SwayNotificationCenter {
              });
          }
  
++        private string get_app_display_name () {
++            string? entry = (param.desktop_entry != null && param.desktop_entry.strip ().length > 0) ? param.desktop_entry.strip () : null;
++            string? app = (param.app_name != null && param.app_name.strip ().length > 0) ? param.app_name.strip () : null;
++
++            if (entry != null) {
++                string base_name = entry.replace (".desktop", "");
++                string clean_snap = base_name.replace ("snap.", "");
++                string[] candidates = {
++                    base_name,
++                    base_name.down (),
++                    clean_snap,
++                    clean_snap.down (),
++                    clean_snap + "_" + clean_snap,
++                    clean_snap.down () + "_" + clean_snap.down ()
++                };
++                foreach (string c in candidates) {
++                    var app_info = new DesktopAppInfo (c + ".desktop");
++                    if (app_info != null) {
++                        string disp = app_info.get_display_name ();
++                        if (disp != null && disp.length > 0) return disp;
++                    }
++                }
++                return clean_snap;
++            }
++
++            if (app != null) {
++                string base_name = app.replace (".desktop", "");
++                var app_info = new DesktopAppInfo (base_name + ".desktop");
++                if (app_info != null) {
++                    string disp = app_info.get_display_name ();
++                    if (disp != null && disp.length > 0) return disp;
++                }
++                return app;
++            }
++
++            return "l'application";
++        }
++
 +        private void blacklist_current_app () {
-+            string app = param.app_name ?? param.desktop_entry;
-+            if (app == null || app.length == 0) return;
-+            string entry = param.desktop_entry ?? "";
++            string app = (param.app_name != null && param.app_name.strip ().length > 0) ? param.app_name.strip () : "";
++            string entry = (param.desktop_entry != null && param.desktop_entry.strip ().length > 0) ? param.desktop_entry.strip () : "";
++            string display = get_app_display_name ();
++
++            if (app.length == 0 && entry.length == 0 && display == "l'application") return;
++
 +            try {
 +                string script = Path.build_filename (
 +                    Environment.get_user_config_dir (),
@@ -28,7 +69,7 @@ index b5b2db8..2b80424 100644
 +                    "scripts",
 +                    "blacklist-app.py"
 +                );
-+                string[] argv = { script, app, entry };
++                string[] argv = { script, app, entry, display };
 +                Pid pid;
 +                Process.spawn_async (
 +                    null,
@@ -57,8 +98,8 @@ index b5b2db8..2b80424 100644
 +            box.margin_top = 8;
 +            box.margin_bottom = 8;
 +
-+            string app = param.app_name ?? param.desktop_entry ?? "l'application";
-+            var btn_blacklist = new Gtk.Button.with_label ("🚫 Blacklister " + app);
++            string display = get_app_display_name ();
++            var btn_blacklist = new Gtk.Button.with_label ("🚫 Blacklister " + display);
 +            btn_blacklist.get_style_context ().add_class ("popover-btn-blacklist");
 +            btn_blacklist.clicked.connect (() => {
 +                popover.popdown ();

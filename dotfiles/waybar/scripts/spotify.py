@@ -176,7 +176,7 @@ class ProgressCommand(ICommand):
                         pass
                 last_state = cls
 
-                time.sleep(0.25 if status == "Playing" else 0.5)
+                time.sleep(0.20 if status == "Playing" else 0.5)
 
             except (KeyboardInterrupt, SystemExit):
                 break

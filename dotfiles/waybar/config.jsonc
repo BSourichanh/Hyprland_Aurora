@@ -47,10 +47,10 @@
         "tooltip": true,
         "tooltip-format": "{title} \u2022 {artist} ({album})\n\nClic gauche : Carte d\u00e9roulante\nClic droit : Lecture / Pause\nClic milieu : Piste suivante\nMolette : Avancer / Reculer (5s)",
         "on-click": "~/.config/waybar/scripts/spotify-card.py toggle",
-        "on-click-right": "playerctl -p spotify play-pause && pkill -RTMIN+11 waybar",
-        "on-click-middle": "playerctl -p spotify next && pkill -RTMIN+11 waybar",
-        "on-scroll-up": "playerctl -p spotify position 5+",
-        "on-scroll-down": "playerctl -p spotify position 5-"
+        "on-click-right": "python3 ~/.config/waybar/scripts/spotify_ipc.py play-pause",
+        "on-click-middle": "python3 ~/.config/waybar/scripts/spotify_ipc.py next",
+        "on-scroll-up": "python3 ~/.config/waybar/scripts/spotify_ipc.py position +5",
+        "on-scroll-down": "python3 ~/.config/waybar/scripts/spotify_ipc.py position -5"
     },
     "clock": {
         "locale": "fr_FR.UTF-8",
@@ -71,8 +71,8 @@
         }
     },
     "pulseaudio": {
-        "format": "<span color='#00f0ff'>{icon}</span>&#8194;{volume}%",
-        "format-muted": "<span color='#64748b'>\uf026</span>&#8194;Muet",
+        "format": "<span color='#00f0ff'>{icon}</span>  {volume}%",
+        "format-muted": "<span color='#64748b'>\uf026</span>  Muet",
         "format-icons": {
             "default": [
                 "\uf026",
@@ -83,9 +83,9 @@
         "on-click": "pavucontrol"
     },
     "network": {
-        "format-wifi": "<span color='#00f0ff'>\uf1eb</span>&#8194;{essid}",
-        "format-ethernet": "<span color='#00f0ff'>\uf0e8</span>&#8194;Connect\u00e9",
-        "format-disconnected": "<span color='#f87171'>\u26a0</span>&#8194;D\u00e9connect\u00e9",
+        "format-wifi": "<span color='#00f0ff'>\uf1eb</span>  {essid}",
+        "format-ethernet": "<span color='#00f0ff'>\uf0e8</span>  Connect\u00e9",
+        "format-disconnected": "<span color='#f87171'>\u26a0</span>  D\u00e9connect\u00e9",
         "tooltip-format": "{ifname} : {ipaddr}"
     },
     "custom/gpu": {
@@ -96,17 +96,17 @@
     },
     "cpu": {
         "interval": 3,
-        "format": "<span color='#7aa2f7'>\uf2db</span>&#8194;{usage}%",
+        "format": "<span color='#00f0ff'>\uf2db</span>  {usage}%",
         "tooltip": true
     },
     "memory": {
         "interval": 5,
-        "format": "<span color='#9778d0'>\uefc5</span>&#8194;{percentage}%",
+        "format": "<span color='#00f0ff'>\uefc5</span>  {percentage}%",
         "tooltip-format": "RAM : {used:0.1f}G / {total:0.1f}G ({percentage}%)"
     },
     "custom/notification": {
         "tooltip": true,
-        "format": "{icon}<span foreground='#f43f5e'><sup>{text}</sup></span>",
+        "format": "<span color='#00f0ff'>{icon}</span><span foreground='#f43f5e'><sup>{text}</sup></span>",
         "format-icons": {
             "notification": "",
             "none": "",
@@ -144,9 +144,9 @@
         "return-type": "json",
         "restart-interval": 2,
         "tooltip": true,
-        "on-click": "playerctl -p spotify play-pause && pkill -RTMIN+11 waybar",
-        "on-scroll-up": "playerctl -p spotify position 5+",
-        "on-scroll-down": "playerctl -p spotify position 5-"
+        "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py play-pause",
+        "on-scroll-up": "python3 ~/.config/waybar/scripts/spotify_ipc.py position +5",
+        "on-scroll-down": "python3 ~/.config/waybar/scripts/spotify_ipc.py position -5"
     },
     "custom/spotify-prev": {
         "exec": "~/.config/waybar/scripts/spotify.py --prev",
@@ -154,7 +154,7 @@
         "interval": 30,
         "signal": 11,
         "tooltip": false,
-        "on-click": "playerctl -p spotify previous && pkill -RTMIN+11 waybar"
+        "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py prev"
     },
     "custom/spotify-play-pause": {
         "exec": "~/.config/waybar/scripts/spotify.py --play-pause",
@@ -162,7 +162,7 @@
         "interval": 30,
         "signal": 11,
         "tooltip": false,
-        "on-click": "playerctl -p spotify play-pause && pkill -RTMIN+11 waybar"
+        "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py play-pause"
     },
     "custom/spotify-next": {
         "exec": "~/.config/waybar/scripts/spotify.py --next",
@@ -170,6 +170,6 @@
         "interval": 30,
         "signal": 11,
         "tooltip": false,
-        "on-click": "playerctl -p spotify next && pkill -RTMIN+11 waybar"
+        "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py next"
     }
 }

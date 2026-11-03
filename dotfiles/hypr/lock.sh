@@ -2,343 +2,88 @@
 # Protocole de Verrouillage Sécurisé Hyprland / Aurora Theme
 # Support multi-écrans dynamique & protection anti-fuite de workspaces
 
-# Empêcher les doublons et purger tout processus hyprlock fantôme/bloqué
-if pidof hyprlock >/dev/null; then
-    if hyprctl layers 2>/dev/null | grep -q "namespace: hyprlock"; then
-        # Session légitimement verrouillée avec surface active
-        exit 0
-    else
-        # Processus fantôme / bloqué sans surface Wayland : purge immédiate
-        killall -9 hyprlock 2>/dev/null
-        sleep 0.1
-    fi
-fi
-
 LOCK_FLAG="/tmp/hypr_locked"
 STATE_FILE="/tmp/hypr_lock_orig_workspaces.json"
+INSTANCE_LOCK="/tmp/hypr_lock_instance.lock"
+HELPER_SCRIPT="$HOME/.config/hypr/scripts/hyprlock_state.py"
+[ -f "$HELPER_SCRIPT" ] || HELPER_SCRIPT="$HOME/Documents/antigravity/hyprland_project/dotfiles/hypr/scripts/hyprlock_state.py"
 
-# Poser le drapeau pour neutraliser l'auto-compacteur de workspaces
+# Mutex singleton atomique : interdire toute exécution concurrente
+exec 9>"$INSTANCE_LOCK"
+if ! flock -n 9; then exit 0; fi
+
+# Purge préventive de tout hyprlock orphelin
+if pidof hyprlock >/dev/null; then
+    killall -9 hyprlock 2>/dev/null
+    sleep 0.05
+fi
+
+CLEANED=0
+WATCHER_PID=""
+WAYBAR_WAS_RUNNING=0
+PREV_DND="false"
+
+# Gestionnaire de nettoyage déterministe (RAII)
+cleanup() {
+    [ "$CLEANED" -eq 1 ] && return
+    CLEANED=1
+
+    [ -n "$WATCHER_PID" ] && { kill "$WATCHER_PID" 2>/dev/null; wait "$WATCHER_PID" 2>/dev/null; }
+    rm -f "$LOCK_FLAG"
+    hyprctl keyword misc:disable_autoreload false >/dev/null 2>&1
+
+    python3 "$HELPER_SCRIPT" restore >/dev/null 2>&1
+    rm -f "$STATE_FILE"
+
+    if [ "$WAYBAR_WAS_RUNNING" -eq 1 ]; then
+        pkill -f "spotify.py --progress" 2>/dev/null
+        hyprctl dispatch exec waybar >/dev/null 2>&1
+    fi
+
+    python3 "$HOME/.config/hypr/scripts/workspace-autocompact.py" --once >/dev/null 2>&1 9>&- &
+    python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 9>&- &
+    (sleep 0.5 && python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1) 9>&- &
+
+    if [ "$PREV_DND" = "false" ]; then
+        timeout 0.5 swaync-client -df -sw >/dev/null 2>&1 9>&- &
+    fi
+
+    flock -u 9 2>/dev/null
+    exec 9>&-
+}
+
+trap cleanup EXIT INT TERM
+
 touch "$LOCK_FLAG"
+hyprctl keyword misc:disable_autoreload true >/dev/null 2>&1
 
-# Sauvegarde atomique de l'état initial des moniteurs et workspaces
-python3 -c '
-import os, sys, json, socket
-runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-if not runtime_dir or not his: sys.exit(0)
-cmd_sock = os.path.join(runtime_dir, "hypr", his, ".socket.sock")
-try:
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.connect(cmd_sock)
-        s.sendall(b"j/monitors")
-        res = b""
-        while True:
-            c = s.recv(4096)
-            if not c: break
-            res += c
-    monitors = json.loads(res.decode("utf-8", errors="replace"))
-    state = {}
-    for m in monitors:
-        state[m.get("name")] = m.get("activeWorkspace", {}).get("id")
-        if m.get("focused"):
-            state["__focused__"] = m.get("name")
-    with open("/tmp/hypr_lock_orig_workspaces.json", "w") as f:
-        json.dump(state, f)
-except Exception:
-    pass
-' >/dev/null 2>&1
-
-# Basculement initial immédiat vers les espaces vides réservés (98 sur DP-2, 99 sur DP-1)
-python3 -c '
-import os, sys, json, socket
-runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-if not runtime_dir or not his: sys.exit(0)
-cmd_sock = os.path.join(runtime_dir, "hypr", his, ".socket.sock")
-try:
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.connect(cmd_sock)
-        s.sendall(b"j/monitors")
-        res = b""
-        while True:
-            c = s.recv(4096)
-            if not c: break
-            res += c
-    monitors = json.loads(res.decode("utf-8", errors="replace"))
-    cmds = []
-    for m in monitors:
-        name = m.get("name")
-        if name == "DP-2":
-            cmds.append("dispatch focusmonitor DP-2;dispatch workspace 98")
-        elif name == "DP-1":
-            cmds.append("dispatch focusmonitor DP-1;dispatch workspace 99")
-        else:
-            cmds.append(f"dispatch focusmonitor {name};dispatch workspace 97")
-    if cmds:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.connect(cmd_sock)
-            s.sendall(("[[BATCH]]" + ";".join(cmds)).encode("utf-8"))
-            s.recv(4096)
-except Exception:
-    pass
-' >/dev/null 2>&1
-
-# Démon d'arrière-plan surveillant le rebranchement / réveil des écrans (hotplug)
-python3 - << 'EOF' &
-import os, sys, json, socket, time, subprocess, signal
-
-runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-if not runtime_dir or not his:
-    sys.exit(0)
-
-base_dir = os.path.join(runtime_dir, "hypr", his)
-cmd_sock_path = os.path.join(base_dir, ".socket.sock")
-event_sock_path = os.path.join(base_dir, ".socket2.sock")
-lock_file = "/tmp/hypr_locked"
-tool_path = os.path.expanduser("~/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py")
-
-def query(cmd: str) -> str:
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.connect(cmd_sock_path)
-            s.sendall(cmd.encode("utf-8"))
-            chunks = []
-            while True:
-                data = s.recv(4096)
-                if not data: break
-                chunks.append(data)
-            return b"".join(chunks).decode("utf-8", errors="replace")
-    except Exception:
-        return ""
-
-def enforce_lock():
-    if not os.path.exists(lock_file):
-        return
-    try:
-        raw = query("j/monitors")
-        if not raw: return
-        monitors = json.loads(raw)
-        cmds = []
-        for m in monitors:
-            name = m.get("name")
-            act = m.get("activeWorkspace", {}).get("id")
-            if name == "DP-2" and act != 98:
-                cmds.append("dispatch focusmonitor DP-2;dispatch workspace 98")
-            elif name == "DP-1" and act != 99:
-                cmds.append("dispatch focusmonitor DP-1;dispatch workspace 99")
-            elif name not in ("DP-1", "DP-2") and act != 97:
-                cmds.append(f"dispatch focusmonitor {name};dispatch workspace 97")
-        # Expulsion immédiate de toute fenêtre surgissant sur les espaces de verrouillage
-        raw_c = query("j/clients")
-        if raw_c:
-            clients = json.loads(raw_c)
-            for c in clients:
-                if c.get("class") == "Paros":
-                    continue
-                ws_id = c.get("workspace", {}).get("id")
-                addr = c.get("address")
-                if ws_id in (97, 98, 99) and addr:
-                    target_ws = 2 if ws_id == 98 else (6 if ws_id == 99 else 1)
-                    cmds.append(f"dispatch movetoworkspacesilent {target_ws},address:{addr}")
-        if cmds:
-            query("[[BATCH]]" + ";".join(cmds))
-    except Exception:
-        pass
-
-def handle_signal(sig, frame):
-    sys.exit(0)
-
-signal.signal(signal.SIGTERM, handle_signal)
-signal.signal(signal.SIGINT, handle_signal)
-
-try:
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect(event_sock_path)
-except Exception:
-    sys.exit(1)
-
-last_restart = 0
-buf = ""
-while os.path.exists(lock_file):
-    try:
-        data = s.recv(4096)
-        if not data: break
-        buf += data.decode("utf-8", errors="replace")
-        while "\n" in buf:
-            line, buf = buf.split("\n", 1)
-            line = line.strip()
-            if not line: continue
-            ev = line.split(">>")[0]
-            if ev.startswith("monitoradded"):
-                mon = ""
-                if ">>" in line:
-                    parts = [p.strip() for p in line.split(">>", 1)[1].split(",")]
-                    for p in parts:
-                        if p in ("DP-1", "DP-2") or p.startswith("DP-") or p.startswith("HDMI-") or p.startswith("eDP-"):
-                            mon = p
-                            break
-                time.sleep(0.3)
-                enforce_lock()
-                subprocess.run(["killall", "waybar"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(["pkill", "-f", "spotify.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(["pkill", "-f", "gpu.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(["pkill", "-f", "swaync-client -swb"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                now = time.time()
-                if now - last_restart > 0.8 and os.path.exists(tool_path):
-                    last_restart = now
-                    cmd = [sys.executable, tool_path, "ensure"]
-                    if mon in ("DP-1", "DP-2"):
-                        cmd.append(mon)
-                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            elif ev in ("workspace", "workspacev2", "focusedmon", "openwindow", "mapwindow"):
-                enforce_lock()
-    except Exception:
-        break
-s.close()
-EOF
+# Capture de l'état, basculement vers workspaces réservés et démarrage watcher
+python3 "$HELPER_SCRIPT" save >/dev/null 2>&1
+python3 "$HELPER_SCRIPT" switch-reserved >/dev/null 2>&1
+python3 "$HELPER_SCRIPT" watch 9>&- &
 WATCHER_PID=$!
 
-# Fermer les menus et cartes popups potentiellement ouverts
+# Fermer popups et cartes Waybar
 pkill -x wofi 2>/dev/null
-"$HOME/.config/waybar/scripts/spotify-card.py" hide >/dev/null 2>&1 &
+"$HOME/.config/waybar/scripts/spotify-card.py" hide >/dev/null 2>&1 9>&- &
 
-# Masquer et suspendre les notifications pendant le verrouillage (protection vie privée)
-PREV_DND=$(swaync-client -D 2>/dev/null || echo "false")
-swaync-client -cp >/dev/null 2>&1
-swaync-client -dn >/dev/null 2>&1
+# Suspendre notifications et arrêter Waybar pendant le verrouillage
+PREV_DND=$(timeout 0.5 swaync-client -D -sw 2>/dev/null || echo "false")
+timeout 0.5 swaync-client -cp -sw >/dev/null 2>&1 9>&- &
+timeout 0.5 swaync-client -dn -sw >/dev/null 2>&1 9>&- &
 
-# Arrêter Waybar pendant le verrouillage pour empêcher toute réapparition sur reconnexion d'écran
-WAYBAR_WAS_RUNNING=0
 if pgrep -x waybar >/dev/null; then
     WAYBAR_WAS_RUNNING=1
     killall waybar 2>/dev/null
     pkill -f "spotify.py" 2>/dev/null
     pkill -f "gpu.py" 2>/dev/null
     pkill -f "swaync-client -swb" 2>/dev/null
-    sleep 0.15
+    sleep 0.05
 fi
 
-# Expulsion immédiate de toute fenêtre surgie sur les workspaces réservés (ex: un-minimize Spotify sur perte de tray)
-python3 -c '
-import os, sys, json, socket
-runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-if not runtime_dir or not his: sys.exit(0)
-cmd_sock = os.path.join(runtime_dir, "hypr", his, ".socket.sock")
-try:
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.connect(cmd_sock)
-        s.sendall(b"j/clients")
-        res = b""
-        while True:
-            c = s.recv(4096)
-            if not c: break
-            res += c
-    clients = json.loads(res.decode("utf-8", errors="replace"))
-    cmds = []
-    for c in clients:
-        if c.get("class") == "Paros":
-            continue
-        ws_id = c.get("workspace", {}).get("id")
-        addr = c.get("address")
-        if ws_id in (97, 98, 99) and addr:
-            target_ws = 2 if ws_id == 98 else (6 if ws_id == 99 else 1)
-            cmds.append(f"dispatch movetoworkspacesilent {target_ws},address:{addr}")
-    if cmds:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.connect(cmd_sock)
-            s.sendall(("[[BATCH]]" + ";".join(cmds)).encode("utf-8"))
-            s.recv(4096)
-except Exception:
-    pass
-' >/dev/null 2>&1
+# Expulsion résiduelle des fenêtres et affichage du verrou (Lucy reste active en arrière-plan)
+python3 "$HELPER_SCRIPT" expel-clients >/dev/null 2>&1
+hyprlock 9>&-
 
-# Gestionnaire de nettoyage déterministe (Safe Cleanup / RAII)
-CLEANED=0
-cleanup() {
-    [ "$CLEANED" -eq 1 ] && return
-    CLEANED=1
-
-    # 1. Arrêter le watcher d'écrans
-    if [ -n "$WATCHER_PID" ]; then
-        kill "$WATCHER_PID" 2>/dev/null
-        wait "$WATCHER_PID" 2>/dev/null
-    fi
-
-    # 2. Supprimer le drapeau de verrouillage
-    rm -f "$LOCK_FLAG"
-
-    # 3. Restaurer dynamiquement les workspaces uniquement sur les moniteurs connectés
-    python3 -c '
-import os, sys, json, socket
-runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-if not runtime_dir or not his: sys.exit(0)
-cmd_sock = os.path.join(runtime_dir, "hypr", his, ".socket.sock")
-def query(cmd):
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.connect(cmd_sock)
-            s.sendall(cmd.encode("utf-8"))
-            chunks = []
-            while True:
-                data = s.recv(4096)
-                if not data: break
-                chunks.append(data)
-            return b"".join(chunks).decode("utf-8", errors="replace")
-    except Exception:
-        return ""
-
-state_file = "/tmp/hypr_lock_orig_workspaces.json"
-if os.path.exists(state_file):
-    try:
-        with open(state_file, "r") as f:
-            orig = json.load(f)
-        raw_m = query("j/monitors")
-        monitors = json.loads(raw_m) if raw_m else []
-        cmds = []
-        focused_mon = orig.get("__focused__")
-        for m in monitors:
-            name = m.get("name")
-            if name in orig:
-                orig_ws = orig[name]
-                cmds.append(f"dispatch focusmonitor {name};dispatch workspace {orig_ws}")
-        if focused_mon and any(m.get("name") == focused_mon for m in monitors):
-            cmds.append(f"dispatch focusmonitor {focused_mon}")
-        if cmds:
-            query("[[BATCH]]" + ";".join(cmds))
-    except Exception:
-        pass
-' >/dev/null 2>&1
-
-    # 4. Nettoyage du fichier d'état
-    rm -f "$STATE_FILE"
-
-    # 5. Restaurer Waybar si elle était active
-    if [ "$WAYBAR_WAS_RUNNING" -eq 1 ]; then
-        pkill -f "spotify.py --progress" 2>/dev/null
-        hyprctl dispatch exec waybar >/dev/null 2>&1
-    fi
-
-    # 6. Relancer un auto-compactage différé pour harmoniser la disposition
-    python3 "$HOME/.config/hypr/scripts/workspace-autocompact.py" --once >/dev/null 2>&1 &
-
-    # 7. S'assurer que le fond d'écran tourne sur tous les écrans connectés (immédiat + différé pour réveil moniteur)
-    python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1 &
-    (sleep 0.5 && python3 "$HOME/Documents/antigravity/hyprland_project/scripts/wallpaper_tool.py" ensure >/dev/null 2>&1) &
-
-    # 8. Restaurer l'affichage des notifications si DND n'était pas activé au départ
-    if [ "$PREV_DND" = "false" ]; then
-        swaync-client -df >/dev/null 2>&1
-    fi
-}
-
-trap cleanup EXIT INT TERM
-
-# Lancer l'écran de verrouillage
-hyprlock
-
-# Exécuter le nettoyage à la sortie normale
 cleanup
 

@@ -155,7 +155,7 @@ def build_waybar_payload(total_pct, pct_render, pct_video, total_mem_kib):
     else:
         css_class = "normal"
 
-    icon_span = "<span color=\"#00f0ff\">\U000f08ae</span>&#8194;"
+    icon_span = "<span color=\"#00f0ff\">\U000f08ae</span>  "
     text = f"{icon_span}{total_pct}%"
 
     tooltip = (

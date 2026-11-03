@@ -81,41 +81,12 @@ window#waybar {
 
 /* Modules de droite */
 #custom-gpu, #cpu, #memory, #pulseaudio, #network, #custom-notification, #tray {
-    padding: 0 7px;
+    padding: 0 8px;
     margin: 3px 1px;
     color: #e1e4f1;
     border: 1.5px solid rgba(0, 240, 255, 0.6);
     border-radius: 10px;
     background: rgba(10, 15, 30, 0.50);
-}
-
-#custom-gpu {
-    color: #00f0ff;
-}
-
-#cpu {
-    color: #7aa2f7;
-}
-
-#memory {
-    color: #9778d0;
-}
-
-#pulseaudio {
-    color: #a5b4fc;
-}
-
-#network {
-    color: #7dd3fc;
-}
-
-#custom-notification {
-    color: #00f0ff;
-    padding: 0 6px;
-}
-
-#tray {
-    padding: 0 6px;
 }
 
 #tray > .passive {

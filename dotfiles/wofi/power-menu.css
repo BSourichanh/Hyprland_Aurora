@@ -75,7 +75,7 @@ window {
 }
 
 #entry:selected {
-    background: linear-gradient(45deg, #00f0ff, #7aa2f7);
+    background: linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
     border: 1px solid #00f0ff;
     color: #090727;
     font-weight: bold;
@@ -88,7 +88,7 @@ window {
 }
 
 #entry:selected:hover {
-    background: linear-gradient(45deg, #33f3ff, #8ab2f8);
+    background: linear-gradient(45deg, #33f3ff, #8ab2f8, #ab8ee0);
     border: 1px solid #33f3ff;
     box-shadow: 0 0 14px rgba(0, 240, 255, 0.60);
 }

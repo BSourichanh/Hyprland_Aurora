@@ -27,6 +27,31 @@ DOTFILES_DIR="$SCRIPT_DIR/dotfiles"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 LOCAL_BIN="$HOME/.local/bin"
 
+deploy_tripartite() {
+    local src="$1"
+    local bin_name="$2"
+    [ -f "$src" ] || return 1
+
+    mkdir -p "$LOCAL_BIN"
+    cp -f "$src" "$LOCAL_BIN/$bin_name"
+    chmod +x "$LOCAL_BIN/$bin_name"
+
+    local SUDO=""
+    [ "$EUID" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+
+    for target_dir in "/usr/local/bin" "/usr/bin"; do
+        if [ -d "$target_dir" ]; then
+            if [ -f "$target_dir/$bin_name" ] && [ ! -f "$target_dir/$bin_name.orig" ]; then
+                $SUDO cp -p "$target_dir/$bin_name" "$target_dir/$bin_name.orig" 2>/dev/null || true
+            fi
+            if [ -w "$target_dir" ] || [ -n "$SUDO" ]; then
+                $SUDO cp -f "$src" "$target_dir/$bin_name" 2>/dev/null || true
+                $SUDO chmod +x "$target_dir/$bin_name" 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
 if [ ! -d "$DOTFILES_DIR" ]; then
     log_error "Répertoire dotfiles/ introuvable sous $SCRIPT_DIR."
     exit 1
@@ -193,7 +218,8 @@ if command -v aurora-wallpaper >/dev/null 2>&1 || [ -f "$LOCAL_BIN/aurora-wallpa
 else
     log_step "Compilation et installation de aurora-wallpaper depuis les sources natives C99..."
     if make -C "$SCRIPT_DIR/src/aurora_wallpaper" install >/dev/null 2>&1; then
-        log_success "aurora-wallpaper compilé et installé dans $LOCAL_BIN/aurora-wallpaper."
+        deploy_tripartite "$LOCAL_BIN/aurora-wallpaper" "aurora-wallpaper"
+        log_success "aurora-wallpaper compilé et déployé (tripartite)."
     else
         log_warn "Échec de compilation de aurora-wallpaper. Le fond statique swaybg fonctionnera en secours."
     fi
@@ -216,7 +242,8 @@ if [ -n "$WOFI_BIN" ] && ! strings "$WOFI_BIN" 2>/dev/null | grep -q "on_motion_
             mkdir -p "$LOCAL_BIN"
             meson setup "$TMP_WOFI/build" "$TMP_WOFI" --prefix="$HOME/.local" --buildtype=release >/dev/null 2>&1 || true
             ninja -C "$TMP_WOFI/build" install >/dev/null 2>&1 || true
-            log_success "Patch Wofi appliqué et installé dans $LOCAL_BIN/wofi."
+            deploy_tripartite "$LOCAL_BIN/wofi" "wofi"
+            log_success "Patch Wofi appliqué et déployé (tripartite ~/.local/bin, /usr/local/bin, /usr/bin)."
         fi
     fi
     rm -rf "$TMP_WOFI"
@@ -235,10 +262,8 @@ if [ -n "$SWAYNC_BIN" ] && ! strings "$SWAYNC_BIN" 2>/dev/null | grep -q "popove
             patch -d "$TMP_SWAYNC" -p1 < "$DOTFILES_DIR/swaync/swaync-blacklist.patch" >/dev/null 2>&1 || true
             meson setup "$TMP_SWAYNC/build" "$TMP_SWAYNC" --prefix="$HOME/.local" --buildtype=release >/dev/null 2>&1 || true
             ninja -C "$TMP_SWAYNC/build" install >/dev/null 2>&1 || true
-            if [ -w /usr/local/bin ]; then
-                cp "$HOME/.local/bin/swaync" /usr/local/bin/swaync 2>/dev/null || true
-            fi
-            log_success "Patch SwayNC appliqué et installé dans $LOCAL_BIN/swaync."
+            deploy_tripartite "$LOCAL_BIN/swaync" "swaync"
+            log_success "Patch SwayNC appliqué et déployé (tripartite ~/.local/bin, /usr/local/bin, /usr/bin)."
         fi
     fi
     rm -rf "$TMP_SWAYNC"
@@ -258,10 +283,8 @@ if [ -n "$HYPRLOCK_BIN" ] && ! strings "$HYPRLOCK_BIN" 2>/dev/null | grep -q "_Z
             cmake -B "$TMP_HYPRLOCK/build" -S "$TMP_HYPRLOCK" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$HOME/.local" >/dev/null 2>&1 || true
             cmake --build "$TMP_HYPRLOCK/build" --target hyprlock >/dev/null 2>&1 || true
             cp "$TMP_HYPRLOCK/build/hyprlock" "$LOCAL_BIN/hyprlock" 2>/dev/null || true
-            if [ -w /usr/local/bin ]; then
-                cp "$LOCAL_BIN/hyprlock" /usr/local/bin/hyprlock 2>/dev/null || true
-            fi
-            log_success "Patch Hyprlock appliqué et installé dans $LOCAL_BIN/hyprlock."
+            deploy_tripartite "$LOCAL_BIN/hyprlock" "hyprlock"
+            log_success "Patch Hyprlock appliqué et déployé (tripartite ~/.local/bin, /usr/local/bin, /usr/bin)."
         fi
     fi
     rm -rf "$TMP_HYPRLOCK"

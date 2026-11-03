@@ -21,12 +21,29 @@ LOCK_FILE = "/tmp/hypr_workspace_autocompact.lock"
 def get_hypr_socket_paths():
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-    if not runtime_dir or not his:
-        return None, None
-    base_dir = os.path.join(runtime_dir, "hypr", his)
-    cmd_sock = os.path.join(base_dir, ".socket.sock")
-    event_sock = os.path.join(base_dir, ".socket2.sock")
-    return cmd_sock, event_sock
+    if runtime_dir and his:
+        base_dir = os.path.join(runtime_dir, "hypr", his)
+        cmd_sock = os.path.join(base_dir, ".socket.sock")
+        event_sock = os.path.join(base_dir, ".socket2.sock")
+        if os.path.exists(cmd_sock) and os.path.exists(event_sock):
+            return cmd_sock, event_sock
+    if runtime_dir:
+        hypr_dir = os.path.join(runtime_dir, "hypr")
+        if os.path.exists(hypr_dir):
+            try:
+                candidates = sorted(
+                    [os.path.join(hypr_dir, d) for d in os.listdir(hypr_dir)],
+                    key=lambda p: os.path.getmtime(p) if os.path.isdir(p) else 0,
+                    reverse=True,
+                )
+                for cdir in candidates:
+                    cmd_sock = os.path.join(cdir, ".socket.sock")
+                    event_sock = os.path.join(cdir, ".socket2.sock")
+                    if os.path.exists(cmd_sock) and os.path.exists(event_sock):
+                        return cmd_sock, event_sock
+            except (OSError, ValueError):
+                pass
+    return None, None
 
 
 def hypr_cmd(command: str) -> str:
@@ -44,7 +61,7 @@ def hypr_cmd(command: str) -> str:
                     break
                 chunks.append(data)
             return b"".join(chunks).decode("utf-8", errors="replace")
-    except Exception:
+    except (socket.error, OSError, TimeoutError):
         return ""
 
 
@@ -59,7 +76,7 @@ def hypr_json(query: str):
     raw = hypr_cmd(query)
     try:
         return json.loads(raw)
-    except Exception:
+    except (json.JSONDecodeError, ValueError, TypeError):
         return []
 
 
@@ -85,13 +102,33 @@ def get_monitor_configs():
     return configs
 
 
+def is_session_locked() -> bool:
+    if not os.path.exists("/tmp/hypr_locked"):
+        return False
+    instance_lock = "/tmp/hypr_lock_instance.lock"
+    try:
+        with open(instance_lock, "r") as f:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(f, fcntl.LOCK_UN)
+        # Aucun lock.sh actif : drapeau orphelin suite à un redémarrage brutal
+        try:
+            os.remove("/tmp/hypr_locked")
+        except OSError:
+            pass
+        return False
+    except (BlockingIOError, IOError):
+        return True
+    except FileNotFoundError:
+        try:
+            os.remove("/tmp/hypr_locked")
+        except OSError:
+            pass
+        return False
+
+
 def compact_workspaces():
     # Ne jamais compacter si la session est verrouillée (évite de démasquer les fenêtres)
-    if os.path.exists("/tmp/hypr_locked"):
-        return False
-    # Vérification de présence effective de la surface Wayland hyprlock (anti-zombie)
-    layers_raw = hypr_cmd("j/layers")
-    if '"hyprlock"' in layers_raw:
+    if is_session_locked():
         return False
 
     configs = get_monitor_configs()
@@ -197,22 +234,11 @@ def compact_workspaces():
 
 
 def run_daemon():
-    _, event_sock_path = get_hypr_socket_paths()
-    if not event_sock_path or not os.path.exists(event_sock_path):
-        print("Hyprland event socket not found.", file=sys.stderr)
-        sys.exit(1)
-
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect(event_sock_path)
-    s.setblocking(False)
-
-    buffer = ""
-    debounce_delay = 0.08
-    pending_compact_time = None
-    is_compacting = False
+    running = True
 
     def handle_signal(sig, frame):
-        s.close()
+        nonlocal running
+        running = False
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_signal)
@@ -221,42 +247,70 @@ def run_daemon():
     # Initial compaction check at startup
     compact_workspaces()
 
-    while True:
-        now = time.time()
-        timeout = None
-        if pending_compact_time is not None:
-            timeout = max(0.0, pending_compact_time - now)
+    debounce_delay = 0.08
 
-        rlist, _, _ = select.select([s], [], [], timeout)
+    while running:
+        _, event_sock_path = get_hypr_socket_paths()
+        if not event_sock_path or not os.path.exists(event_sock_path):
+            time.sleep(1.0)
+            continue
 
-        if s in rlist:
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(event_sock_path)
+            s.setblocking(False)
+        except (socket.error, OSError, TimeoutError):
+            time.sleep(1.0)
+            continue
+
+        buffer = ""
+        pending_compact_time = None
+        is_compacting = False
+
+        try:
+            while running:
+                now = time.time()
+                timeout = None
+                if pending_compact_time is not None:
+                    timeout = max(0.0, pending_compact_time - now)
+
+                rlist, _, _ = select.select([s], [], [], timeout)
+
+                if s in rlist:
+                    data = s.recv(4096)
+                    if not data:
+                        break
+                    buffer += data.decode("utf-8", errors="replace")
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
+                        line = line.strip()
+                        if not line:
+                            continue
+                        event_name = line.split(">>")[0]
+                        if not is_compacting and event_name in (
+                            "closewindow",
+                            "destroyworkspace",
+                            "movewindow",
+                        ):
+                            pending_compact_time = time.time() + debounce_delay
+
+                if pending_compact_time is not None and time.time() >= pending_compact_time:
+                    pending_compact_time = None
+                    is_compacting = True
+                    try:
+                        compact_workspaces()
+                    finally:
+                        is_compacting = False
+        except (socket.error, OSError, TimeoutError, json.JSONDecodeError, KeyError, ValueError):
+            pass
+        finally:
             try:
-                data = s.recv(4096)
-                if not data:
-                    break
-                buffer += data.decode("utf-8", errors="replace")
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    line = line.strip()
-                    if not line:
-                        continue
-                    event_name = line.split(">>")[0]
-                    if not is_compacting and event_name in (
-                        "closewindow",
-                        "destroyworkspace",
-                        "movewindow",
-                    ):
-                        pending_compact_time = time.time() + debounce_delay
-            except Exception:
+                s.close()
+            except (socket.error, OSError):
                 pass
 
-        if pending_compact_time is not None and time.time() >= pending_compact_time:
-            pending_compact_time = None
-            is_compacting = True
-            try:
-                compact_workspaces()
-            finally:
-                is_compacting = False
+        if running:
+            time.sleep(1.0)
 
 
 def main():

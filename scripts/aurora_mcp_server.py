@@ -3,113 +3,33 @@
 Aurora Micro MCP Server
 Model Context Protocol server for the Aurora Hyprland ecosystem.
 Exposes high-level tools for Wallpaper Engine, Waybar, Spotify MPRIS,
-Wofi launcher, Workspaces, and Dotfiles integrity.
+SwayNC notifications, Audio/Volume, Session locking, Workspaces, and Dotfiles integrity.
 """
 
 import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from mcp.server.fastmcp import FastMCP
 
+# Configuration des chemins
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DOTFILES_DIR = PROJECT_DIR / "dotfiles"
-CONFIG_DIR = Path(os.path.expanduser("~/.config"))
-SCRIPTS_DIR = PROJECT_DIR / "scripts"
-WALLPAPER_TOOL = SCRIPTS_DIR / "wallpaper_tool.py"
-HYPRBAR_TOOL = SCRIPTS_DIR / "hyprbar"
+
+# Import des modules modulaires Aurora MCP
+try:
+    from aurora_mcp import media_tools, system_tools
+except ImportError:
+    from scripts.aurora_mcp import media_tools, system_tools
 
 mcp = FastMCP("aurora-mcp")
 
 
 # ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def _run_hyprctl(args: List[str]) -> Any:
-    """Executes hyprctl with JSON flag."""
-    try:
-        res = subprocess.run(["hyprctl", "-j", *args], capture_output=True, text=True, timeout=3)
-        if res.returncode == 0 and res.stdout.strip():
-            return json.loads(res.stdout)
-    except Exception:
-        pass
-    return None
-
-
-def _check_hardlinks_dict() -> Dict[str, Any]:
-    """Audits the hard links between dotfiles/ and ~/.config/."""
-    mismatches = []
-    missing = []
-    checked = 0
-
-    for root, _, files in os.walk(DOTFILES_DIR):
-        for f in files:
-            if f.endswith((".bak", "-bak", ".pyc", ".so")):
-                continue
-            dot_path = Path(root) / f
-            rel = str(dot_path.relative_to(DOTFILES_DIR))
-            conf_path = CONFIG_DIR / rel
-
-            if not conf_path.exists():
-                missing.append(rel)
-                continue
-
-            checked += 1
-            try:
-                if dot_path.stat().st_ino != conf_path.stat().st_ino:
-                    mismatches.append(rel)
-            except Exception:
-                missing.append(rel)
-
-    return {
-        "total_checked": checked,
-        "missing": missing,
-        "mismatches": mismatches,
-        "all_ok": len(mismatches) == 0 and len(missing) == 0
-    }
-
-
-def _get_spotify_info() -> Dict[str, Any]:
-    """Retrieves current Spotify playback information via MPRIS."""
-    info = {"status": "Stopped", "track": "", "artist": "", "album": "", "position": "", "running": False}
-    try:
-        status_res = subprocess.run(["playerctl", "--player=spotify", "status"], capture_output=True, text=True, timeout=2)
-        if status_res.returncode == 0:
-            info["status"] = status_res.stdout.strip()
-            info["running"] = True
-            
-            meta_res = subprocess.run(
-                ["playerctl", "--player=spotify", "metadata", "--format", "{{artist}} - {{title}}||{{album}}||{{position}}||{{mpris:length}}"],
-                capture_output=True, text=True, timeout=2
-            )
-            if meta_res.returncode == 0 and "||" in meta_res.stdout:
-                parts = meta_res.stdout.strip().split("||")
-                track_str = parts[0]
-                if " - " in track_str:
-                    info["artist"], info["track"] = track_str.split(" - ", 1)
-                else:
-                    info["track"] = track_str
-                if len(parts) > 1:
-                    info["album"] = parts[1]
-                if len(parts) > 3 and parts[2] and parts[3]:
-                    try:
-                        pos_s = int(parts[2]) // 1000000
-                        len_s = int(parts[3]) // 1000000
-                        info["position"] = f"{pos_s // 60:02d}:{pos_s % 60:02d} / {len_s // 60:02d}:{len_s % 60:02d}"
-                    except Exception:
-                        pass
-    except Exception:
-        pass
-    return info
-
-
-# ============================================================================
-# MCP TOOLS
+# DIAGNOSTIC GLOBAL (ORCHESTRATEUR STATUS)
 # ============================================================================
 
 @mcp.tool()
@@ -119,9 +39,13 @@ def get_aurora_status() -> Dict[str, Any]:
     - Wallpaper Engine (PIDs, CPU/RAM, active renderer GPU/CPU, daemon state)
     - Wayland Layers per monitor (Background, Bottom, Top, Overlay)
     - Waybar status and PID
+    - GPU usage (Intel DRM engine telemetry)
+    - Audio status (Volume, Sink/Source mute via PipeWire)
+    - SwayNC notifications (Count, DND mode)
     - Spotify MPRIS status, track details, and progress
+    - Session lock state (flag, Hyprlock layer)
     - Workspaces distribution across DP-1 and DP-2
-    - Dotfiles hard links integrity (29/29 check)
+    - Dotfiles hard links integrity (37/37 check)
     """
     # 1. Wallpaper engine status
     wp_cfg_path = DOTFILES_DIR / "hypr" / "wallpaper_renderer.json"
@@ -149,7 +73,6 @@ def get_aurora_status() -> Dict[str, Any]:
             for line in pg_res.stdout.strip().splitlines():
                 if line and line.isdigit():
                     pid = int(line)
-                    # RAM & CPU
                     ram_mb = 0.0
                     stat_f = Path(f"/proc/{pid}/status")
                     if stat_f.exists():
@@ -157,7 +80,7 @@ def get_aurora_status() -> Dict[str, Any]:
                             if sline.startswith("VmRSS:"):
                                 ram_mb = int(sline.split()[1]) / 1024
                                 break
-                    
+
                     cpu_pct = 0.0
                     ps_res = subprocess.run(["ps", "-p", str(pid), "-o", "%cpu", "--no-headers"], capture_output=True, text=True)
                     if ps_res.returncode == 0 and ps_res.stdout.strip():
@@ -165,7 +88,7 @@ def get_aurora_status() -> Dict[str, Any]:
                             cpu_pct = float(ps_res.stdout.strip().replace(",", "."))
                         except Exception:
                             pass
-                    
+
                     total_cpu += cpu_pct
                     total_ram += ram_mb
                     wp_procs.append({
@@ -184,7 +107,7 @@ def get_aurora_status() -> Dict[str, Any]:
         waybar_pids = [int(p) for p in wb_res.stdout.strip().splitlines() if p]
 
     # 3. Wayland Layers
-    layers_data = _run_hyprctl(["layers"]) or {}
+    layers_data = system_tools._run_hyprctl(["layers"]) or {}
     layer_summary = {}
     for mon, mdata in layers_data.items():
         lvl_map = {}
@@ -194,8 +117,8 @@ def get_aurora_status() -> Dict[str, Any]:
         layer_summary[mon] = lvl_map
 
     # 4. Monitors & Workspaces
-    monitors_data = _run_hyprctl(["monitors"]) or []
-    workspaces_data = _run_hyprctl(["workspaces"]) or []
+    monitors_data = system_tools._run_hyprctl(["monitors"]) or []
+    workspaces_data = system_tools._run_hyprctl(["workspaces"]) or []
     mon_summary = []
     for m in monitors_data:
         mname = m.get("name")
@@ -206,15 +129,17 @@ def get_aurora_status() -> Dict[str, Any]:
             "workspaces": [w.get("id") for w in workspaces_data if w.get("monitor") == mname]
         })
 
-    # 5. Spotify & Card Daemon
-    spotify_info = _get_spotify_info()
-    card_daemon_running = False
-    card_lock = Path("/tmp/spotify_card.lock")
-    if card_lock.exists():
-        card_daemon_running = True
+    # 5. Telemetry & Subsystems
+    spotify_info = media_tools._get_spotify_info()
+    gpu_info = system_tools._get_gpu_info()
+    swaync_info = media_tools._get_swaync_info()
+    audio_info = media_tools._get_audio_info()
+    lock_info = system_tools._get_lock_info()
 
-    # 6. Hard links
-    links_audit = _check_hardlinks_dict()
+    card_daemon_running = Path("/tmp/spotify_card.lock").exists()
+
+    # 6. Hard links (audit dotfiles <-> ~/.config)
+    links_audit = system_tools._check_hardlinks_dict()
 
     return {
         "wallpaper_engine": {
@@ -229,6 +154,10 @@ def get_aurora_status() -> Dict[str, Any]:
             "running": len(waybar_pids) > 0,
             "pids": waybar_pids
         },
+        "gpu": gpu_info,
+        "swaync": swaync_info,
+        "audio": audio_info,
+        "lock": lock_info,
         "spotify": spotify_info,
         "spotify_card_daemon": {
             "running": card_daemon_running,
@@ -240,132 +169,24 @@ def get_aurora_status() -> Dict[str, Any]:
     }
 
 
-@mcp.tool()
-def manage_wallpaper(action: str, screen: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Manages Wallpaper Engine (Lucy) processes and renderer.
-    - action: 'status', 'restart', 'ensure', 'renderer_gpu', 'renderer_cpu', 'mask', 'sync'
-    - screen: optional monitor target ('DP-1' or 'DP-2') for 'ensure' or 'restart'
-    """
-    cmd = [sys.executable, str(WALLPAPER_TOOL)]
-    if action == "status":
-        cmd.append("status")
-    elif action == "restart":
-        cmd.append("restart")
-        if screen:
-            cmd.extend(["--screen", screen])
-    elif action == "ensure":
-        cmd.append("ensure")
-        if screen:
-            cmd.extend(["--screen", screen])
-    elif action == "renderer_gpu":
-        cmd.extend(["renderer", "gpu"])
-    elif action == "renderer_cpu":
-        cmd.extend(["renderer", "cpu"])
-    elif action == "mask":
-        cmd.append("mask")
-    elif action == "sync":
-        cmd.append("sync")
-    else:
-        return {"ok": False, "error": f"Action inconnue: {action}"}
+# ============================================================================
+# ENREGISTREMENT DES OUTILS MODULAIRES SUR FastMCP
+# ============================================================================
 
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-    return {
-        "ok": res.returncode == 0,
-        "action": action,
-        "stdout": res.stdout.strip(),
-        "stderr": res.stderr.strip()
-    }
+# Outils Système & Fenêtrage
+mcp.tool()(system_tools.manage_wallpaper)
+mcp.tool()(system_tools.manage_hyprbar)
+mcp.tool()(system_tools.lock_session)
+mcp.tool()(system_tools.reload_all)
+mcp.tool()(system_tools.audit_hardlinks)
+mcp.tool()(system_tools.wofi_launch)
+mcp.tool()(system_tools.compact_workspaces)
 
-
-@mcp.tool()
-def manage_hyprbar(action: str) -> Dict[str, Any]:
-    """
-    Controls Waybar and the Spotify ecosystem via hyprbar CLI.
-    - action: 'restart' (full restart), 'reload' (CSS reload), 'toggle' (hide/show), 'status'
-    """
-    if action not in ("restart", "reload", "toggle", "status"):
-        return {"ok": False, "error": f"Action non valide: {action}. Utiliser 'restart', 'reload', 'toggle' ou 'status'."}
-
-    res = subprocess.run([str(HYPRBAR_TOOL), action], capture_output=True, text=True, timeout=10)
-    return {
-        "ok": res.returncode == 0,
-        "action": action,
-        "stdout": res.stdout.strip(),
-        "stderr": res.stderr.strip()
-    }
-
-
-@mcp.tool()
-def audit_hardlinks() -> Dict[str, Any]:
-    """
-    Audits the integrity of the 29 hard links between dotfiles/ and ~/.config/.
-    Ensures that modifications are directly reflected across inodes without broken links.
-    """
-    return _check_hardlinks_dict()
-
-
-@mcp.tool()
-def spotify_control(command: str) -> Dict[str, Any]:
-    """
-    Controls Spotify playback via MPRIS D-Bus.
-    - command: 'play_pause', 'next', 'previous', 'status'
-    """
-    cmd_map = {
-        "play_pause": "play-pause",
-        "next": "next",
-        "previous": "previous",
-        "status": "status"
-    }
-    sub = cmd_map.get(command)
-    if not sub:
-        return {"ok": False, "error": f"Commande Spotify inconnue: {command}"}
-
-    if command == "status":
-        return {"ok": True, "spotify": _get_spotify_info()}
-
-    res = subprocess.run(["playerctl", "--player=spotify", sub], capture_output=True, text=True, timeout=3)
-    time.sleep(0.15)
-    return {
-        "ok": res.returncode == 0,
-        "command": command,
-        "spotify": _get_spotify_info()
-    }
-
-
-@mcp.tool()
-def wofi_launch(mode: str = "drun") -> Dict[str, Any]:
-    """
-    Launches Wofi in 'drun' (applications) or 'power' (power menu) mode.
-    Runs asynchronously without blocking.
-    """
-    if mode == "power":
-        script = DOTFILES_DIR / "hypr" / "scripts" / "power-menu.sh"
-        subprocess.Popen(["bash", str(script)])
-        return {"ok": True, "mode": "power", "message": "Menu power lancé"}
-    elif mode == "drun":
-        subprocess.Popen(["wofi", "--show", "drun"])
-        return {"ok": True, "mode": "drun", "message": "Lanceur d'applications Wofi lancé"}
-    else:
-        return {"ok": False, "error": f"Mode Wofi non supporté: {mode}"}
-
-
-@mcp.tool()
-def compact_workspaces() -> Dict[str, Any]:
-    """
-    Triggers deterministic auto-compacting of workspaces across DP-1 and DP-2.
-    Ensures bounds (DP-2: 1-5, DP-1: 6-10) without ghost gaps.
-    """
-    compact_script = DOTFILES_DIR / "hypr" / "scripts" / "workspace-autocompact.py"
-    if not compact_script.exists():
-        return {"ok": False, "error": "Script workspace-autocompact.py introuvable"}
-
-    res = subprocess.run([sys.executable, str(compact_script)], capture_output=True, text=True, timeout=5)
-    return {
-        "ok": res.returncode == 0,
-        "stdout": res.stdout.strip(),
-        "stderr": res.stderr.strip()
-    }
+# Outils Médias & Notifications
+mcp.tool()(media_tools.manage_swaync)
+mcp.tool()(media_tools.manage_blacklist)
+mcp.tool()(media_tools.audio_control)
+mcp.tool()(media_tools.spotify_control)
 
 
 # ============================================================================
@@ -376,7 +197,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "status":
         print(json.dumps(get_aurora_status(), indent=2, ensure_ascii=False))
     elif len(sys.argv) > 1 and sys.argv[1] == "audit":
-        print(json.dumps(audit_hardlinks(), indent=2, ensure_ascii=False))
+        print(json.dumps(system_tools.audit_hardlinks(), indent=2, ensure_ascii=False))
+    elif len(sys.argv) > 1 and sys.argv[1] == "reload":
+        print(json.dumps(system_tools.reload_all(), indent=2, ensure_ascii=False))
     else:
-        # Standard MCP stdio server execution
         mcp.run()

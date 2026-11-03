@@ -1,6 +1,11 @@
 #!/bin/bash
 # Rechargement de la configuration Hyprland et redémarrage de Waybar
 
+# Protection session verrouillée : neutraliser tout rechargement
+if [ -f "/tmp/hypr_locked" ] || hyprctl layers 2>/dev/null | grep -q "namespace: hyprlock"; then
+    exit 0
+fi
+
 hyprctl reload
 
 if [ -x "$HOME/.local/bin/hyprbar" ]; then
