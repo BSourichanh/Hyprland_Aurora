@@ -7,8 +7,6 @@
 #include <signal.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/time.h>
-#include <libgen.h>
 #include <poll.h>
 
 #include <wayland-client.h>
@@ -19,40 +17,6 @@
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "shader.h"
 #include "gl_utils.h"
-
-static const char *resolve_asset_path(const char *rel_path) {
-    static char full_path[1024];
-    if (access(rel_path, R_OK) == 0) return rel_path;
-
-    char exe_path[1024];
-    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-    if (len > 0) {
-        exe_path[len] = '\0';
-        char *dir = dirname(exe_path);
-        snprintf(full_path, sizeof(full_path), "%s/../../%s", dir, rel_path);
-        if (access(full_path, R_OK) == 0) return full_path;
-        snprintf(full_path, sizeof(full_path), "%s/../%s", dir, rel_path);
-        if (access(full_path, R_OK) == 0) return full_path;
-        snprintf(full_path, sizeof(full_path), "%s/%s", dir, rel_path);
-        if (access(full_path, R_OK) == 0) return full_path;
-    }
-
-    const char *custom_res = getenv("AURORA_RES_DIR");
-    if (custom_res && custom_res[0]) {
-        snprintf(full_path, sizeof(full_path), "%s/%s", custom_res, rel_path);
-        if (access(full_path, R_OK) == 0) return full_path;
-    }
-
-    const char *home = getenv("HOME");
-    if (home && home[0]) {
-        snprintf(full_path, sizeof(full_path), "%s/Documents/antigravity/hyprland_project/%s", home, rel_path);
-        if (access(full_path, R_OK) == 0) return full_path;
-        snprintf(full_path, sizeof(full_path), "%s/.local/share/aurora-wallpaper/%s", home, rel_path);
-        if (access(full_path, R_OK) == 0) return full_path;
-    }
-
-    return rel_path;
-}
 
 struct Output {
     uint32_t id;
@@ -78,17 +42,10 @@ struct App {
     EGLContext egl_context;
     EGLConfig egl_config;
 
-    GLuint fbo;
-    GLuint fbo_texture;
-    GLuint tex_lucy;
-    GLuint tex_mask;
-
-    GLuint prog_lucy;
-    GLuint prog_blit;
-    GLint loc_lucy_time;
-    GLint loc_lucy_tex;
-    GLint loc_mask_tex;
-    GLint loc_blit_tex;
+    GLuint fbo, fbo_texture;
+    GLuint tex_lucy, tex_mask;
+    GLuint prog_lucy, prog_blit;
+    GLint loc_lucy_time, loc_lucy_tex, loc_mask_tex, loc_blit_tex;
 
     bool running;
     uint64_t start_time_ms;
@@ -105,6 +62,30 @@ static uint64_t get_time_ms(void) {
 static void sig_handler(int sig) {
     (void)sig;
     app.running = false;
+}
+
+static void destroy_output_surface(struct Output *out) {
+    if (!out) return;
+    out->configured = false;
+    if (out->egl_surface) {
+        if (eglGetCurrentSurface(EGL_DRAW) == out->egl_surface) {
+            eglMakeCurrent(app.egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        }
+        eglDestroySurface(app.egl_display, out->egl_surface);
+        out->egl_surface = EGL_NO_SURFACE;
+    }
+    if (out->egl_window) {
+        wl_egl_window_destroy(out->egl_window);
+        out->egl_window = NULL;
+    }
+    if (out->layer_surface) {
+        zwlr_layer_surface_v1_destroy(out->layer_surface);
+        out->layer_surface = NULL;
+    }
+    if (out->wl_surface) {
+        wl_surface_destroy(out->wl_surface);
+        out->wl_surface = NULL;
+    }
 }
 
 static void layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *layer_surface,
@@ -128,8 +109,12 @@ static void layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *la
 }
 
 static void layer_surface_closed(void *data, struct zwlr_layer_surface_v1 *layer_surface) {
-    (void)data;
     (void)layer_surface;
+    struct Output *out = data;
+    if (out) {
+        printf("ℹ Surface d'affichage fermée [id=%u]\n", out->id);
+        destroy_output_surface(out);
+    }
 }
 
 static const struct zwlr_layer_surface_v1_listener layer_surface_listener = {
@@ -151,10 +136,8 @@ static void setup_output_surface(struct Output *out) {
 
     zwlr_layer_surface_v1_set_size(out->layer_surface, 0, 0);
     zwlr_layer_surface_v1_set_anchor(out->layer_surface,
-        ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-        ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-        ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-        ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+        ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+        ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
     zwlr_layer_surface_v1_set_exclusive_zone(out->layer_surface, -1);
     zwlr_layer_surface_v1_set_keyboard_interactivity(out->layer_surface, 0);
 
@@ -178,6 +161,11 @@ static void registry_global(void *data, struct wl_registry *registry,
         out->height = 1080;
         out->next = app.outputs;
         app.outputs = out;
+
+        if (app.running) {
+            printf("✓ Détection hotplug écran [id=%u], initialisation...\n", name);
+            setup_output_surface(out);
+        }
     }
 }
 
@@ -189,12 +177,13 @@ static void registry_global_remove(void *data, struct wl_registry *registry, uin
         if ((*curr)->id == name) {
             struct Output *to_del = *curr;
             *curr = to_del->next;
-            if (to_del->egl_surface) eglDestroySurface(app.egl_display, to_del->egl_surface);
-            if (to_del->egl_window) wl_egl_window_destroy(to_del->egl_window);
-            if (to_del->layer_surface) zwlr_layer_surface_v1_destroy(to_del->layer_surface);
-            if (to_del->wl_surface) wl_surface_destroy(to_del->wl_surface);
-            if (to_del->wl_output) wl_output_destroy(to_del->wl_output);
+            destroy_output_surface(to_del);
+            if (to_del->wl_output) {
+                wl_output_destroy(to_del->wl_output);
+                to_del->wl_output = NULL;
+            }
             free(to_del);
+            printf("✓ Écran déconnecté [id=%u]\n", name);
             return;
         }
         curr = &(*curr)->next;
@@ -388,10 +377,7 @@ int main(int argc, char **argv) {
     struct Output *out = app.outputs;
     while (out) {
         struct Output *next = out->next;
-        if (out->egl_surface) eglDestroySurface(app.egl_display, out->egl_surface);
-        if (out->egl_window) wl_egl_window_destroy(out->egl_window);
-        if (out->layer_surface) zwlr_layer_surface_v1_destroy(out->layer_surface);
-        if (out->wl_surface) wl_surface_destroy(out->wl_surface);
+        destroy_output_surface(out);
         if (out->wl_output) wl_output_destroy(out->wl_output);
         free(out);
         out = next;

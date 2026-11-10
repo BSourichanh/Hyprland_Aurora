@@ -8,6 +8,7 @@
 
 extern const GLfloat quad_vertices[8];
 
+const char *resolve_asset_path(const char *rel_path);
 GLuint compile_shader(GLenum type, const char *src);
 GLuint create_program(const char *vs_src, const char *fs_src);
 GLuint load_texture(const char *path);

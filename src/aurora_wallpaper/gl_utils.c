@@ -2,7 +2,10 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <libgen.h>
 
 #include "gl_utils.h"
 
@@ -15,6 +18,40 @@ const GLfloat quad_vertices[8] = {
     -1.0f,  1.0f,
      1.0f,  1.0f,
 };
+
+const char *resolve_asset_path(const char *rel_path) {
+    static char full_path[1024];
+    if (access(rel_path, R_OK) == 0) return rel_path;
+
+    char exe_path[1024];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len > 0) {
+        exe_path[len] = '\0';
+        char *dir = dirname(exe_path);
+        snprintf(full_path, sizeof(full_path), "%s/../../%s", dir, rel_path);
+        if (access(full_path, R_OK) == 0) return full_path;
+        snprintf(full_path, sizeof(full_path), "%s/../%s", dir, rel_path);
+        if (access(full_path, R_OK) == 0) return full_path;
+        snprintf(full_path, sizeof(full_path), "%s/%s", dir, rel_path);
+        if (access(full_path, R_OK) == 0) return full_path;
+    }
+
+    const char *custom_res = getenv("AURORA_RES_DIR");
+    if (custom_res && custom_res[0]) {
+        snprintf(full_path, sizeof(full_path), "%s/%s", custom_res, rel_path);
+        if (access(full_path, R_OK) == 0) return full_path;
+    }
+
+    const char *home = getenv("HOME");
+    if (home && home[0]) {
+        snprintf(full_path, sizeof(full_path), "%s/Documents/antigravity/hyprland_project/%s", home, rel_path);
+        if (access(full_path, R_OK) == 0) return full_path;
+        snprintf(full_path, sizeof(full_path), "%s/.local/share/aurora-wallpaper/%s", home, rel_path);
+        if (access(full_path, R_OK) == 0) return full_path;
+    }
+
+    return rel_path;
+}
 
 GLuint compile_shader(GLenum type, const char *src) {
     GLuint s = glCreateShader(type);

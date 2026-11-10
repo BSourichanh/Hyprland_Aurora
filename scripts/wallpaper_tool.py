@@ -76,10 +76,7 @@ def get_aurora_binary() -> Path:
 
 def audit_hardlinks() -> bool:
     """Verifies that all dotfiles match identical inodes in ~/.config/."""
-    mismatches = []
-    missing = []
-    checked = 0
-
+    mismatches, missing, checked = [], [], 0
     for root, _, files in os.walk(DOTFILES_DIR):
         for f in files:
             if f.endswith((".bak", "-bak", ".pyc", ".so")):
@@ -87,26 +84,19 @@ def audit_hardlinks() -> bool:
             src = Path(root) / f
             rel = src.relative_to(DOTFILES_DIR)
             dest = CONFIG_DIR / rel
-
             if not dest.exists():
                 missing.append(f"{rel} -> introuvable dans ~/.config/")
                 continue
-
             checked += 1
             if src.stat().st_ino != dest.stat().st_ino:
                 mismatches.append(f"{rel} (inode dotfiles: {src.stat().st_ino} != ~/.config: {dest.stat().st_ino})")
 
     print(f"Audit Hardlinks: {checked} fichiers vérifiés.")
     if missing:
-        print(f"✗ Fichiers manquants ({len(missing)}) :")
-        for m in missing:
-            print(f"  - {m}")
+        print(f"✗ Fichiers manquants ({len(missing)}) :\n" + "\n".join(f"  - {m}" for m in missing))
     if mismatches:
-        print(f"✗ Ruptures de hard links ({len(mismatches)}) :")
-        for mm in mismatches:
-            print(f"  - {mm}")
+        print(f"✗ Ruptures de hard links ({len(mismatches)}) :\n" + "\n".join(f"  - {mm}" for mm in mismatches))
         return False
-
     print("✓ Tous les hard links sont intacts (inodes identiques).")
     return True
 
@@ -117,33 +107,25 @@ def audit_hardlinks() -> bool:
 
 def is_aurora_proc(pid: int) -> bool:
     """Verifies that the process executable is actually aurora-wallpaper."""
-    try:
+    with contextlib.suppress(Exception):
         if os.readlink(f"/proc/{pid}/exe").endswith("/aurora-wallpaper"):
             return True
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         if Path(f"/proc/{pid}/comm").read_text().strip().startswith("aurora-wallpape"):
             return True
-    except Exception:
-        pass
     return False
 
 
 def get_running_wallpaper_procs() -> List[int]:
     """Returns list of PIDs for all running aurora-wallpaper instances."""
-    procs = []
     res = subprocess.run(["pgrep", "-f", "aurora-wallpaper"], capture_output=True, text=True)
-    for p in res.stdout.strip().splitlines():
-        if p.strip().isdigit() and is_aurora_proc(int(p)):
-            procs.append(int(p))
-    return procs
+    return [int(p) for p in res.stdout.strip().splitlines() if p.strip().isdigit() and is_aurora_proc(int(p))]
 
 
 def get_active_layer_wallpaper_screens() -> Dict[str, int]:
     """Returns {monitor_name: pid} for monitors that have an active Wayland layer in Hyprland."""
     active = {}
-    try:
+    with contextlib.suppress(Exception):
         res = subprocess.run(["hyprctl", "layers", "-j"], capture_output=True, text=True)
         if res.returncode == 0:
             for mon, mon_data in json.loads(res.stdout).items():
@@ -151,22 +133,56 @@ def get_active_layer_wallpaper_screens() -> Dict[str, int]:
                     for item in items:
                         if item.get("namespace") == "aurora-wallpaper":
                             active[mon] = item.get("pid")
-    except Exception:
-        pass
     return active
 
 
 def get_hyprland_connected_screens() -> List[str]:
     """Returns list of currently active screens under Hyprland."""
-    try:
+    with contextlib.suppress(Exception):
         m_res = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
         if m_res.returncode == 0:
-            detected = [m.get("name") for m in json.loads(m_res.stdout) if m.get("name")]
+            detected = [m.get("name") for m in json.loads(m_res.stdout) if m.get("name") and not m.get("disabled", False)]
             if detected:
                 return detected
-    except Exception:
-        pass
     return ["DP-1", "DP-2"]
+
+
+def is_session_locked() -> bool:
+    """Verifies whether session is locked and cleans orphaned lockfiles."""
+    if not os.path.exists("/tmp/hypr_locked"):
+        return False
+    try:
+        with open("/tmp/hypr_lock_instance.lock", "r") as f:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(f, fcntl.LOCK_UN)
+        with contextlib.suppress(OSError):
+            os.remove("/tmp/hypr_locked")
+        return False
+    except (BlockingIOError, IOError):
+        return True
+    except FileNotFoundError:
+        with contextlib.suppress(OSError):
+            os.remove("/tmp/hypr_locked")
+        return False
+
+
+def terminate_procs(pids: List[int], timeout: float = 0.2):
+    """Purge proprement les processus via SIGTERM puis repli immédiat SIGKILL."""
+    if not pids:
+        return
+    for pid in pids:
+        with contextlib.suppress(ProcessLookupError, OSError):
+            os.kill(pid, signal.SIGTERM)
+    for _ in range(max(1, int(timeout / 0.05))):
+        time.sleep(0.05)
+        pids = [p for p in pids if is_aurora_proc(p)]
+        if not pids:
+            return
+    for pid in pids:
+        with contextlib.suppress(ProcessLookupError, OSError):
+            os.kill(pid, signal.SIGKILL)
+    if pids:
+        time.sleep(0.05)
 
 
 def ensure_wallpapers(target_screen: str = None):
@@ -186,17 +202,16 @@ def ensure_wallpapers(target_screen: str = None):
         active_pids = set(active_layers.values())
         zombies = [pid for pid in running if pid not in active_pids]
         if zombies:
-            for z_pid in zombies:
-                try:
-                    os.kill(z_pid, signal.SIGTERM)
-                except Exception:
-                    pass
-            time.sleep(0.05)
+            terminate_procs(zombies, timeout=0.2)
             running = get_running_wallpaper_procs()
 
         # Si un processus valide tourne et couvre tous les écrans connectés, rien à faire
         if running and all(s in active_layers for s in connected):
             return
+
+        # S'assurer qu'aucun processus résiduel ne persiste avant relance (anti-doublon)
+        if running:
+            terminate_procs(running, timeout=0.2)
 
         aurora_bin = get_aurora_binary()
         if not aurora_bin.exists():
@@ -219,16 +234,7 @@ def restart_wallpapers():
         if not acquired:
             return
 
-        for pid in get_running_wallpaper_procs():
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except Exception:
-                pass
-
-        for _ in range(15):
-            if not get_running_wallpaper_procs():
-                break
-            time.sleep(0.05)
+        terminate_procs(get_running_wallpaper_procs(), timeout=0.5)
 
         aurora_bin = get_aurora_binary()
         if not aurora_bin.exists():
@@ -252,24 +258,21 @@ def restart_wallpapers():
 
 def get_event_socket_path() -> str:
     """Resolves Hyprland IPC event socket path (.socket2.sock)."""
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-    his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    runtime_dir, his = os.environ.get("XDG_RUNTIME_DIR"), os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
     if runtime_dir and his:
         p = os.path.join(runtime_dir, "hypr", his, ".socket2.sock")
         if os.path.exists(p):
             return p
-    if runtime_dir:
-        hypr_dir = os.path.join(runtime_dir, "hypr")
-        if os.path.exists(hypr_dir):
-            for d in os.listdir(hypr_dir):
-                candidate = os.path.join(hypr_dir, d, ".socket2.sock")
-                if os.path.exists(candidate):
-                    return candidate
+    if runtime_dir and os.path.exists(os.path.join(runtime_dir, "hypr")):
+        for d in os.listdir(os.path.join(runtime_dir, "hypr")):
+            candidate = os.path.join(runtime_dir, "hypr", d, ".socket2.sock")
+            if os.path.exists(candidate):
+                return candidate
     return ""
 
 
 def run_wallpaper_daemon():
-    """Continuous background daemon monitoring Hyprland monitor events."""
+    """Continuous background daemon monitoring Hyprland monitor and DPMS events."""
     try:
         lock_fd = open(DAEMON_LOCK_FILE, "w")
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -285,24 +288,24 @@ def run_wallpaper_daemon():
         sys.exit(1)
 
     def handle_exit(sig, frame):
-        try:
+        with contextlib.suppress(Exception):
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             lock_fd.close()
             if os.path.exists(DAEMON_LOCK_FILE):
                 os.remove(DAEMON_LOCK_FILE)
-        except Exception:
-            pass
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
 
-    ensure_wallpapers()
+    if not is_session_locked():
+        ensure_wallpapers()
     print(f"✓ Démon Wallpaper Engine démarré (PID {os.getpid()}), écoute sur {event_sock_path}...")
     sys.stdout.flush()
 
     debounce_delay = 0.4
     pending_ensure = 0.0
+    MONITOR_EVENTS = ("monitoradded", "monitorremoved", "configreloaded", "dpms")
 
     while True:
         try:
@@ -328,16 +331,16 @@ def run_wallpaper_daemon():
                         if not line:
                             continue
                         ev_type = line.split(">>")[0]
-                        if not os.path.exists("/tmp/hypr_locked"):
-                            if ev_type.startswith("monitoradded") or ev_type == "configreloaded":
-                                pending_ensure = time.time() + debounce_delay
+                        if not is_session_locked() and any(ev_type.startswith(ev) for ev in MONITOR_EVENTS):
+                            pending_ensure = time.time() + debounce_delay
 
                 now_check = time.time()
-                if pending_ensure > 0.0 and now_check >= pending_ensure:
-                    pending_ensure = 0.0
-                    if not os.path.exists("/tmp/hypr_locked"):
-                        ensure_wallpapers()
-                elif not os.path.exists("/tmp/hypr_locked"):
+                if pending_ensure > 0.0:
+                    if now_check >= pending_ensure:
+                        pending_ensure = 0.0
+                        if not is_session_locked():
+                            ensure_wallpapers()
+                elif not is_session_locked():
                     active_layers = get_active_layer_wallpaper_screens()
                     connected = get_hyprland_connected_screens()
                     if any(scr not in active_layers for scr in connected):
