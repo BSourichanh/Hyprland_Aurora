@@ -10,11 +10,15 @@ Barre d'état personnalisée pour **Waybar** sous Wayland, combinant esthétique
 dotfiles/waybar/
 ├── config.jsonc            # Définition de l'agencement, marges et modules Waybar
 ├── style.css               # Feuilles de style GTK3 (dégradés néon, règles d'arrondis et bulles)
-├── bar-bg.svg              # Calque vectoriel de fond (1900x34, rx=16, ry=16, opacité 20%, contour 2px)
+├── bar-bg.svg              # Calque vectoriel de fond (1900x34, rx=17, ry=17, opacité 0.50, contour 2px)
 └── scripts/
-    ├── gpu.py              # Surveillance GPU Intel UHD 630 sans dépendance (Leader-Follower /dev/shm)
+    ├── gpu.py              # Surveillance GPU Intel UHD 630 sans dépendance (Leader-Follower $AURORA_RUNTIME_DIR)
+    ├── spotify-card.py     # Démon GTK3 de carte interactive (Repository, Facade, IPC Service, Observer)
+    ├── spotify_hover.py    # Déroulement au survol, capture du curseur et positionnement sous Waybar
+    ├── spotify_ipc.py      # Client socket IPC et transport de commandes vers le démon carte
+    ├── spotify_mpris.py    # Écoute événementielle D-Bus MPRIS (signaux PropertiesChanged)
     ├── spotify.py          # Helper MPRIS CLI haute performance (Command Pattern, Facade D-Bus)
-    └── spotify-card.py     # Démon GTK3 de carte interactive (Repository, Facade, IPC Service, Observer)
+    └── spotify_server.py   # Serveur HTTP SSE pour la synchronisation des événements et métadonnées
 ```
 
 ---
@@ -24,8 +28,8 @@ dotfiles/waybar/
 ### 1. Calque de Fond SVG Vectoriel (`bar-bg.svg`)
 Le moteur CSS de GTK3 désactive systématiquement `border-radius` dès qu'un `border-image` est employé. Pour obtenir une barre translucide aux arrondis parfaits de 17px avec un dégradé continu de 2px :
 - Utilisation de `bar-bg.svg` comme image de fond sur `window#waybar`.
-- Le SVG définit un rectangle vectoriel aux coins arrondis `rx="16" ry="16"` avec contour en dégradé SVG natif (`<linearGradient>`).
-- **Isolation de la translucidité (20%)** : Le tracé vectoriel `stroke` limite strictement le dégradé aux 2px de bordure, empêchant tout saignement de couleur opaque sous le fond verre fumé.
+- Le SVG définit un rectangle vectoriel aux coins arrondis `rx="17" ry="17"` avec contour en dégradé SVG natif (`<linearGradient>`).
+- **Isolation de la translucidité (0.50)** : Le tracé vectoriel `stroke` limite strictement le dégradé aux 2px de bordure, empêchant tout saignement de couleur opaque sous le fond verre fumé `rgba(10, 15, 30, 0.50)`.
 
 ### 2. Modules & Capsules Internes
 Les modules internes (`#workspaces`, `#custom-audio`, `#clock`, etc.) exploitent la technique du double arrière-plan :
@@ -50,7 +54,7 @@ Cette méthode CSS est privilégiée sur les modules car elle s'adapte dynamique
 - **CPU (`cpu`)** : Charge processeur cadencée à 3s, affichée en Bleu Tokyo Night `#7aa2f7` (``).
 - **GPU (`custom/gpu` via `gpu.py`)** :
   - Interrogation directe sans dépendance externe des métriques DRM fdinfo du noyau Linux (`/proc/*/fdinfo/*`) et sysfs pour Intel UHD 630 (rendu 3D, décodage vidéo, fréquence MHz, VRAM allouée).
-  - **Architecture Leader-Follower (`/dev/shm`)** : Singleton géré par verrou exclusif `fcntl.flock` sur `/dev/shm/waybar_gpu.lock`. La première instance échantillonne les fds kernel et écrit le cache partagé atomiquement ; la seconde instance (écran secondaire) lit directement la mémoire partagée sans scruter `/proc`, divisant par deux le coût CPU.
+  - **Architecture Leader-Follower (`$AURORA_RUNTIME_DIR`)** : Singleton géré par verrou exclusif `fcntl.flock` sur `$AURORA_RUNTIME_DIR/waybar_gpu.lock` (mode `0600`). La première instance échantillonne les fds kernel et écrit le cache partagé `$AURORA_RUNTIME_DIR/waybar_gpu.json` atomiquement ; la seconde instance (écran secondaire) lit directement le cache sans scruter `/proc`, divisant par deux le coût CPU.
   - Rendu en Cyan néon `#00f0ff` (`󰢮`).
 - **RAM (`memory`)** : Charge mémoire vive en Violet néon `#9778d0` (`󰍅`).
 
@@ -71,6 +75,7 @@ Cette méthode CSS est privilégiée sur les modules car elle s'adapte dynamique
 - **Arrondis d'extrémités** : `#mpris` assure l'arrondi gauche (`10px 0 0 10px`) et `#custom-spotify-next` l'arrondi droit (`0 10px 10px 0`). Dès l'arrêt de Spotify, tous les enfants émettent `""` et masquent leurs bordures (`border: none; background: transparent; background-image: none; padding: 0; margin: 0;`).
 
 ### 2. Daemon Carte Déroulante (`spotify-card.py`)
+- **Arborescence Runtime Sécurisée (`$AURORA_RUNTIME_DIR`)** : Communication via le socket UNIX `$AURORA_RUNTIME_DIR/spotify_card.sock`, verrouillage d'instance singleton via `$AURORA_RUNTIME_DIR/spotify_card.lock` (`flock` exclusif 0600) et cache de jaquettes locales dans `$AURORA_RUNTIME_DIR/spotify_covers/`.
 - **Repository Pattern (`TrackRepository`)** : Persistance atomique des morceaux likés/masqués avec synchronisation SSE Spicetify et verrouillage `threading.Lock`.
 - **Pont Réseau Concurrent** : `ThreadingHTTPServer` non-bloquant pour gérer simultanément le streaming SSE `/events` et les requêtes entrantes `POST /status` et `/songchange`.
 - **Facade Pattern (`MPRISPlayerFacade`)** : Appels directs D-Bus pour les commandes de lecture (< 1 ms).

@@ -10,15 +10,17 @@ Configuration modulaire pour le compositeur Wayland **Hyprland** (0.56.2), inté
 dotfiles/hypr/
 ├── hyprland.conf       # Configuration maîtresse (moniteurs, autostart, binds, layouts, règles)
 ├── hyprviz.conf        # Paramètres d'apparence harmonisés (rounding 17px, border 2px, dégradé néon)
-├── hypridle.conf       # Démon d'inactivité (verrouillage 5 min, extinction écrans)
+├── hypridle.conf       # Démon d'inactivité (DPMS 330s, garde suspend 1800s, inhibit_sleep = 3)
 ├── hyprlock.conf       # Interface de déverrouillage graphique (champ mot de passe néon, flou GPU)
 ├── hyprlock-pam-deadlock.patch # Patch C++ prévenant le deadlock du thread PAM lors du déverrouillage
 ├── lock.sh             # Script de verrouillage sécurisé avec Safe Cleanup Handler (RAII)
 ├── scripts/
+│   ├── hypr_ipc.py     # Client/serveur IPC événementiel Hyprland (.socket.sock / .socket2.sock)
+│   ├── hyprlock_state.py # Gestionnaire d'état et masquage d'espaces (98 DP-2 / 99 DP-1)
 │   ├── power-menu.sh   # Menu de session et d'alimentation Aurora (SUPER + S)
 │   ├── screenshot.sh   # Outil de capture d'écran polyvalent (Print Screen, sélection, écran, fenêtre)
 │   ├── reload.sh       # Script de rechargement complet (Hyprland + Waybar + notification)
-│   ├── workspace-autocompact.py # Auto-compacteur dynamique d'espaces de travail (bornes disjointes 1-5 et 6-10) avec neutralisation sous verrouillage
+│   ├── workspace-autocompact.py # Auto-compacteur dynamique d'espaces de travail (bornes 1-5 et 6-10)
 │   └── wofi-toggle.sh  # Lanceur d'applications Wofi avec backdrop transparent (wait -n, 0% CPU)
 ├── plugins/
 │   ├── Hyprspace.so                  # Plugin Mission Control / Workspace Overview (SUPER + TAB)
@@ -30,41 +32,51 @@ dotfiles/hypr/
 
 ---
 
-## 🎨 Charte Visuelle Hyprland
+## 🎨 Charte Visuelle Hyprland & Invariant Ergonomique
 
 - **Coins arrondis** : `rounding = 17` uniforme sur toutes les fenêtres et conteneurs.
 - **Épaisseur de bordure** : `border_size = 2`.
 - **Dégradé actif animé** : Boucle vectorielle continue 360° sans coupure (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0` ➔ `#00f0ff`), rotation matérielle GPU (`animation = borderangle, 1, 50, linear, loop`).
 - **Inactif** : `rgba(04404aaa)` discret sans halo parasite.
+- **Invariant Utilisateur Inaltérable (`input:follow_mouse = 0`)** :
+  - **Mode Click-to-Focus strict** : L'activation d'une fenêtre requiert un clic physique explicite.
+  - **Stabilité Multi-Écrans** : Préférence ergonomique fondamentale de l'utilisateur, empêchant la perte de focus intempestive lors du survol de la souris d'un écran à l'autre (notamment entre `DP-2` et `DP-1`). Cet invariant est scellé et contrôlé automatiquement par les tests de conformité.
 
 ---
 
-## 🔒 Protocole de Verrouillage Sécurisé (`lock.sh`)
+## 🔒 Protocole de Verrouillage & Politique Veille / DPMS (`lock.sh`, Décision P1)
 
-Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/lock.sh) garantit la stricte confidentialité des espaces de travail et la résilience face aux déconnexions/reconnexions d'écrans :
+Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/lock.sh) et la configuration [`hypridle.conf`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/hypr/hypridle.conf) appliquent la politique de sécurité et de gestion énergétique issue de la décision `P1` :
 
-1. **Masquage Dynamique & Protection Hotplug** :
+1. **Politique Veille & Extinction d'Écran (Décision P1)** :
+   - **Mise en veille PC (`systemctl suspend` à 1800s) bloquée sous verrou** : `lock.sh` lance `hyprlock` encapsulé sous `systemd-inhibit --what=sleep --who="Aurora Lock" --why="Session verrouillée : veille PC désactivée" --mode=block hyprlock 9>&-`. De plus, le Palier 4 de `hypridle.conf` est protégé par garde explicite :
+     ```bash
+     [ ! -f "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/aurora/hypr_locked" ] && ! pgrep -x hyprlock >/dev/null && systemctl suspend
+     ```
+   - **Extinction d'écran DPMS off (330s) maintenue** : Le Palier 3 coupe l'affichage des moniteurs pour préserver les dalles (`hyprctl dispatch dpms off`), et le rallume instantanément à la reprise (`on-resume = hyprctl dispatch dpms on`).
+   - `inhibit_sleep = 3` configuré dans la section `general {}` de `hypridle.conf`.
+2. **Masquage Dynamique & Protection Hotplug** :
    - Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` actif durant toute la session verrouillée.
    - Bascule immédiate de chaque écran vers des espaces de travail vides réservés (`98` pour DP-2, `99` pour DP-1, `persistent:false`).
-   - Pose du drapeau atomique `/tmp/hypr_locked` neutralisant le démon `workspace-autocompact.py` pour empêcher tout démasquage accidentel des fenêtres.
+   - Pose du drapeau atomique `$AURORA_RUNTIME_DIR/hypr_locked` (arborescence runtime `0700`) neutralisant le démon `workspace-autocompact.py` pour empêcher tout démasquage accidentel des fenêtres.
    - En cas d'événement `monitoradded` (rallumage d'un écran) : ré-application instantanée de l'espace vide dédié et relance sélective de `aurora-wallpaper` (`wallpaper_tool.py ensure`) sans jamais redémarrer l'autre écran.
-2. **Isolation Totale de Waybar** :
+3. **Isolation Totale de Waybar** :
    - Arrêt complet du processus (`killall waybar`) et des sous-processus Spotify à l'entrée en verrouillage. Cela élimine l'artefact GTK3 où Waybar réapparaissait avec `visible = true` sur tout écran rebranché lors de l'utilisation de `SIGUSR1`.
    - Fermeture forcée des popups flottants (`wofi`, carte Spotify).
-3. **Confidentialité des Notifications (SwayNC)** :
+4. **Confidentialité des Notifications (SwayNC)** :
    - Mémorisation de l'état préalable, fermeture forcée du panneau (`swaync-client -cp`) et bascule immédiate en mode Ne Pas Déranger (`swaync-client -dn`).
    - Zéro toast sur l'écran de verrouillage : les alertes restent historisées en silence sans créer de couche visuelle.
-4. **Restauration Déterministe Dynamique (Pattern RAII)** :
+5. **Restauration Déterministe Dynamique (Pattern RAII)** :
    - Routine `cleanup()` enregistrée sur tous les signaux d'interruption (`trap ... EXIT INT TERM`).
    - Restauration des workspaces d'origine **uniquement sur les moniteurs physiquement connectés** lors du déverrouillage (évite d'écraser la disposition si un écran reste éteint).
    - Rétablissement de l'état Ne Pas Déranger de SwayNC (`swaync-client -df` si inactif au départ).
    - Relance synchronisée de Waybar (`hyprctl dispatch exec waybar`) et déclenchement d'un cycle de compactage propre.
-5. **Horloge Hyprlock Anti-Freeze (`hyprlock.conf`)** :
-   - Remplacement de la variable passive `$TIME` (vulnérable aux race conditions internes du *ResourceGatherer* lors des coupures d'affichage DPMS) par `cmd[update:1000] date +"%H:%M"`.
+6. **Horloge Hyprlock Anti-Freeze (`hyprlock.conf`)** :
+   - Remplacement de la variable passive `$TIME` (vulnérable aux race conditions internes lors des coupures DPMS) par `cmd[update:1000] date +"%H:%M"`.
    - Asservissement direct à un timer système noyau Linux (`timerfd`) garantissant un rafraîchissement d'heure déterministe à la seconde près.
-6. **Résilience Multi-Processus & Patch Anti-Deadlock (`hyprlock-pam-deadlock.patch`)** :
-   - Correctif natif amont (PR #1059) neutralisant le blocage récurrent du thread PAM (`std::thread::join()`) lors de la sortie de session.
-   - Sonde de détection auto-cicatrisante dans `lock.sh` : purge instantanée de tout processus `hyprlock` zombie orphelin ne disposant plus de surface Wayland active (`hyprctl layers | grep "namespace: hyprlock"`).
+7. **Résilience Multi-Processus & Détection Fiable du Verrouillage** :
+   - Patch PAM natif amont (PR #1059) neutralisant le blocage récurrent du thread PAM (`std::thread::join()`) lors de la sortie de session.
+   - Détection de verrouillage fiabilisée par `pgrep -x hyprlock`, acquisition non-bloquante `flock` sur `$AURORA_RUNTIME_DIR/hypr_lock_instance.lock` et présence de `$AURORA_RUNTIME_DIR/hypr_locked` (remplaçant les anciens contrôles fragiles par layer namespace).
 
 ---
 

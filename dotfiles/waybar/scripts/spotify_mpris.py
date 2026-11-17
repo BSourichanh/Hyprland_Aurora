@@ -199,11 +199,10 @@ def setup_mpris_observer(
             if "PlaybackStatus" in changed_properties:
                 if on_playback_status:
                     on_playback_status()
-                else:
-                    try:
-                        subprocess.run(["pkill", "-RTMIN+11", "waybar"], stderr=subprocess.DEVNULL)
-                    except Exception:
-                        pass
+                try:
+                    subprocess.run(["pkill", "-RTMIN+11", "waybar"], stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
 
     try:
         bus = player.get_bus()
@@ -211,7 +210,20 @@ def setup_mpris_observer(
             on_properties_changed,
             signal_name="PropertiesChanged",
             dbus_interface="org.freedesktop.DBus.Properties",
-            path="/org/mpris/MediaPlayer2"
+            bus_name="org.mpris.MediaPlayer2.spotify",
+            path="/org/mpris/MediaPlayer2",
         )
+        if on_playback_status:
+            def on_name_owner_changed(_name, _old_owner, _new_owner):
+                on_playback_status()
+
+            bus.add_signal_receiver(
+                on_name_owner_changed,
+                signal_name="NameOwnerChanged",
+                dbus_interface="org.freedesktop.DBus",
+                bus_name="org.freedesktop.DBus",
+                path="/org/freedesktop/DBus",
+                arg0="org.mpris.MediaPlayer2.spotify",
+            )
     except Exception:
         pass

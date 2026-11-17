@@ -5,10 +5,21 @@ Refactored using Facade and Command patterns with fail-safe D-Bus timeouts.
 """
 from abc import ABC, abstractmethod
 import json
+import os
 import subprocess
 import sys
 import time
 import dbus
+
+
+def _exit_broken_pipe() -> None:
+    try:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        os.close(devnull)
+    except OSError:
+        pass
+    sys.exit(0)
 
 JSON_STOPPED = '{"text": "", "class": "stopped"}\n'
 JSON_PREV = '{"text": "", "tooltip": "Piste précédente", "class": "spotify-btn"}\n'
@@ -30,21 +41,43 @@ class SpotifyMPRISClient:
         self._props = None
         self._status = None
 
-    def _connect(self):
-        if self._props is None:
+    def _ensure_bus(self):
+        if self._bus is None:
             self._bus = dbus.SessionBus()
-            player = self._bus.get_object(
+        return self._bus
+
+    def _connect(self) -> bool:
+        bus = self._ensure_bus()
+        if not bus.name_has_owner('org.mpris.MediaPlayer2.spotify'):
+            self._props = None
+            self._status = ""
+            return False
+        if self._props is None:
+            player = bus.get_object(
                 'org.mpris.MediaPlayer2.spotify',
                 '/org/mpris/MediaPlayer2',
                 introspect=False
             )
             self._props = dbus.Interface(player, 'org.freedesktop.DBus.Properties')
+        return True
+
+    def _handle_dbus_error(self):
+        self._props = None
+        try:
+            if self._bus is not None and not self._bus.name_has_owner('org.mpris.MediaPlayer2.spotify'):
+                self._status = ""
+                return
+        except Exception:
+            pass
+        self.reset()
+        self._status = ""
 
     def get_playback_status(self, fresh: bool = False) -> str:
         if not fresh and self._status is not None:
             return self._status
         try:
-            self._connect()
+            if not self._connect():
+                return ""
             self._status = str(self._props.Get(
                 'org.mpris.MediaPlayer2.Player',
                 'PlaybackStatus',
@@ -52,22 +85,24 @@ class SpotifyMPRISClient:
             ))
             return self._status
         except Exception:
-            self.reset()
-            self._status = ""
+            self._handle_dbus_error()
             return ""
 
     def get_progress_data(self):
         try:
-            self._connect()
-            status = self.get_playback_status(fresh=True)
-            if not status:
+            if not self._connect():
                 return None
-            pos_us = self._props.Get('org.mpris.MediaPlayer2.Player', 'Position', timeout=0.08)
-            meta = self._props.Get('org.mpris.MediaPlayer2.Player', 'Metadata', timeout=0.08)
-            len_us = meta.get('mpris:length', 0)
+            props = self._props.GetAll('org.mpris.MediaPlayer2.Player', timeout=0.08)
+            status = str(props.get('PlaybackStatus', ''))
+            self._status = status
+            if not status or status not in ('Playing', 'Paused'):
+                return None
+            pos_us = props.get('Position', 0)
+            meta = props.get('Metadata', {})
+            len_us = meta.get('mpris:length', 0) if isinstance(meta, dict) else 0
             return status, float(pos_us) / 1000000.0, float(len_us) / 1000000.0
         except Exception:
-            self.reset()
+            self._handle_dbus_error()
             return None
 
 
@@ -115,6 +150,7 @@ class ProgressCommand(ICommand):
     def execute(self, client: SpotifyMPRISClient) -> str:
         frame_idx = 0
         last_state = None
+        last_payload = None
 
         while True:
             try:
@@ -124,11 +160,12 @@ class ProgressCommand(ICommand):
                         sys.stdout.write(JSON_STOPPED)
                         sys.stdout.flush()
                         last_state = "stopped"
+                        last_payload = None
                         try:
                             subprocess.run(["pkill", "-RTMIN+11", "waybar"], stderr=subprocess.DEVNULL)
                         except Exception:
                             pass
-                    time.sleep(1.5)
+                    time.sleep(3.0)
                     continue
 
                 status, pos_s, len_s = data
@@ -137,6 +174,7 @@ class ProgressCommand(ICommand):
                         sys.stdout.write('{"text": "", "class": "empty"}\n')
                         sys.stdout.flush()
                         last_state = "empty"
+                        last_payload = None
                     time.sleep(1.5)
                     continue
 
@@ -166,8 +204,11 @@ class ProgressCommand(ICommand):
                 text = f"{bars_html}  {pos_str} {bar_html} {len_str}"
                 tooltip = f"Progression : {pos_str} / {len_str} ({int(pct*100)}%)\nClic gauche : Carte déroulante\nClic droit : Lecture / Pause\nMolette : Avancer / Reculer (5s)"
 
-                sys.stdout.write(json.dumps({"text": text, "tooltip": tooltip, "class": cls}, ensure_ascii=False) + "\n")
-                sys.stdout.flush()
+                payload = json.dumps({"text": text, "tooltip": tooltip, "class": cls}, ensure_ascii=False) + "\n"
+                if status != "Paused" or payload != last_payload:
+                    sys.stdout.write(payload)
+                    sys.stdout.flush()
+                    last_payload = payload
 
                 if last_state != cls:
                     try:
@@ -176,12 +217,15 @@ class ProgressCommand(ICommand):
                         pass
                 last_state = cls
 
-                time.sleep(0.20 if status == "Playing" else 0.5)
+                time.sleep(0.20 if status == "Playing" else 1.0)
 
+            except BrokenPipeError:
+                _exit_broken_pipe()
             except (KeyboardInterrupt, SystemExit):
-                break
+                sys.exit(0)
             except Exception:
                 client.reset()
+                last_payload = None
                 time.sleep(1.0)
 
         return ""
@@ -213,7 +257,7 @@ class BarsCommand(ICommand):
                         sys.stdout.write(JSON_STOPPED)
                         sys.stdout.flush()
                         last_state = "stopped"
-                    time.sleep(1.5)
+                    time.sleep(3.0)
                     continue
 
                 if status == "Playing":
@@ -240,9 +284,11 @@ class BarsCommand(ICommand):
                         sys.stdout.write(JSON_STOPPED)
                         sys.stdout.flush()
                         last_state = "stopped"
-                    time.sleep(1.5)
+                    time.sleep(3.0)
+            except BrokenPipeError:
+                _exit_broken_pipe()
             except (KeyboardInterrupt, SystemExit):
-                break
+                sys.exit(0)
             except Exception:
                 client.reset()
                 time.sleep(1.0)
@@ -270,9 +316,13 @@ def main():
     flag = sys.argv[1] if len(sys.argv) > 1 else '--progress'
     client = SpotifyMPRISClient()
     dispatcher = CommandDispatcher()
-    res = dispatcher.dispatch(flag, client)
-    if res:
-        sys.stdout.write(res)
+    try:
+        res = dispatcher.dispatch(flag, client)
+        if res:
+            sys.stdout.write(res)
+            sys.stdout.flush()
+    except BrokenPipeError:
+        _exit_broken_pipe()
 
 
 if __name__ == '__main__':

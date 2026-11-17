@@ -14,8 +14,8 @@ Ce document constitue la **référence technique absolue et exhaustive** du mod�
 | **Dossier Décompressé Steam** | `/home/user/.steam/steam/steamapps/workshop/content/431960/3566437475/` |
 | **Dossier Miroir Local (Git)** | [`hyprland_project/ressource/`](file:///home/user/Documents/antigravity/hyprland_project/ressource/) |
 | **Résolution Native** | $1920 \times 1080$ (16:9, projection orthogonale) |
-| **Cadence Cible (GPU)** | **60 FPS** (Intel UHD 630 sur `DP-1` et `DP-2`) |
-| **Cadence Cible (CPU)** | **20 FPS** (Mesa LLVMpipe logiciel) |
+| **Cadence Nominale** | **30 FPS fixes** (EGL natif C99 sur `DP-1` et `DP-2`), **1 FPS monotone** sous verrou |
+| **Empreinte RAM** | **~72 Mo** sous EGL natif |
 
 ---
 
@@ -411,9 +411,8 @@ Wallpaper Engine utilise un conteneur binaire propriétaire pour encapsuler ses 
 | `0x47 - 0x56` | `uint32[2], int32[3]` | Entrée Mipmap : `w=1920`, `h=1080`, `compression=0`, `uncompressedSize`, `compressedSize` |
 | `0x57...` | Données binaires | Flux PNG standard (`\x89PNG\r\n\x1a\n...`) |
 
-### 6.2 Outils de Conversion CLI
-- **PNG ➔ TEX** : `./scripts/wallpaper_tool.py pack <image.png> <texture.tex>`
-- **TEX ➔ PNG** : `./scripts/wallpaper_tool.py unpack <texture.tex> <image.png>`
+### 6.2 Traitement des Conteneurs Binaire
+Le compilateur binaire intégré au CLI recalcule automatiquement l'en-tête `TEXV0005`, la table mipmap et injecte les flux PNG bruts lors de la régénération du masque (`./scripts/wallpaper_tool.py mask`).
 
 ---
 
@@ -421,32 +420,33 @@ Wallpaper Engine utilise un conteneur binaire propriétaire pour encapsuler ses 
 
 ### 7.1 Architecture Single-Pass & FBO Mutualisé (`aurora-wallpaper`)
 - L'ancien `linux-wallpaperengine` a été remplacé par `aurora-wallpaper`, un micro-moteur Wayland natif C99 (`zwlr_layer_shell_v1` + EGL/GLES2).
-- **Rendu Mutualisé** : Le shader GLSL unifié tourne **une seule fois** dans un Framebuffer Object partagé ($1920 \times 1080$), puis est copié (*blit*) instantanément sur tous les écrans (`DP-1` et `DP-2`).
-- **Charge GPU & RAM** : Empreinte GPU réduite de 89% à 33% de temps moteur, 18 Mo de RAM (zéro dépendance V8/Chromium/Steam/PulseAudio).
+- **Rendu Mutualisé** : Le shader GLSL unifié tourne **une seule fois** dans un Framebuffer Object partagé ($1920 \times 1080$), puis est copié (*blit*) instantanément sur tous les écrans connectés (`DP-1` et `DP-2`).
+- **Empreinte Matérielle & Mémoire** : Consommation de **~72 Mo de RAM** sous EGL natif, zéro dépendance Node/V8/Chromium/Steam/PulseAudio.
 
-### 7.2 Cadence & Performances
-- Cadence : **30 FPS fixes** (33.3 ms / trame).
-- Fréquence iGPU dynamique : ~1050 MHz.
-- Consommation CPU globale : < 1.5% machine.
+### 7.2 Cadence, Régulation Énergétique & Performances
+- **Cadence Nominale (Session Active)** : **30 FPS fixes** (trame cadencée à 33.3 ms).
+- **Régulation Énergétique sous Verrouillage** : Passage dynamique et automatique à **1 FPS monotone** (temporisation `poll(1000)` asservie au drapeau `$AURORA_RUNTIME_DIR/hypr_locked`), réalisant 96.7% d'économie de cycles GPU/EGL en session verrouillée.
+- **Fréquence iGPU dynamique** : ~1050 MHz sous charge active.
+- **Consommation CPU globale** : < 1.5% machine.
 
 ### 7.3 Empilement des Couches Wayland (Hyprland Layer Shell)
 ```
 Layer 3 (Overlay)    : Wofi, Hyprlock, Spotify Card Flottante
 Layer 2 (Top)        : Waybar (barre supérieure translucide)
-Layer 1 (Bottom)     : aurora-wallpaper (Lucy 30 FPS sur DP-1 & DP-2)
+Layer 1 (Bottom)     : aurora-wallpaper (Lucy 30 FPS sur DP-1 & DP-2, 1 FPS verrouillé)
 Layer 0 (Background) : swaybg (fond statique secours en ~10 ms)
 ```
 
 ---
 
-## 8. Commandes de Maintenance Rapide (`scripts/wallpaper_tool.py`)
+## 8. Commandes d'Administration CLI (`scripts/wallpaper_tool.py`)
 
-| Commande | Action & Effet |
+| Commande | Action & Effet Réel |
 | :--- | :--- |
-| `./scripts/wallpaper_tool.py status` | Affiche l'état du processus aurora-wallpaper, charge CPU, RAM et couches Wayland |
-| `./scripts/wallpaper_tool.py mask` | Recalcule le masque subpixel Blackwall (`blackwall_mask.png`) |
-| `./scripts/wallpaper_tool.py restart` | Redémarre proprement aurora-wallpaper sur tous les écrans connectés |
-| `./scripts/wallpaper_tool.py ensure` | Garantit la présence du fond d'écran sans redémarrer inutilement |
-| `./scripts/wallpaper_tool.py daemon` | Lance le démon d'écoute événementielle IPC hotplug Hyprland |
-| `./scripts/wallpaper_tool.py check-links` | Audite la stricte intégrité des hard links entre `dotfiles/` et `~/.config/` |
+| `./scripts/wallpaper_tool.py status` | Affiche l'état du processus aurora-wallpaper, charge CPU, RAM (~72 Mo) et couches Wayland |
+| `./scripts/wallpaper_tool.py mask` | Recalcule le masque subpixel Blackwall haute fidélité (`blackwall_mask.png`) |
+| `./scripts/wallpaper_tool.py restart` | Redémarre proprement aurora-wallpaper sous mutex sécurisé sur tous les écrans |
+| `./scripts/wallpaper_tool.py ensure` | Garantit la présence d'aurora-wallpaper sans redémarrage intempestif |
+| `./scripts/wallpaper_tool.py daemon` | Lance le démon d'écoute événementielle IPC hotplug Hyprland (`.socket2.sock`) |
+| `./scripts/wallpaper_tool.py check-links` | Audite la stricte intégrité des 42 hardlinks physiques entre `dotfiles/` et `~/.config/` |
 

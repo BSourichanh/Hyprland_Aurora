@@ -20,7 +20,6 @@
   "timeout-critical": 0,
   "fit-to-screen": true,
   "control-center-width": 420,
-  "control-center-height": 650,
   "notification-window-width": 420,
   "keyboard-shortcuts": true,
   "image-visibility": "when-available",
@@ -42,10 +41,6 @@
     },
     "dnd": {
       "text": "Ne pas d\u00e9ranger"
-    },
-    "label": {
-      "max-lines": 5,
-      "text": "Notifications"
     },
     "mpris": {
       "image-size": 80,

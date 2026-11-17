@@ -2,11 +2,17 @@
 *.bak
 *-bak
 *~
+*.rej
+*.orig
 __pycache__/
 *.pyc
 
-# Local compiled engine binary
+# Runtime state
+.theme_state
+
+# Local compiled engine binary and objects
 src/aurora_wallpaper/aurora-wallpaper
+*.o
 
 # Compiled plugin binaries
 dotfiles/hypr/plugins/*.so

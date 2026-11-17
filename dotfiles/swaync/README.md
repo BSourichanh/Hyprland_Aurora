@@ -22,7 +22,7 @@ dotfiles/swaync/
 
 Par défaut sous SwayNC, un clic droit ferme la notification sans action supplémentaire. Le patch natif [`swaync-blacklist.patch`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/swaync/swaync-blacklist.patch) enrichit l'ergonomie :
 - **Menu Contextuel Popover (`button-press-event` bouton 3)** : Un clic droit sur n'importe quelle notification (popup ou panneau latéral) ouvre une modale Popover Aurora ciblée sur les coordonnées du pointeur.
-- **Action « 🚫 Blacklister [App] »** : Appelle le script [`scripts/blacklist-app.py`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/swaync/scripts/blacklist-app.py) qui injecte de manière atomique une règle `state: "ignored"` dans `~/.config/swaync/config.json` en écriture *in-place* (stricte préservation des 34/34 hardlinks sans rupture d'inode).
+- **Action « 🚫 Blacklister [App] »** : Appelle le script [`scripts/blacklist-app.py`](file:///home/user/Documents/antigravity/hyprland_project/dotfiles/swaync/scripts/blacklist-app.py) qui injecte de manière atomique une règle `state: "ignored"` dans `~/.config/swaync/config.json` en écriture *in-place* (stricte préservation des 42/42 hardlinks sans rupture d'inode).
 - **Prise d'effet instantanée** : Déclenche immédiatement `swaync-client -R` et confirme le blocage par une notification système.
 - **Action « ✕ Fermer »** : Ferme simplement la notification.
 - **Neutralisation du Timeout** : Dès l'ouverture du menu contextuel, le timer d'expiration de la notification est suspendu pour éviter toute disparition pendant la sélection.

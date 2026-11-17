@@ -36,7 +36,7 @@ index 43546c4..9cd16c9 100644
 -                if (g_pHyprlock->isFadingOutOrTerminating())
 -                    return PAM_CONV_ERR;
 +                if (CONVERSATIONSTATE->terminateRequested || g_pHyprlock->isFadingOutOrTerminating())
-                     return abortConversation();
++                    return abortConversation();
  
                  pamReply[i].resp = strdup(CONVERSATIONSTATE->input.c_str());
                  initialPrompt    = false;

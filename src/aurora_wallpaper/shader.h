@@ -29,13 +29,14 @@ static const char *fragment_shader_blit =
     "    gl_FragColor = texture2D(u_Texture, v_TexCoord);\n"
     "}\n";
 
-static const char *fragment_shader_lucy =
+static const char *const fragment_shader_lucy_parts[] = {
     "#version 100\n"
     "precision highp float;\n"
     "varying vec2 v_TexCoord;\n"
     "uniform sampler2D u_LucyTexture;\n"
     "uniform sampler2D u_MaskTexture;\n"
     "uniform float u_Time;\n"
+    "uniform vec4 u_TimeParams;\n"
     "\n"
     "float hash11(float p) {\n"
     "    p = fract(p * 0.1031);\n"
@@ -66,22 +67,18 @@ static const char *fragment_shader_lucy =
     "    vec2 dCenter = cellUv - 0.5;\n"
     "    float centerDot = step(0.65, fract(seed * 43.19)) * step(dot(dCenter, dCenter), 0.0484);\n"
     "    return clamp(p1 + p2 + p3 + p4 + centerDot, 0.0, 1.0);\n"
-    "}\n"
+    "}\n",
+
     "\n"
     "void main() {\n"
     "    vec2 uv = v_TexCoord;\n"
     "\n"
     "    // 1. Relic Glitch Displacement (Snappy double-pulse every 3.8s)\n"
-    "    float time = u_Time * 1.5;\n"
-    "    float cycle = mod(time, 3.8);\n"
-    "    float tick1 = step(3.20, cycle) * (1.0 - step(3.30, cycle));\n"
-    "    float tick2 = step(3.35, cycle) * (1.0 - step(3.43, cycle)) * 0.70;\n"
-    "    float twitch = step(0.982, hash11(floor(time * 10.0))) * 0.45;\n"
-    "    float glitchIntensity = max(max(tick1, tick2), twitch);\n"
+    "    float glitchIntensity = u_TimeParams.z;\n"
     "\n"
     "    vec2 glitchUV = uv;\n"
     "    if (glitchIntensity > 0.005) {\n"
-    "        float frameSeed = floor(time * 20.0) * 23.41;\n"
+    "        float frameSeed = u_TimeParams.w;\n"
     "        float macroY = uv.y * 14.4;\n"
     "        float macroIndex = floor(macroY);\n"
     "        float macroSeed = macroIndex + frameSeed;\n"
@@ -102,7 +99,7 @@ static const char *fragment_shader_lucy =
     "\n"
     "    // A. FlowMap Breathing (shake.frag - id: 711)\n"
     "    vec2 flowMask = (vec2(maskSample.b, maskSample.g) - vec2(0.498, 0.498)) * 2.0;\n"
-    "    float breathOffset = sin(u_Time * 1.0) * 0.01;\n"
+    "    float breathOffset = u_TimeParams.x;\n"
     "    vec2 breathDisp = flowMask * breathOffset;\n"
     "\n"
     "    // B. Hair Waterwaves (waterwaves.frag - id: 141)\n"
@@ -124,7 +121,7 @@ static const char *fragment_shader_lucy =
     "\n"
     "    // 3. Blackwall Cyber Grid & Deep Obsidian Void\n"
     "    vec3 bgVoid = mix(vec3(0.012, 0.001, 0.004), vec3(0.065, 0.002, 0.015), 1.0 - glitchUV.y);\n"
-    "    float breath = sin(u_Time * 1.6) * 0.5 + 0.5;\n"
+    "    float breath = u_TimeParams.y;\n"
     "    float pulse = sin(u_Time * 0.9 - glitchUV.y * 3.5) * 0.5 + 0.5;\n"
     "    bgVoid += vec3(0.035, 0.001, 0.008) * (breath * 0.6 + pulse * 0.4);\n"
     "\n"
@@ -133,7 +130,8 @@ static const char *fragment_shader_lucy =
     "    vec2 gridFract = fract(gridUv);\n"
     "    float gridLine = max(step(0.92, gridFract.x), step(0.92, gridFract.y));\n"
     "    float gridWave = sin(gridUv.y * 0.25 - u_Time * 2.5) * 0.5 + 0.5;\n"
-    "    vec3 gridColor = vec3(0.25, 0.008, 0.04) * gridLine * (0.30 + 0.70 * gridWave);\n"
+    "    vec3 gridColor = vec3(0.25, 0.008, 0.04) * gridLine * (0.30 + 0.70 * gridWave);\n",
+
     "\n"
     "    // 4. Data Streams Layer A (Micro Streams)\n"
     "    float colsA = 110.0;\n"
@@ -145,7 +143,8 @@ static const char *fragment_shader_lucy =
     "    float cellV_A = fract(yFlowA * 55.0);\n"
     "    float glyphA = renderGlyph(vec2(colU_A, cellV_A), hash21(vec2(colIdA, floor(yFlowA * 55.0))));\n"
     "    float phaseA = fract(yFlowA * 0.09 + seedA * 2.0);\n"
-    "    float streamA = pow(max(0.0, 1.0 - phaseA), 3.0) * glyphA * 0.9;\n"
+    "    float invA = max(0.0, 1.0 - phaseA);\n"
+    "    float streamA = (invA * invA * invA) * glyphA * 0.9;\n"
     "    vec3 colorA = vec3(0.40, 0.004, 0.06) * streamA;\n"
     "\n"
     "    // 5. Data Streams Layer B (Primary Cyber Streams + Cyan Sparks)\n"
@@ -160,7 +159,9 @@ static const char *fragment_shader_lucy =
     "    float cellV_B = fract(yFlowB * 38.0);\n"
     "    float glyphB = renderGlyph(vec2(colU_B, cellV_B), hash21(vec2(colIdB, floor(yFlowB * 38.0))));\n"
     "    float phaseB = fract(yFlowB * 0.13 + seedB * 5.0);\n"
-    "    float tailB = pow(max(0.0, 1.0 - phaseB), 4.0);\n"
+    "    float invB = max(0.0, 1.0 - phaseB);\n"
+    "    float invB2 = invB * invB;\n"
+    "    float tailB = invB2 * invB2;\n"
     "    float headB = smoothstep(0.95, 1.0, 1.0 - phaseB);\n"
     "    vec3 coreColor = vec3(0.65, 0.01, 0.12) * (glyphB * tailB * 1.6);\n"
     "    float isCyan = step(0.85, seedB);\n"
@@ -174,6 +175,10 @@ static const char *fragment_shader_lucy =
     "    // 7. Composite\n"
     "    vec3 finalRgb = mix(lucyColor.rgb, blackwallBg, bgMask);\n"
     "    gl_FragColor = vec4(finalRgb, 1.0);\n"
-    "}\n";
+    "}\n"
+};
+
+#define FRAGMENT_SHADER_LUCY_PARTS_COUNT \
+    ((GLsizei)(sizeof(fragment_shader_lucy_parts) / sizeof(fragment_shader_lucy_parts[0])))
 
 #endif // AURORA_SHADER_H

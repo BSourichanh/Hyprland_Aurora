@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
 # Daemon launcher for Wallpaper Engine (Lucy) with portable path resolution
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+HYPRBAR_TARGET=""
+if [ -e "$HOME/.local/bin/hyprbar" ]; then
+    HYPRBAR_TARGET="$(readlink -f "$HOME/.local/bin/hyprbar" 2>/dev/null || true)"
+fi
+HYPRBAR_ROOT="${HYPRBAR_TARGET%/scripts/hyprbar}"
+[ "$HYPRBAR_ROOT" = "$HYPRBAR_TARGET" ] && HYPRBAR_ROOT=""
+
 PROJECT_DIR=""
 for candidate in \
+    "${AURORA_PROJECT_DIR:-}" \
+    "$(cd "$SCRIPT_DIR/../../.." 2>/dev/null && pwd)" \
+    "$HYPRBAR_ROOT" \
     "$HOME/Documents/antigravity/hyprland_project" \
-    "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)" \
-    "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../Documents/antigravity/hyprland_project" 2>/dev/null && pwd)"; do
-    if [ -f "$candidate/scripts/wallpaper_tool.py" ]; then
+    "$HOME/hyprland_project"; do
+    if [ -n "$candidate" ] && [ -f "$candidate/scripts/wallpaper_tool.py" ]; then
         PROJECT_DIR="$candidate"
         break
     fi
@@ -16,4 +26,4 @@ if [ -z "$PROJECT_DIR" ]; then
     exit 1
 fi
 
-exec python3 "$PROJECT_DIR/scripts/wallpaper_tool.py" daemon
+exec python3 -B "$PROJECT_DIR/scripts/wallpaper_tool.py" daemon

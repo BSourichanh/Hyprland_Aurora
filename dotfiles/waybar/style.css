@@ -23,7 +23,7 @@ window#waybar {
 /* Espaces de travail */
 #workspaces {
     background: rgba(10, 15, 30, 0.50);
-    border: 1.5px solid rgba(0, 240, 255, 0.6);
+    border: 1.5px solid rgba(0, 240, 255, 0.60);
     border-radius: 10px;
     margin: 3px 4px;
     padding: 1px 3px;
@@ -47,7 +47,7 @@ window#waybar {
 /* Workspace affiché à l'écran (sur moniteur non focus) */
 #workspaces button.visible {
     background: rgba(0, 240, 255, 0.15);
-    border: 1.5px solid rgba(0, 240, 255, 0.65);
+    border: 1.5px solid rgba(0, 240, 255, 0.60);
     color: #00f0ff;
     font-weight: 600;
     box-shadow: 0 0 6px rgba(0, 240, 255, 0.25);
@@ -74,7 +74,7 @@ window#waybar {
     margin: 3px 0;
     color: #f1f5f9;
     font-weight: 600;
-    border: 1.5px solid rgba(0, 240, 255, 0.6);
+    border: 1.5px solid rgba(0, 240, 255, 0.60);
     border-radius: 10px;
     background: rgba(10, 15, 30, 0.50);
 }
@@ -84,7 +84,7 @@ window#waybar {
     padding: 0 8px;
     margin: 3px 1px;
     color: #e1e4f1;
-    border: 1.5px solid rgba(0, 240, 255, 0.6);
+    border: 1.5px solid rgba(0, 240, 255, 0.60);
     border-radius: 10px;
     background: rgba(10, 15, 30, 0.50);
 }
@@ -98,7 +98,7 @@ window#waybar {
     background-color: #f87171;
 }
 
-/* Conteneur Spotify Mini-Player (transparent pour masquage total au démarrage) */
+/* Conteneur Spotify Mini-Player */
 #spotify-player {
     border: none;
     background: transparent;
@@ -106,13 +106,13 @@ window#waybar {
     margin: 0;
 }
 
-/* Module Media Spotify (MPRIS Titre & Artiste) */
+/* Module Media Spotify */
 #mpris {
     padding: 0 8px 0 12px;
     margin: 3px 0;
     color: #f1f5f9;
     font-weight: 600;
-    border: 1.5px solid rgba(0, 240, 255, 0.6);
+    border: 1.5px solid rgba(0, 240, 255, 0.60);
     border-right: none;
     border-radius: 10px 0 0 10px;
     background: rgba(10, 15, 30, 0.50);
@@ -133,8 +133,8 @@ window#waybar {
     margin: 3px 0;
     font-size: 11.5px;
     color: #cbd5e1;
-    border-top: 1.5px solid rgba(0, 240, 255, 0.6);
-    border-bottom: 1.5px solid rgba(0, 240, 255, 0.6);
+    border-top: 1.5px solid rgba(0, 240, 255, 0.60);
+    border-bottom: 1.5px solid rgba(0, 240, 255, 0.60);
     border-left: 1px solid rgba(122, 162, 247, 0.25);
     border-right: 1px solid rgba(122, 162, 247, 0.25);
     background: rgba(10, 15, 30, 0.50);
@@ -145,14 +145,14 @@ window#waybar {
     background: rgba(20, 30, 60, 0.70);
 }
 
-/* Boutons de navigation (Précédent, Lecture/Pause, Suivant) */
+/* Boutons de navigation */
 #custom-spotify-prev,
 #custom-spotify-play-pause {
     padding: 0 6px;
     margin: 3px 0;
     color: #7aa2f7;
-    border-top: 1.5px solid rgba(0, 240, 255, 0.6);
-    border-bottom: 1.5px solid rgba(0, 240, 255, 0.6);
+    border-top: 1.5px solid rgba(0, 240, 255, 0.60);
+    border-bottom: 1.5px solid rgba(0, 240, 255, 0.60);
     border-left: none;
     border-right: none;
     background: rgba(10, 15, 30, 0.50);
@@ -163,7 +163,7 @@ window#waybar {
     padding: 0 12px 0 6px;
     margin: 3px 0;
     color: #7aa2f7;
-    border: 1.5px solid rgba(0, 240, 255, 0.6);
+    border: 1.5px solid rgba(0, 240, 255, 0.60);
     border-left: none;
     border-radius: 0 10px 10px 0;
     background: rgba(10, 15, 30, 0.50);
@@ -189,5 +189,3 @@ window#waybar {
     padding: 0;
     margin: 0;
 }
-
-

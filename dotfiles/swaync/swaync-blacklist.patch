@@ -13,7 +13,7 @@ index b5b2db8..2bf8399 100644
                  return true;
              });
  
-@@ -605,6 +605,110 @@ namespace SwayNotificationCenter {
+@@ -605,6 +605,120 @@ namespace SwayNotificationCenter {
              });
          }
  
@@ -86,6 +86,7 @@ index b5b2db8..2bf8399 100644
 +
 +        private void show_context_menu (Gdk.EventButton event) {
 +            remove_noti_timeout ();
++            bool closing_from_action = false;
 +            var popover = new Gtk.Popover (event_box);
 +            popover.get_style_context ().add_class ("swaync-context-popover");
 +            Gdk.Rectangle rect = { (int) event.x, (int) event.y, 1, 1 };
@@ -102,6 +103,7 @@ index b5b2db8..2bf8399 100644
 +            var btn_blacklist = new Gtk.Button.with_label ("🚫 Blacklister " + display);
 +            btn_blacklist.get_style_context ().add_class ("popover-btn-blacklist");
 +            btn_blacklist.clicked.connect (() => {
++                closing_from_action = true;
 +                popover.popdown ();
 +                blacklist_current_app ();
 +                this.close_notification ();
@@ -111,10 +113,18 @@ index b5b2db8..2bf8399 100644
 +            var btn_close = new Gtk.Button.with_label ("✕ Fermer");
 +            btn_close.get_style_context ().add_class ("popover-btn-close");
 +            btn_close.clicked.connect (() => {
++                closing_from_action = true;
 +                popover.popdown ();
 +                this.close_notification ();
 +            });
 +            box.add (btn_close);
++
++            popover.closed.connect (() => {
++                if (!closing_from_action) {
++                    add_notification_timeout ();
++                }
++                popover.destroy ();
++            });
 +
 +            popover.add (box);
 +            popover.show_all ();

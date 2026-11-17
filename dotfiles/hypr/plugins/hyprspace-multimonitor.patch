@@ -82,13 +82,14 @@ index 6c94986..22b5ee0 100644
  #include "Overview.hpp"
  #include "Globals.hpp"
  #include <hyprland/src/helpers/memory/Memory.hpp>
-@@ -219,47 +220,103 @@ void CHyprspaceWidget::draw() {
+@@ -219,47 +220,109 @@ void CHyprspaceWidget::draw() {
          workspaces.push_back(SPECIAL_WORKSPACE_START);
      }
  
 -    // find the lowest and highest workspace id to determine which empty workspaces to insert
 -    int lowestID = INT_MAX;
 -    int highestID = 1;
++    const bool isDP1 = (owner->m_name == "DP-1");
 +    auto isWorkspaceForThisMonitor = [&](int wsID) -> bool {
 +        if (wsID < 1) return false;
 +        const auto boundMon = Config::workspaceRuleMgr()->getBoundMonitorStringForWS(std::to_string(wsID));
@@ -99,15 +100,20 @@ index 6c94986..22b5ee0 100644
 +        if (pWs != nullptr) {
 +            return pWs->monitorID() == ownerID;
 +        }
-+        if (owner->m_name == "DP-1" || ownerID == 0) {
-+            return wsID >= 6 && wsID <= 10;
-+        } else {
-+            return wsID >= 1 && wsID <= 5;
++        if (wsID >= 90) {
++            return false;
 +        }
++        if (wsID > 10) {
++            return true;
++        }
++        if (isDP1) {
++            return wsID >= 6 && wsID <= 10;
++        }
++        return wsID >= 1 && wsID <= 5;
 +    };
 +
-+    // Determine base workspace ID for this monitor
-+    int baseID = (owner->m_name == "DP-1" || ownerID == 0) ? 6 : 1;
++    // Determine base workspace ID for this monitor (avoid ownerID == 0 forcing 6..10 in single-screen)
++    int baseID = isDP1 ? 6 : 1;
 +
 +    // 1. Gather all active / occupied workspaces for THIS monitor
      for (auto& ws : State::workspaceState()->workspaces()) {
