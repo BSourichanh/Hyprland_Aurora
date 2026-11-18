@@ -151,7 +151,7 @@
     "custom/spotify-prev": {
         "exec": "~/.config/waybar/scripts/spotify.py --prev",
         "return-type": "json",
-        "interval": 30,
+        "interval": "once",
         "signal": 11,
         "tooltip": false,
         "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py prev"
@@ -159,7 +159,7 @@
     "custom/spotify-play-pause": {
         "exec": "~/.config/waybar/scripts/spotify.py --play-pause",
         "return-type": "json",
-        "interval": 30,
+        "interval": "once",
         "signal": 11,
         "tooltip": false,
         "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py play-pause"
@@ -167,7 +167,7 @@
     "custom/spotify-next": {
         "exec": "~/.config/waybar/scripts/spotify.py --next",
         "return-type": "json",
-        "interval": 30,
+        "interval": "once",
         "signal": 11,
         "tooltip": false,
         "on-click": "python3 ~/.config/waybar/scripts/spotify_ipc.py next"

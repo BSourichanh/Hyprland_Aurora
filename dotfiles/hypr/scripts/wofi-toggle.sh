@@ -15,6 +15,15 @@ pkill -x "slurp" 2>/dev/null
 slurp -b '#00000000' -c '#00000000' -s '#00000000' >/dev/null 2>&1 &
 SLURP_PID=$!
 
+# Attendre le mapping effectif de la couche overlay 'selection' avant wofi (évite l'inversion Z-order)
+for _ in $(seq 1 20); do
+    kill -0 "$SLURP_PID" 2>/dev/null || break
+    if hyprctl layers 2>/dev/null | grep -q "namespace: selection"; then
+        break
+    fi
+    sleep 0.015
+done
+
 # 2. Lancer wofi au-dessus de l'overlay
 wofi --show drun &
 WOFI_PID=$!

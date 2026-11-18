@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Git Pre-commit Hook - Contrôles Qualité Automatisés Hyprland / Aurora
+# ==============================================================================
+# Contrôles effectués :
+# 1. Intégrité des hardlinks dotfiles <-> ~/.config (optionnel hors poste : AURORA_SKIP_HOST_LINKS=1)
+# 2. Plafond volumétrique sur l'index (< 500 lignes strict, alerte >= 400 lignes)
+# 3. Validation syntaxique sur le contenu indexé (python3 -B via /tmp, bash -n)
+# ==============================================================================
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT" || exit 1
+
+TMP_HOOK_DIR="$(mktemp -d /tmp/aurora_precommit_XXXXXX)"
+cleanup_tmp() {
+    rm -rf "$TMP_HOOK_DIR"
+}
+trap cleanup_tmp EXIT
+
+ERRORS=0
+
+echo "=== [Pre-commit] Lancement des vérifications qualité ==="
+
+# ------------------------------------------------------------------------------
+# 1. Audit des Hardlinks (optionnel si hors poste déployé)
+# ------------------------------------------------------------------------------
+echo "--- 1. Vérification des liens physiques (hardlinks) ---"
+if [ "${AURORA_SKIP_HOST_LINKS:-0}" = "1" ]; then
+    echo "ℹ AURORA_SKIP_HOST_LINKS=1 : audit des hardlinks hôte ignoré."
+elif [ ! -d "$HOME/.config/hypr" ] && [ ! -d "$HOME/.config/waybar" ]; then
+    echo "ℹ Poste sans déploiement ~/.config Aurora détecté : audit hardlinks ignoré."
+elif [ -f "tests/test_audit_hardlinks.py" ]; then
+    if ! PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_audit_hardlinks.py; then
+        echo "✗ ERREUR : Rupture ou anomalie détectée dans les hardlinks dotfiles !" >&2
+        ERRORS=$((ERRORS + 1))
+    fi
+else
+    echo "✗ ERREUR : tests/test_audit_hardlinks.py introuvable pour auditer les hardlinks." >&2
+    ERRORS=$((ERRORS + 1))
+fi
+
+# ------------------------------------------------------------------------------
+# 2 & 3. Contrôles volumétriques et syntaxiques du contenu indexé (git show)
+# ------------------------------------------------------------------------------
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+is_excluded_from_line_check() {
+    local f="$1"
+    case "$f" in
+        *.png|*.jpg|*.jpeg|*.webp|*.gif|*.ico|*.tex|*.o|*.so|*.a|*.pyc|*.lock|*.ttf|*.otf|*.woff|*.woff2|*.mp4|*.pdf)
+            return 0
+            ;;
+        src/aurora_wallpaper/aurora-wallpaper|src/aurora_wallpaper/stb_image.h|src/aurora_wallpaper/*-protocol.h|ressource/nautilus/nautilus_open_any_terminal.py)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+if [ -n "$STAGED_FILES" ]; then
+    echo "--- 2. Contrôle volumétrique de l'index (< 500 lignes strict) ---"
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        git cat-file -e ":$file" 2>/dev/null || continue
+
+        if is_excluded_from_line_check "$file"; then
+            continue
+        fi
+
+        # Ignorer tout autre blob binaire contenant des octets NUL
+        if git show ":$file" | LC_ALL=C grep -q $'\x00' 2>/dev/null; then
+            continue
+        fi
+
+        LINES=$(git show ":$file" | wc -l)
+        if [ "$LINES" -ge 500 ]; then
+            echo "✗ ERREUR : Le fichier indexé '$file' compte $LINES lignes (plafond strict < 500 dépassé)." >&2
+            ERRORS=$((ERRORS + 1))
+        elif [ "$LINES" -ge 400 ]; then
+            echo "⚠ ATTENTION : Le fichier indexé '$file' compte $LINES lignes (seuil >= 400 atteint)." >&2
+        fi
+    done <<< "$STAGED_FILES"
+
+    echo "--- 3. Validation syntaxique du contenu indexé ---"
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        git cat-file -e ":$file" 2>/dev/null || continue
+
+        if [[ "$file" =~ \.py$ ]]; then
+            staged_copy="$TMP_HOOK_DIR/$(basename "$file")"
+            git show ":$file" > "$staged_copy"
+            if ! PYTHONDONTWRITEBYTECODE=1 python3 -B -c "import py_compile, sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)" "$staged_copy" "$TMP_HOOK_DIR/out.pyc" 2>&1; then
+                echo "✗ ERREUR syntaxique Python dans '$file' (contenu indexé)." >&2
+                ERRORS=$((ERRORS + 1))
+            fi
+        elif [[ "$file" =~ \.sh$ ]] || [ "$file" = "scripts/hyprbar" ] || [ "$file" = "hooks/pre-commit" ]; then
+            if ! git show ":$file" | bash -n 2>&1; then
+                echo "✗ ERREUR syntaxique Bash dans '$file' (contenu indexé)." >&2
+                ERRORS=$((ERRORS + 1))
+            fi
+        fi
+    done <<< "$STAGED_FILES"
+else
+    echo "ℹ Aucun fichier indexé (staged) : vérifications volumétrique et syntaxique ignorées."
+fi
+
+if [ "$ERRORS" -gt 0 ]; then
+    echo "==========================================================" >&2
+    echo "✗ COMMIT BLOQUÉ : $ERRORS erreur(s) détectée(s)." >&2
+    echo "==========================================================" >&2
+    exit 1
+fi
+
+echo "✓ Toutes les vérifications de pré-commit ont réussi."
+exit 0

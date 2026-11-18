@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
 """
 Hover Monitor, Cover Art Cache & CSS Theme for Spotify Card.
-Handles adaptive cursor coordinate tracking, background cover fetching,
-and Aurora glassmorphism stylesheet definition.
-
-Design Patterns:
-- Observer / Poller: HoverMonitorThread adapts sampling rate based on cursor proximity.
-- Service: CoverArtManager manages image resizing, rounded masking, and disk caching.
+Handles adaptive cursor tracking across dynamic monitor geometries, lock checks,
+safe bounded cover caching, and Aurora glassmorphism stylesheet definition.
 """
 
 import hashlib
 import os
+from pathlib import Path
+import shutil
+import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
-from typing import Callable, Optional
+from typing import Callable
 
 import gi
-gi.require_version('Gtk', '3.0')
+gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 from PIL import Image, ImageDraw
 
-CACHE_DIR = "/tmp/spotify_card_cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
+SCRIPT_DIR = Path(__file__).resolve().parent
+HYPR_SCRIPTS_DIR = SCRIPT_DIR.parent.parent / "hypr" / "scripts"
+for p in (SCRIPT_DIR, HYPR_SCRIPTS_DIR):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
+from hypr_ipc import get_aurora_runtime_dir, is_session_locked
+
+CACHE_DIR = str(get_aurora_runtime_dir() / "spotify_covers")
+os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
+MAX_CACHE_FILES = 64
+MAX_COVER_BYTES = 10 * 1024 * 1024
 
 AURORA_CARD_CSS = b"""
 window {
@@ -81,6 +91,7 @@ class CoverArtManager:
         self.cache_dir = cache_dir
         self.size = size
         self.radius = radius
+        os.makedirs(self.cache_dir, mode=0o700, exist_ok=True)
         self.placeholder_path = os.path.join(cache_dir, "placeholder.png")
         self._ensure_placeholder()
 
@@ -91,6 +102,24 @@ class CoverArtManager:
             draw.rounded_rectangle([(0, 0), (self.size, self.size)], self.radius, fill=(20, 25, 45, 255))
             img.save(self.placeholder_path)
 
+    def _prune_cache(self):
+        try:
+            entries = [
+                os.path.join(self.cache_dir, f)
+                for f in os.listdir(self.cache_dir)
+                if f.endswith(".png") and f != "placeholder.png"
+            ]
+            if len(entries) <= MAX_CACHE_FILES:
+                return
+            entries.sort(key=lambda p: os.path.getmtime(p))
+            for victim in entries[: len(entries) - MAX_CACHE_FILES]:
+                try:
+                    os.remove(victim)
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
     def set_placeholder(self, gtk_image: Gtk.Image):
         gtk_image.set_from_file(self.placeholder_path)
 
@@ -99,23 +128,44 @@ class CoverArtManager:
             on_loaded(self.placeholder_path)
             return
 
-        h = hashlib.md5(url.encode()).hexdigest()
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https", "file"):
+            on_loaded(self.placeholder_path)
+            return
+
+        h = hashlib.md5(url.encode("utf-8")).hexdigest()
         cache_path = os.path.join(self.cache_dir, f"{h}.png")
         if os.path.exists(cache_path):
             on_loaded(cache_path)
             return
 
         def fetch():
-            raw_path = os.path.join(self.cache_dir, f"{h}_raw.jpg")
+            raw_path = os.path.join(self.cache_dir, f"{h}_raw.img")
             try:
-                urllib.request.urlretrieve(url, raw_path)
-                im = Image.open(raw_path).resize((self.size, self.size), Image.Resampling.LANCZOS)
+                if parsed.scheme == "file":
+                    local_path = urllib.request.url2pathname(parsed.path)
+                    shutil.copyfile(local_path, raw_path)
+                else:
+                    req = urllib.request.Request(url, headers={"User-Agent": "AuroraSpotifyCard/1.0"})
+                    with urllib.request.urlopen(req, timeout=5.0) as resp, open(raw_path, "wb") as out:
+                        total = 0
+                        while True:
+                            chunk = resp.read(65536)
+                            if not chunk:
+                                break
+                            total += len(chunk)
+                            if total > MAX_COVER_BYTES:
+                                raise ValueError("Cover image exceeds size limit")
+                            out.write(chunk)
+
+                with Image.open(raw_path) as opened:
+                    im = opened.resize((self.size, self.size), Image.Resampling.LANCZOS).convert("RGBA")
                 mask = Image.new("L", (self.size, self.size), 0)
                 draw = ImageDraw.Draw(mask)
                 draw.rounded_rectangle([(0, 0), (self.size, self.size)], self.radius, fill=255)
-                im_rounded = im.convert("RGBA")
-                im_rounded.putalpha(mask)
-                im_rounded.save(cache_path)
+                im.putalpha(mask)
+                im.save(cache_path)
+                self._prune_cache()
                 GLib.idle_add(on_loaded, cache_path)
             except Exception:
                 pass
@@ -129,8 +179,21 @@ class CoverArtManager:
         threading.Thread(target=fetch, daemon=True).start()
 
 
+def compute_hover_zones(mon_rect: tuple) -> tuple:
+    """Computes (bar_zone, card_zone, target_origin) dynamically from monitor rect (mx, my, mw, mh)."""
+    mx, my, mw, _ = mon_rect
+    bar_x1 = mx + int(round(mw * 0.328))
+    bar_x2 = mx + int(round(mw * 0.464))
+    card_w = 465
+    target_x = mx + max(10, min(mw - card_w - 10, int(round(mw * 0.3125))))
+    target_y = my + 44
+    bar_zone = (bar_x1, bar_x2, my, target_y)
+    card_zone = (target_x - 20, target_x + 380, my, my + 210)
+    return bar_zone, card_zone, (target_x, target_y)
+
+
 class HoverMonitorThread(threading.Thread):
-    """Monitors cursor coordinates with adaptive tick rates to optimize CPU usage."""
+    """Monitors cursor coordinates without touching D-Bus from the worker thread."""
 
     def __init__(self, window, hypr):
         super().__init__(daemon=True)
@@ -142,7 +205,13 @@ class HoverMonitorThread(threading.Thread):
         while True:
             sleep_duration = 0.08
             try:
-                if not self.window.is_card_visible and not self.window.player.is_running():
+                if is_session_locked():
+                    if self.window.is_card_visible:
+                        GLib.idle_add(self.window.hide_card)
+                    time.sleep(0.5)
+                    continue
+
+                if not self.window.is_card_visible and not self.window.is_player_active:
                     time.sleep(1.0)
                     continue
 
@@ -153,32 +222,32 @@ class HoverMonitorThread(threading.Thread):
 
                 x, y = self.hypr.get_cursor_position()
                 if x is not None and y is not None:
-                    if self.window.is_card_visible or y <= 80:
+                    mon_rect = self.hypr.get_monitor_rect_at(x, y)
+                    mx, my, _, _ = mon_rect
+                    bar_zone, card_zone, (target_x, target_y) = compute_hover_zones(mon_rect)
+
+                    rel_y = y - my
+                    if self.window.is_card_visible or rel_y <= 80:
                         sleep_duration = 0.05
-                    elif y > 200:
+                    elif rel_y > 200:
                         sleep_duration = 0.12
 
-                    in_bar_dp2 = (630 <= x <= 890) and (0 <= y <= 44)
-                    in_bar_dp1 = (2550 <= x <= 2810) and (0 <= y <= 44)
-                    in_card_dp2 = (580 <= x <= 980) and (0 <= y <= 210)
-                    in_card_dp1 = (2500 <= x <= 2900) and (0 <= y <= 210)
-
+                    in_bar = (bar_zone[0] <= x <= bar_zone[1]) and (bar_zone[2] <= y <= bar_zone[3])
                     if not self.window.is_card_visible:
-                        if in_bar_dp2:
-                            GLib.idle_add(self.window.show_at, 600, 44)
-                        elif in_bar_dp1:
-                            GLib.idle_add(self.window.show_at, 2520, 44)
+                        if in_bar:
+                            GLib.idle_add(self.window.show_at, target_x, target_y)
                     else:
-                        in_zone = (
-                            (self.window.active_monitor == 0 and in_card_dp2) or
-                            (self.window.active_monitor == 1 and in_card_dp1)
+                        active_rect = self.window.active_monitor_rect or mon_rect
+                        _, active_card_zone, _ = compute_hover_zones(active_rect)
+                        in_card = (
+                            active_card_zone[0] <= x <= active_card_zone[1]
+                            and active_card_zone[2] <= y <= active_card_zone[3]
                         )
-                        if in_zone:
+                        if in_card:
                             if self.window.hide_timer:
                                 GLib.idle_add(self.window.cancel_hide_timer)
-                        else:
-                            if not self.window.hide_timer:
-                                GLib.idle_add(self.window.schedule_hide_check)
+                        elif not self.window.hide_timer:
+                            GLib.idle_add(self.window.schedule_hide_check)
             except Exception:
                 sleep_duration = 0.5
             time.sleep(sleep_duration)

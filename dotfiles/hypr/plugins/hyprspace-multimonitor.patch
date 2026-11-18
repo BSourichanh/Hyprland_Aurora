@@ -1,230 +1,345 @@
 diff --git a/src/Input.cpp b/src/Input.cpp
-index 6e3383f..b06f395 100644
+index f4060a4..c8a8a6c 100644
 --- a/src/Input.cpp
 +++ b/src/Input.cpp
-@@ -68,7 +68,7 @@ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
-             targetWindow->finishAnimation();
+@@ -9,6 +9,9 @@
+ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
+     bool Return;
+ 
++    const auto owner = getOwner();
++    if (!owner) return false;
++
+     const auto dragTarget = g_layoutManager->dragController()->target();
+     const auto targetWindow = dragTarget ? dragTarget->window() : nullptr;
+ 
+@@ -35,9 +38,9 @@ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
+     PHLWORKSPACE targetWorkspace = nullptr;
+     if (hovered) {
+         if (hovered->special)
+-            targetWorkspace = ensureDefaultSpecialWorkspace(getOwner());
++            targetWorkspace = ensureDefaultSpecialWorkspace(owner);
+         else
+-            targetWorkspace = ensureNumberedWorkspace(hovered->numbered, getOwner());
++            targetWorkspace = ensureNumberedWorkspace(hovered->numbered, owner);
+     }
+ 
+     // if the cursor is hovering over workspace, clicking should switch workspace instead of starting window drag
+@@ -60,11 +63,12 @@ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
+     if (targetWindow && targetWorkspace != nullptr && !pressed) {
+         Desktop::globalWindowController()->moveWindowToWorkspace(targetWindow, targetWorkspace);
+         if (targetWindow->isFloating()) {
+-            auto targetPos = getOwner()->m_position + (getOwner()->m_size / 2.) - (targetWindow->backend().reportedSize() / 2.);
++            auto targetPos = owner->m_position + (owner->m_size / 2.) - (targetWindow->backend().reportedSize() / 2.);
+             targetWindow->move(targetPos);
++            targetWindow->finishAnimation();
          }
-         if (Config::switchOnDrop) {
--            const auto pDropMonitor = State::monitorState()->query().id(targetWorkspace->m_monitor->m_id).run();
-+            const auto pDropMonitor = State::monitorState()->query().id(targetWorkspace->monitorID()).run();
-             if (pDropMonitor) pDropMonitor->changeWorkspace(targetWorkspace->m_id);
-             if (Config::exitOnSwitch && active) hide();
+         if (config.switchOnDrop->value()) {
+-            if (auto monitor = State::monitorState()->query().id(targetWorkspace->m_monitor->m_id).run())
++            if (auto monitor = State::monitorState()->query().id(targetWorkspace->monitorID()).run())
+                 monitor->changeWorkspace(targetWorkspace);
+             if (config.exitOnSwitch->value() && active) hide();
          }
-@@ -79,7 +79,7 @@ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
-         if (targetWorkspace->m_isSpecialWorkspace)
-             owner->activeSpecialWorkspaceID() == targetWorkspaceID ? owner->setSpecialWorkspace(nullptr) : owner->setSpecialWorkspace(targetWorkspaceID);
-         else {
--            const auto pDropMonitor = State::monitorState()->query().id(targetWorkspace->m_monitor->m_id).run();
-+            const auto pDropMonitor = State::monitorState()->query().id(targetWorkspace->monitorID()).run();
-             if (pDropMonitor) pDropMonitor->changeWorkspace(targetWorkspace->m_id);
+@@ -72,14 +76,13 @@ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
+     }
+     // click workspace to change to workspace and exit overview
+     else if (targetWorkspace && !pressed) {
+-        auto owner = getOwner();
+         if (targetWorkspace->type() == Workspace::eWorkspaceType::SPECIAL) {
+             if (owner->m_activeSpecialWorkspace == targetWorkspace)
+                 owner->setSpecialWorkspace(nullptr);
+             else
+                 owner->setSpecialWorkspace(targetWorkspace);
          }
-         if (Config::exitOnSwitch && active) hide();
+-        else if (auto monitor = State::monitorState()->query().id(targetWorkspace->m_monitor->m_id).run())
++        else if (auto monitor = State::monitorState()->query().id(targetWorkspace->monitorID()).run())
+             monitor->changeWorkspace(targetWorkspace);
+         if (config.exitOnSwitch->value() && active) hide();
+     }
+@@ -92,19 +95,20 @@ bool CHyprspaceWidget::buttonEvent(bool pressed, Vector2D coords) {
+ bool CHyprspaceWidget::axisEvent(double delta, wl_pointer_axis axis, Vector2D coords) {
+ 
+     const auto owner = getOwner();
++    if (!owner) return false;
+     CBox widgetBox = {owner->m_position.x, owner->m_position.y - curYOffset->value(), owner->m_transformedSize.x, (config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale};
+     if (config.onBottom->value()) widgetBox = {owner->m_position.x, owner->m_position.y + owner->m_transformedSize.y - ((config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale) + curYOffset->value(), owner->m_transformedSize.x, (config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale};
+ 
+     // scroll through panel if cursor is on it
+-    if (widgetBox.containsPoint(coords * getOwner()->m_scale)) {
++    if (widgetBox.containsPoint(coords * owner->m_scale)) {
+         // only horizontal scroll pans the panel; ignore vertical scroll here
+         if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
+             *workspaceScrollOffset = workspaceScrollOffset->goal() - delta * 2;
+     }
+     // otherwise, scroll to switch active workspace (vertical scroll only)
+     else if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+-        if (auto next = relativeNumberedWorkspace(getOwner(), delta < 0 ? -1 : 1))
+-            getOwner()->changeWorkspace(next);
++        if (auto next = relativeNumberedWorkspace(owner, delta < 0 ? -1 : 1))
++            owner->changeWorkspace(next);
+     }
+ 
+     return false;
+@@ -124,22 +128,28 @@ bool CHyprspaceWidget::beginSwipe(IPointer::SSwipeBeginEvent e) {
+ 
+ bool CHyprspaceWidget::updateSwipe(IPointer::SSwipeUpdateEvent e) {
+     constexpr int fingers = 3;
+-    const auto distance = HyprConfig::getWorkspaceSwipeDistance().value();
++    const auto distance = HyprConfig::getWorkspaceSwipeDistance().value_or(300);
+ 
+     // restrict swipe to a axis with the most significant movement to prevent misinput
+     if (abs(e.delta.x) / abs(e.delta.y) < 1) {
+         if (swiping && e.fingers == (uint32_t)fingers) {
+ 
+-            float currentScaling = State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run()->m_size.x / distance;
++            const auto pSwipeMonitor = State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run();
++            if (!pSwipeMonitor) return false;
++
++            const auto owner = getOwner();
++            if (!owner) return false;
++
++            float currentScaling = pSwipeMonitor->m_size.x / distance;
+ 
+             double scrollDifferential = e.delta.y * (config.reverseSwipe->value() ? -1 : 1) * (config.onBottom->value() ? -1 : 1) * currentScaling;
+ 
+             curSwipeOffset += scrollDifferential;
+-            curSwipeOffset = std::clamp<double>(curSwipeOffset, -10, ((config.panelHeight->value() + config.reservedArea->value()) * getOwner()->m_scale));
++            curSwipeOffset = std::clamp<double>(curSwipeOffset, -10, ((config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale));
+ 
+             avgSwipeSpeed = (avgSwipeSpeed * swipePoints + scrollDifferential) / (swipePoints + 1);
+ 
+-            curYOffset->setValueAndWarp(((config.panelHeight->value() + config.reservedArea->value()) * getOwner()->m_scale) - curSwipeOffset);
++            curYOffset->setValueAndWarp(((config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale) - curSwipeOffset);
+ 
+             if (curSwipeOffset < 10 && active) hide();
+             else if (curSwipeOffset > 10 && !active) show();
+@@ -151,9 +161,10 @@ bool CHyprspaceWidget::updateSwipe(IPointer::SSwipeUpdateEvent e) {
+         // scroll through panel
+         if (e.fingers == (uint32_t)fingers && active) {
+             const auto owner = getOwner();
++            if (!owner) return true;
+             CBox widgetBox = {owner->m_position.x, owner->m_position.y - curYOffset->value(), owner->m_transformedSize.x, (config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale};
+             if (config.onBottom->value()) widgetBox = {owner->m_position.x, owner->m_position.y + owner->m_transformedSize.y - ((config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale) + curYOffset->value(), owner->m_transformedSize.x, (config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale};
+-            if (widgetBox.containsPoint(g_pInputManager->getMouseCoordsInternal() * getOwner()->m_scale)) {
++            if (widgetBox.containsPoint(g_pInputManager->getMouseCoordsInternal() * owner->m_scale)) {
+                 workspaceScrollOffset->setValueAndWarp(workspaceScrollOffset->goal() + e.delta.x * 2);
+                 return false;
+             }
+@@ -171,10 +182,10 @@ bool CHyprspaceWidget::endSwipe(IPointer::SSwipeEndEvent e) {
+         if (active) hide();
+         curSwipeOffset = -10.;
+     }
+-    else {
+-        const auto swipeForceSpeed = HyprConfig::getWorkspaceSwipeMinSpeedToForce().value();
+-        const auto cancelRatio = HyprConfig::getWorkspaceSwipeCancelRatio().value();
+-        double swipeTravel = (config.panelHeight->value() + config.reservedArea->value()) * getOwner()->m_scale;
++    else if (const auto owner = getOwner(); owner) {
++        const auto swipeForceSpeed = HyprConfig::getWorkspaceSwipeMinSpeedToForce().value_or(30);
++        const auto cancelRatio = HyprConfig::getWorkspaceSwipeCancelRatio().value_or(0.5f);
++        double swipeTravel = (config.panelHeight->value() + config.reservedArea->value()) * owner->m_scale;
+         if (activeBeforeSwipe) {
+             if ((curSwipeOffset < swipeTravel * cancelRatio) || avgSwipeSpeed < -swipeForceSpeed) {
+                 if (active) hide();
 diff --git a/src/Layout.cpp b/src/Layout.cpp
-index 029b763..80a628e 100644
+index 17808dc..250ac9f 100644
 --- a/src/Layout.cpp
 +++ b/src/Layout.cpp
-@@ -45,11 +45,11 @@ void CHyprspaceWidget::updateLayout() {
-         if (!oActiveWorkspace) return;
+@@ -56,14 +56,14 @@ void CHyprspaceWidget::updateLayout() {
+         const auto oActiveID = oActiveWorkspace->numberedID();
  
          for (auto& ws : State::workspaceState()->workspaces()) { // HACK: recalculate other workspaces without reserved area
--            if (ws && ws->m_monitor && ws->m_monitor->m_id == ownerID && ws->m_id != oActiveWorkspace->m_id) {
-+            if (ws && ws->monitorID() == ownerID && ws->m_id != oActiveWorkspace->m_id) {
-                 pMonitor->m_activeWorkspace = ws.lock();
-                 const auto curRules = std::to_string(pMonitor->activeWorkspaceID()) + ", gapsin:" + PGAPSIN->toString() + ", gapsout:" + PGAPSOUT->toString();
-                 if (Config::overrideGaps) {
--                    if (const auto legacy = Config::Legacy::mgr().lock())
-+                    if (const auto legacy = Config::Legacy::mgr().get())
-                         legacy->handleWorkspaceRules("", curRules);
-                 }
-                 g_layoutManager->recalculateMonitor(pMonitor);
-@@ -59,7 +59,7 @@ void CHyprspaceWidget::updateLayout() {
- 
-         const auto curRules = std::to_string(pMonitor->activeWorkspaceID()) + ", gapsin:" + std::to_string(Config::gapsIn) + ", gapsout:" + std::to_string(Config::gapsOut);
-         if (Config::overrideGaps) {
--            if (const auto legacy = Config::Legacy::mgr().lock())
-+            if (const auto legacy = Config::Legacy::mgr().get())
-                 legacy->handleWorkspaceRules("", curRules);
+-            const auto wsID = ws && ws->numberedID() ? ws->numberedID() : std::nullopt;
+-            if (ws && wsID && ws->m_monitor && ws->m_monitor->m_id == ownerID && (!oActiveID || *wsID != *oActiveID)) {
+-                pMonitor->m_activeWorkspace = ws.lock();
+-                if (config.overrideGaps->value()) {
+-                    applyGapsRule(*wsID, *PGAPSIN, *PGAPSOUT);
+-                }
+-                g_layoutManager->recalculateMonitor(pMonitor);
++            if (!ws || ws->monitorID() != ownerID) continue;
++            const auto wsID = ws->numberedID();
++            if (!wsID || (oActiveID && *wsID == *oActiveID)) continue;
++            pMonitor->m_activeWorkspace = ws.lock();
++            if (config.overrideGaps->value()) {
++                applyGapsRule(*wsID, *PGAPSIN, *PGAPSOUT);
+             }
++            g_layoutManager->recalculateMonitor(pMonitor);
          }
-         g_layoutManager->recalculateMonitor(pMonitor);
-@@ -67,10 +67,10 @@ void CHyprspaceWidget::updateLayout() {
+         pMonitor->m_activeWorkspace = oActiveWorkspace;
+ 
+@@ -75,11 +75,10 @@ void CHyprspaceWidget::updateLayout() {
      }
      else {
          for (auto& ws : State::workspaceState()->workspaces()) {
--            if (ws && ws->m_monitor && ws->m_monitor->m_id == ownerID) {
-+            if (ws && ws->monitorID() == ownerID) {
-                 const auto curRules = std::to_string(ws->m_id) + ", gapsin:" + PGAPSIN->toString() + ", gapsout:" + PGAPSOUT->toString();
-                 if (Config::overrideGaps) {
--                    if (const auto legacy = Config::Legacy::mgr().lock())
-+                    if (const auto legacy = Config::Legacy::mgr().get())
-                         legacy->handleWorkspaceRules("", curRules);
-                 }
+-            const auto wsID = ws && ws->numberedID() ? ws->numberedID() : std::nullopt;
+-            if (wsID && ws->m_monitor && ws->m_monitor->m_id == ownerID) {
+-                if (config.overrideGaps->value()) {
+-                    applyGapsRule(*wsID, *PGAPSIN, *PGAPSOUT);
+-                }
++            if (!ws || ws->monitorID() != ownerID) continue;
++            const auto wsID = ws->numberedID();
++            if (wsID && config.overrideGaps->value()) {
++                applyGapsRule(*wsID, *PGAPSIN, *PGAPSOUT);
              }
+         }
+         g_layoutManager->recalculateMonitor(pMonitor);
 diff --git a/src/Overview.cpp b/src/Overview.cpp
-index 24148c2..b833345 100644
+index 6872b06..1d5385d 100644
 --- a/src/Overview.cpp
 +++ b/src/Overview.cpp
-@@ -40,7 +40,7 @@ void CHyprspaceWidget::show() {
-         // NOTE: workspace-level fullscreen tracking (m_fullscreenMode/getFullscreenWindow on CWorkspace)
-         // was removed and centralized into Fullscreen::controller(); query per-workspace/per-window instead.
-         for (auto& ws : State::workspaceState()->workspaces()) {
+@@ -38,13 +38,14 @@ void CHyprspaceWidget::show() {
+         // unfullscreen all windows
+         for (auto& w_ws : State::workspaceState()->workspaces()) {
+             const auto ws = w_ws.lock();
 -            if (ws && ws->m_monitor && ws->m_monitor->m_id == ownerID) {
 +            if (ws && ws->monitorID() == ownerID) {
-                 const auto w = Fullscreen::controller()->getFullscreenWindow(ws.lock());
-                 if (w != nullptr && Fullscreen::controller()->hasFullscreen(ws.lock())) {
-                     const auto oMode = Fullscreen::controller()->getFullscreenModes(w).internal;
+                 const auto w = Fullscreen::controller()->getFullscreenWindow(ws);
+                 if (w != nullptr && Fullscreen::controller()->getFullscreenModes(w).internal != Fullscreen::FSMODE_NONE) {
+                     // Drop only the compositor's internal mode. FULLSCREEN_MUTATION_TRANSFER
+                     // leaves the client's own fullscreen state alone, so youtube can restore.
+                     prevFullscreen.emplace_back(std::make_tuple(PHLWINDOWREF(w), Fullscreen::controller()->getFullscreenModes(w).internal));
+                     Fullscreen::controller()->setFullscreenMode(w, Fullscreen::FSMODE_NONE, std::nullopt, std::nullopt, Fullscreen::FULLSCREEN_MUTATION_TRANSFER);
++                    w->finishAnimation();
+                 }
+             }
+         }
+@@ -109,6 +110,7 @@ void CHyprspaceWidget::hide() {
+         if (!w) continue;
+         const auto oFullscreenMode = std::get<1>(fs);
+         Fullscreen::controller()->setFullscreenMode(w, oFullscreenMode, std::nullopt, std::nullopt, Fullscreen::FULLSCREEN_MUTATION_TRANSFER);
++        w->finishAnimation();
+     }
+     prevFullscreen.clear();
+ 
 diff --git a/src/Render.cpp b/src/Render.cpp
-index 6c94986..22b5ee0 100644
+index 24a309d..4f9c945 100644
 --- a/src/Render.cpp
 +++ b/src/Render.cpp
 @@ -1,3 +1,4 @@
 +#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
  #include "Overview.hpp"
  #include "Globals.hpp"
- #include <hyprland/src/helpers/memory/Memory.hpp>
-@@ -219,47 +220,103 @@ void CHyprspaceWidget::draw() {
-         workspaces.push_back(SPECIAL_WORKSPACE_START);
-     }
+ #include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+@@ -231,42 +232,82 @@ void CHyprspaceWidget::draw(Render::CRenderContext& ctx) {
+     if (config.showSpecialWorkspace->value())
+         workspaces.push_back({.special = true});
  
--    // find the lowest and highest workspace id to determine which empty workspaces to insert
+-    // find the lowest and highest numbered id to determine which empty workspaces to insert
 -    int lowestID = INT_MAX;
 -    int highestID = 1;
-+    auto isWorkspaceForThisMonitor = [&](int wsID) -> bool {
-+        if (wsID < 1) return false;
-+        const auto boundMon = Config::workspaceRuleMgr()->getBoundMonitorStringForWS(std::to_string(wsID));
-+        if (!boundMon.empty()) {
-+            return boundMon == owner->m_name;
-+        }
-+        const auto pWs = State::workspaceState()->query().id(wsID).run();
-+        if (pWs != nullptr) {
-+            return pWs->monitorID() == ownerID;
-+        }
-+        if (owner->m_name == "DP-1" || ownerID == 0) {
-+            return wsID >= 6 && wsID <= 10;
-+        } else {
-+            return wsID >= 1 && wsID <= 5;
-+        }
++    const bool isDP1 = (owner->m_name == "DP-1");
++    auto isWorkspaceForThisMonitor = [&](Workspace::WorkspaceIDContainer wsID) -> bool {
++        if (wsID < 1 || wsID >= 90) return false;
++        auto boundMon = Config::workspaceRuleMgr()->getBoundMonitorStringForWS(
++            Workspace::SWorkspaceNumberedID{wsID}, Workspace::eWorkspaceType::NORMAL, std::to_string(wsID));
++        if (boundMon.empty())
++            boundMon = Config::workspaceRuleMgr()->getBoundMonitorStringForWS(std::to_string(wsID));
++        if (!boundMon.empty()) return boundMon == owner->m_name;
++        if (const auto pWs = findNumberedWorkspace(wsID); pWs != nullptr) return pWs->monitorID() == ownerID;
++        if (wsID > 10) return true;
++        if (isDP1) return wsID >= 6 && wsID <= 10;
++        return wsID >= 1 && wsID <= 5;
 +    };
-+
-+    // Determine base workspace ID for this monitor
-+    int baseID = (owner->m_name == "DP-1" || ownerID == 0) ? 6 : 1;
-+
-+    // 1. Gather all active / occupied workspaces for THIS monitor
++    const Workspace::WorkspaceIDContainer baseID = isDP1 ? 6 : 1;
++    std::vector<Workspace::WorkspaceIDContainer> numberedIDs;
      for (auto& ws : State::workspaceState()->workspaces()) {
-         if (!ws) continue;
--        // normal workspaces start from 1, special workspaces ends on -2
-         if (ws->m_id < 1) continue;
--        if (ws->m_monitor->m_id == ownerID) {
--            workspaces.push_back(ws->m_id);
--            if (highestID < ws->m_id) highestID = ws->m_id;
--            if (lowestID > ws->m_id) lowestID = ws->m_id;
-+        if (isWorkspaceForThisMonitor(ws->m_id)) {
-+            // Only show workspaces with windows, or the currently active workspace of this monitor
-+            if (ws->getWindowCount() > 0 || ws == owner->m_activeWorkspace) {
-+                workspaces.push_back(ws->m_id);
-+            }
-         }
+-        if (!ws || !ws->m_monitor || ws->m_monitor->m_id != ownerID)
+-            continue;
++        if (!ws) continue;
+         const auto id = ws->numberedID();
+-        if (!id || *id < 1)
+-            continue;
+-        workspaces.push_back({.special = false, .numbered = *id});
+-        if (highestID < static_cast<int>(*id)) highestID = static_cast<int>(*id);
+-        if (lowestID > static_cast<int>(*id)) lowestID = static_cast<int>(*id);
++        if (!id || *id < 1) continue;
++        if (isWorkspaceForThisMonitor(*id) && (ws->getWindowCount() > 0 || ws == owner->m_activeWorkspace)) numberedIDs.push_back(*id);
++    }
++    if (const auto activeID = owner->m_activeWorkspace ? owner->m_activeWorkspace->numberedID() : std::nullopt;
++        activeID && *activeID >= 1 && isWorkspaceForThisMonitor(*activeID) &&
++        std::find(numberedIDs.begin(), numberedIDs.end(), *activeID) == numberedIDs.end())
++        numberedIDs.push_back(*activeID);
++    if (numberedIDs.empty()) {
++        numberedIDs.push_back(baseID);
      }
  
 -    // include empty workspaces that are between non-empty ones
--    if (Config::showEmptyWorkspace) {
+-    if (config.showEmptyWorkspace->value()) {
 -        int wsIDStart = 1;
 -        int wsIDEnd = highestID;
-+    // Ensure the current active workspace is included if it belongs to this monitor
-+    if (owner->m_activeWorkspace && isWorkspaceForThisMonitor(owner->m_activeWorkspace->m_id)) {
-+        if (std::find(workspaces.begin(), workspaces.end(), owner->m_activeWorkspace->m_id) == workspaces.end()) {
-+            workspaces.push_back(owner->m_activeWorkspace->m_id);
++    bool hasEmptyWorkspace = false;
++    for (auto wsID : numberedIDs) {
++        const auto pWs = findNumberedWorkspace(wsID);
++        if (pWs == nullptr || pWs->getWindowCount() == 0) {
++            hasEmptyWorkspace = true;
++            break;
 +        }
-+    }
-+
-+    if (workspaces.empty()) {
-+        workspaces.push_back(baseID);
 +    }
  
 -        // hyprsplit/split-monitor-workspaces compatibility
 -        if (numWorkspaces > 0) {
 -            wsIDStart = std::min<int>(numWorkspaces * ownerID + 1, lowestID);
 -            wsIDEnd = std::max<int>(numWorkspaces * ownerID + 1, highestID); // always show the initial workspace for current monitor
-+    // 2. Add exactly ONE empty workspace at the end (active + 1 empty for new workspace)
-+    bool hasEmptyWorkspace = false;
-+    for (int wsID : workspaces) {
-+        const auto pWs = State::workspaceState()->query().id(wsID).run();
-+        if (pWs == nullptr || pWs->getWindowCount() == 0) {
-+            hasEmptyWorkspace = true;
-+            break;
-         }
-+    }
- 
--        for (int i = wsIDStart; i <= wsIDEnd; i++) {
--            if (i == owner->activeSpecialWorkspaceID()) continue;
--            const auto pWorkspace = State::workspaceState()->query().id(i).run();
--            if (pWorkspace == nullptr)
--                workspaces.push_back(i);
-+    if (Config::showNewWorkspace && !hasEmptyWorkspace) {
-+        int maxOccupied = baseID;
-+        for (int id : workspaces) {
-+            if (id > maxOccupied) maxOccupied = id;
-+        }
-+        int candidate = maxOccupied + 1;
++    if (config.showNewWorkspace->value() && !hasEmptyWorkspace) {
++        Workspace::WorkspaceIDContainer maxOccupied = baseID;
++        for (auto id : numberedIDs) if (id > maxOccupied) maxOccupied = id;
++        Workspace::WorkspaceIDContainer candidate = maxOccupied + 1;
 +        bool added = false;
-+        for (int offset = 0; offset < 20; offset++) {
-+            int testId = candidate + offset;
++        for (Workspace::WorkspaceIDContainer offset = 0; offset < 20; offset++) {
++            Workspace::WorkspaceIDContainer testId = candidate + offset;
 +            if (isWorkspaceForThisMonitor(testId)) {
-+                if (std::find(workspaces.begin(), workspaces.end(), testId) == workspaces.end()) {
-+                    workspaces.push_back(testId);
++                if (std::find(numberedIDs.begin(), numberedIDs.end(), testId) == numberedIDs.end()) {
++                    numberedIDs.push_back(testId);
 +                    added = true;
 +                    break;
 +                }
 +            }
 +        }
 +        if (!added) {
-+            for (int testId = baseID; testId < baseID + 10; testId++) {
++            for (Workspace::WorkspaceIDContainer testId = baseID; testId < baseID + 10; testId++) {
 +                if (isWorkspaceForThisMonitor(testId)) {
-+                    if (std::find(workspaces.begin(), workspaces.end(), testId) == workspaces.end()) {
-+                        workspaces.push_back(testId);
++                    if (std::find(numberedIDs.begin(), numberedIDs.end(), testId) == numberedIDs.end()) {
++                        numberedIDs.push_back(testId);
 +                        break;
 +                    }
 +                }
 +            }
          }
-     }
++    }
  
--    // add a new empty workspace at last
--    if (Config::showNewWorkspace) {
--        // get the lowest empty workspce id after the highest id of current workspace
--        while (State::workspaceState()->query().id(highestID).run() != nullptr) highestID++;
--        workspaces.push_back(highestID);
-+    // Strict safety filter: ensure NO workspace from another monitor ever leaks into this overview
-+    std::vector<int> filtered;
-+    for (int wsID : workspaces) {
-+        if (wsID == SPECIAL_WORKSPACE_START && Config::showSpecialWorkspace) {
-+            filtered.push_back(wsID);
-+            continue;
-+        }
+-        for (int i = wsIDStart; i <= wsIDEnd; i++) {
+-            if (findNumberedWorkspace(static_cast<Workspace::WorkspaceIDContainer>(i)) == nullptr)
+-                workspaces.push_back({.special = false, .numbered = static_cast<Workspace::WorkspaceIDContainer>(i)});
++    std::vector<Workspace::WorkspaceIDContainer> filtered;
++    for (auto wsID : numberedIDs) {
 +        if (isWorkspaceForThisMonitor(wsID)) {
 +            filtered.push_back(wsID);
-+        }
+         }
      }
-+    workspaces = std::move(filtered);
++    std::sort(filtered.begin(), filtered.end());
++    filtered.erase(std::unique(filtered.begin(), filtered.end()), filtered.end());
  
-     std::sort(workspaces.begin(), workspaces.end());
-+    workspaces.erase(std::unique(workspaces.begin(), workspaces.end()), workspaces.end());
+-    // add a new empty workspace at last
+-    if (config.showNewWorkspace->value()) {
+-        while (findNumberedWorkspace(static_cast<Workspace::WorkspaceIDContainer>(highestID)) != nullptr)
+-            highestID++;
+-        workspaces.push_back({.special = false, .numbered = static_cast<Workspace::WorkspaceIDContainer>(highestID)});
++    for (auto wsID : filtered) {
++        workspaces.push_back({.special = false, .numbered = wsID});
+     }
  
-     // render workspace boxes
-     int wsCount = workspaces.size();
+     std::sort(workspaces.begin(), workspaces.end(), [](const SOverviewWorkspace& a, const SOverviewWorkspace& b) {
 diff --git a/src/main.cpp b/src/main.cpp
-index e53d994..f6f6245 100644
+index 0b35005..9061131 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -8,6 +8,7 @@
- #include <hyprland/src/desktop/view/Window.hpp>
+@@ -9,6 +9,7 @@
+ #include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
  #include <hyprland/src/state/MonitorState.hpp>
  #include <hyprland/src/pointer/PointerController.hpp>
 +#include <hyprland/src/desktop/state/FocusState.hpp>
  #include <hyprutils/memory/SharedPtr.hpp>
  #include <any>
  #include "Overview.hpp"
-@@ -173,7 +174,7 @@ void onWorkspaceChange(PHLWORKSPACE pWorkspace) {
+@@ -133,7 +134,7 @@ void onWorkspaceChange(PHLWORKSPACE pWorkspace) {
  
      if (!pWorkspace) return;
  
@@ -233,10 +348,10 @@ index e53d994..f6f6245 100644
      if (widget != nullptr)
          if (widget->isActive())
              widget->show();
-@@ -328,7 +329,9 @@ void onTouchUp(const ITouch::SUpEvent& event, SCallbackInfo& info) {
+@@ -284,7 +285,9 @@ void onTouchUp(const ITouch::SUpEvent& event, SCallbackInfo& info) {
  }
  
- static SDispatchResult dispatchToggleOverview(std::string arg) {
+ SDispatchResult Dispatchers::dispatchToggleOverview(std::string arg) {
 -    auto currentMonitor = State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run();
 +    auto currentMonitor = Desktop::focusState()->monitor();
 +    if (!currentMonitor)
@@ -244,7 +359,7 @@ index e53d994..f6f6245 100644
      auto widget = getWidgetForMonitor(currentMonitor);
      if (widget) {
          if (arg.contains("all")) {
-@@ -360,7 +363,9 @@ static SDispatchResult dispatchOpenOverview(std::string arg) {
+@@ -316,7 +319,9 @@ SDispatchResult Dispatchers::dispatchOpenOverview(std::string arg) {
          }
      }
      else {
@@ -255,7 +370,7 @@ index e53d994..f6f6245 100644
          auto widget = getWidgetForMonitor(currentMonitor);
          if (widget)
              if (!widget->isActive()) widget->show();
-@@ -375,7 +380,9 @@ static SDispatchResult dispatchCloseOverview(std::string arg) {
+@@ -331,7 +336,9 @@ SDispatchResult Dispatchers::dispatchCloseOverview(std::string arg) {
          }
      }
      else {
@@ -266,3 +381,12 @@ index e53d994..f6f6245 100644
          auto widget = getWidgetForMonitor(currentMonitor);
          if (widget)
              if (widget->isActive()) widget->hide();
+@@ -383,7 +390,7 @@ void registerMonitors() {
+ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
+     pHandle = inHandle;
+ 
+-    Log::logger->log(Log::DEBUG, "Loading overview plugin");
++    Log::logger->log(Log::DEBUG, "Loading overview plugin (ABI: {})", __hyprland_api_get_client_hash());
+ 
+     HyprlandAPI::addConfigValueV2(pHandle, config.panelBaseColor);
+     HyprlandAPI::addConfigValueV2(pHandle, config.panelBorderColor);

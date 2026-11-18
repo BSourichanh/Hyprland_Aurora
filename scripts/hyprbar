@@ -1,45 +1,96 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script utilitaire pour gérer la barre (Waybar) et la carte Spotify sous Hyprland
 
 ACTION="${1:-restart}"
+AURORA_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/aurora"
+
+is_session_locked() {
+    pgrep -x hyprlock >/dev/null 2>&1 || [ -f "$AURORA_RUNTIME_DIR/hypr_locked" ] || [ -f "/tmp/hypr_locked" ]
+}
+
+cleanup_card_sockets() {
+    rm -f "$AURORA_RUNTIME_DIR/spotify_card.sock" "/tmp/spotify_card.sock" 2>/dev/null || true
+}
+
+stop_spotify_services() {
+    # 1. Envoi gracieux de SIGTERM avec motifs ciblés
+    pkill -TERM -f "waybar/scripts/spotify-card.py" 2>/dev/null || true
+    pkill -TERM -f "waybar/scripts/spotify.py" 2>/dev/null || true
+    pkill -TERM -f "waybar/scripts/gpu.py" 2>/dev/null || true
+    pkill -TERM -f "swaync-client -swb" 2>/dev/null || true
+
+    # 2. Attente active bornée (jusqu'à 1.0s) de la libération des processus et sockets UNIX
+    local waited=0
+    while [ $waited -lt 10 ]; do
+        if ! pgrep -f "waybar/scripts/spotify-card.py" >/dev/null && \
+           [ ! -S "$AURORA_RUNTIME_DIR/spotify_card.sock" ] && \
+           [ ! -S "/tmp/spotify_card.sock" ]; then
+            break
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+
+    # 3. SIGKILL ciblé en ultime recours puis purge des sockets orphelins
+    if pgrep -f "waybar/scripts/spotify-card.py" >/dev/null; then
+        pkill -KILL -f "waybar/scripts/spotify-card.py" 2>/dev/null || true
+    fi
+    cleanup_card_sockets
+}
+
+hypr_exec() {
+    local cmd="$1"
+    # Hyprland 0.57.2+ uses Lua dispatch (hl.dsp.exec_cmd)
+    hyprctl dispatch "hl.dsp.exec_cmd(\"$cmd\")" >/dev/null 2>&1 || \
+    hyprctl dispatch exec "$cmd" >/dev/null 2>&1
+}
 
 case "$ACTION" in
     start)
+        if is_session_locked; then
+            echo "Session verrouillée : démarrage de Waybar ignoré." >&2
+            exit 1
+        fi
         if pgrep -x waybar > /dev/null; then
             echo "Waybar est déjà en cours d'exécution."
         else
             echo "Démarrage de Waybar..."
-            hyprctl dispatch exec waybar > /dev/null 2>&1
+            hypr_exec waybar
         fi
-        if ! pgrep -f "spotify-card.py daemon" > /dev/null; then
-            hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" > /dev/null 2>&1
+        if ! pgrep -f "waybar/scripts/spotify-card.py daemon" > /dev/null; then
+            hypr_exec "$HOME/.config/waybar/scripts/spotify-card.py daemon"
         fi
         ;;
     stop|kill)
         echo "Arrêt de Waybar et de la carte Spotify..."
-        killall waybar 2>/dev/null
-        pkill -9 -f "spotify-card.py" 2>/dev/null
-        pkill -f "spotify.py" 2>/dev/null
-        pkill -f "gpu.py" 2>/dev/null
-        pkill -f "swaync-client -swb" 2>/dev/null
+        killall waybar 2>/dev/null || true
+        stop_spotify_services
         ;;
     restart)
+        if is_session_locked; then
+            echo "Session verrouillée : redémarrage de Waybar bloqué par sécurité." >&2
+            exit 1
+        fi
         echo "Rechargement complet de Waybar..."
-        killall waybar 2>/dev/null
-        pkill -9 -f "spotify-card.py" 2>/dev/null
-        pkill -f "spotify.py" 2>/dev/null
-        pkill -f "gpu.py" 2>/dev/null
-        pkill -f "swaync-client -swb" 2>/dev/null
-        sleep 0.3
-        hyprctl dispatch exec waybar > /dev/null 2>&1
-        hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" > /dev/null 2>&1
+        killall waybar 2>/dev/null || true
+        stop_spotify_services
+        hypr_exec waybar
+        hypr_exec "$HOME/.config/waybar/scripts/spotify-card.py daemon"
         echo "Waybar redémarrée avec succès."
         ;;
     reload|-r)
+        if ! pgrep -x waybar > /dev/null; then
+            echo "Waybar n'est pas active : rechargement ignoré." >&2
+            exit 1
+        fi
         echo "Rechargement à chaud (SIGUSR2)..."
         killall -SIGUSR2 waybar
         ;;
     toggle|-t)
+        if ! pgrep -x waybar > /dev/null; then
+            echo "Waybar n'est pas active : bascule ignorée." >&2
+            exit 1
+        fi
         echo "Bascule affichage/masquage (SIGUSR1)..."
         killall -SIGUSR1 waybar
         ;;

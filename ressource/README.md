@@ -1,8 +1,8 @@
 # Assets & Shaders du Thème Lucy (`ressource/`) 🌌
 
-Ressources graphiques, shaders GLSL natifs et descripteurs de scène pour le fond d'écran animé **Lucy (Cyberpunk: Edgerunners)** sous Wallpaper Engine (Steam Workshop `3566437475`).
+Ressources graphiques, shaders GLSL natifs et masques subpixel pour le fond d'écran animé **Lucy (Cyberpunk: Edgerunners)**, exploités par le micro-moteur Wayland C99 natif `aurora-wallpaper` (~72 Mo RAM sous EGL natif, 30 FPS (33 ms) en session normale et 60 FPS (16 ms) sous verrouillage par choix utilisateur, au lieu de 1 FPS).
 
-> 📖 **Spécification Complète & Exhaustive** : Consultez [`LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour la documentation intégrale (architecture de la scène, GLSL, format binaire TEXV0005, passes post-processing, modes GPU/CPU et détourage analytique).
+> 📖 **Spécification Complète & Exhaustive** : Consultez [`LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour la documentation intégrale (architecture de la scène, GLSL, passes post-processing, FBO partagé multi-écrans et détourage analytique).
 
 ---
 
@@ -90,17 +90,26 @@ Le shader d'effet glitch cyberpunk ([`ressource/shaders/workshop/2125458920/effe
 
 ---
 
-## 🛠️ Compilation & Déploiement
+## 🛠️ Commandes d'Administration (`scripts/wallpaper_tool.py`)
 
-Toutes les opérations sur ces ressources sont automatisées via le CLI :
+Toutes les opérations sur ces ressources et sur le moteur de fond d'écran sont pilotées via le CLI :
 
 ```bash
-# Régénérer le masque et recompiler le blackwall_mask.tex
+# Surveiller l'état du moteur aurora-wallpaper, RAM (~72 Mo), CPU et couches Wayland
+./scripts/wallpaper_tool.py status
+
+# Régénérer le masque subpixel Blackwall haute fidélité (blackwall_mask.png)
 ./scripts/wallpaper_tool.py mask
 
-# Déployer les shaders, textures et scene.json vers le Workshop Steam
-./scripts/wallpaper_tool.py sync
-
-# Redémarrer les instances Wallpaper Engine sur DP-1 et DP-2
+# Redémarrer proprement aurora-wallpaper sous mutex sécurisé
 ./scripts/wallpaper_tool.py restart
+
+# Garantir la présence d'aurora-wallpaper sur tous les écrans sans interruption
+./scripts/wallpaper_tool.py ensure
+
+# Lancer le démon d'écoute événementielle IPC hotplug Hyprland
+./scripts/wallpaper_tool.py daemon
+
+# Auditer la stricte intégrité des 42 hardlinks physiques du projet
+./scripts/wallpaper_tool.py check-links
 ```

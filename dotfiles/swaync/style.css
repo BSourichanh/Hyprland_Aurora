@@ -1,10 +1,10 @@
 /*
  * SwayNC Aurora Theme — GTK3 Stylesheet
- * Strict adherence to GEMINI.md Aurora Design System
- * Rounding: 17px, Border: 2px solid rgba(0, 240, 255, 0.65), Glass: rgba(10, 15, 30, 0.80)
+ * Rounding: 17px, Border: 2px solid @noti-border-color, Glass: @cc-bg
  */
 
-@define-color cc-bg rgba(10, 15, 30, 0.85);
+/* AURORA_PALETTE_START */
+@define-color cc-bg rgba(10, 15, 30, 0.50);
 @define-color noti-border-color rgba(0, 240, 255, 0.65);
 @define-color noti-bg rgba(10, 15, 30, 0.80);
 @define-color noti-bg-darker rgba(10, 15, 30, 0.95);
@@ -19,6 +19,7 @@
 @define-color blue-secondary #7aa2f7;
 @define-color violet-accent #9778d0;
 @define-color alert-red #f43f5e;
+/* AURORA_PALETTE_END */
 
 * {
   font-family: "Noto Sans", sans-serif;
@@ -42,22 +43,22 @@
   padding: 0;
   border: 2px solid @noti-border-color;
   background: @noti-bg;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 14px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 10px 25px alpha(black, 0.60), 0 0 14px alpha(@cyan-primary, 0.25);
   transition: all 0.2s ease-in-out;
 }
 
 .notification:hover {
   border-color: @cyan-primary;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 18px rgba(0, 240, 255, 0.40);
+  box-shadow: 0 10px 30px alpha(black, 0.70), 0 0 18px alpha(@cyan-primary, 0.40);
 }
 
 .critical {
   border: 2px solid @alert-red;
-  box-shadow: 0 0 16px rgba(244, 63, 94, 0.45);
+  box-shadow: 0 0 16px alpha(@alert-red, 0.45);
 }
 
 .low {
-  border: 1.5px solid rgba(122, 162, 247, 0.45);
+  border: 2px solid alpha(@blue-secondary, 0.45);
 }
 
 .notification-content {
@@ -75,7 +76,7 @@
   margin-top: 10px;
   margin-right: 12px;
   box-shadow: none;
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  border: 1px solid alpha(@cyan-primary, 0.30);
   min-width: 22px;
   min-height: 22px;
   transition: all 0.15s ease-in-out;
@@ -83,9 +84,9 @@
 
 .close-button:hover {
   background: @noti-close-bg-hover;
-  color: #ffffff;
+  color: @text-color;
   border-color: @alert-red;
-  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+  box-shadow: 0 0 8px alpha(@alert-red, 0.60);
 }
 
 .notification-default-action,
@@ -93,8 +94,8 @@
   padding: 6px 12px;
   margin: 0;
   box-shadow: none;
-  background: rgba(21, 46, 80, 0.60);
-  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: alpha(@noti-bg-hover, 0.85);
+  border: 1px solid alpha(@cyan-primary, 0.35);
   color: @text-color;
   border-radius: 12px;
   transition: all 0.15s ease-in-out;
@@ -102,7 +103,7 @@
 
 .notification-default-action:hover,
 .notification-action:hover {
-  background: linear-gradient(45deg, rgba(0, 240, 255, 0.25), rgba(122, 162, 247, 0.25));
+  background: linear-gradient(45deg, alpha(@cyan-primary, 0.25), alpha(@blue-secondary, 0.25));
   border-color: @cyan-primary;
   color: @cyan-primary;
 }
@@ -145,7 +146,7 @@
   background: @cc-bg;
   border-radius: 17px;
   border: 2px solid @noti-border-color;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 15px 40px alpha(black, 0.70), 0 0 20px alpha(@cyan-primary, 0.25);
   padding: 14px;
 }
 
@@ -171,7 +172,6 @@
  * WIDGETS
  * ============================================================================ */
 
-/* Widget Title */
 .widget-title {
   margin: 6px 8px 12px 8px;
   font-size: 1.25rem;
@@ -184,8 +184,8 @@
   font-weight: 600;
   color: @blue-secondary;
   text-shadow: none;
-  background: rgba(21, 46, 80, 0.50);
-  border: 1px solid rgba(122, 162, 247, 0.40);
+  background: alpha(@noti-bg-hover, 0.72);
+  border: 1px solid alpha(@blue-secondary, 0.40);
   box-shadow: none;
   border-radius: 12px;
   padding: 4px 10px;
@@ -193,13 +193,12 @@
 }
 
 .widget-title > button:hover {
-  background: rgba(244, 63, 94, 0.20);
+  background: alpha(@alert-red, 0.20);
   border-color: @alert-red;
   color: @alert-red;
-  box-shadow: 0 0 8px rgba(244, 63, 94, 0.4);
+  box-shadow: 0 0 8px alpha(@alert-red, 0.40);
 }
 
-/* Widget DND (Ne pas déranger) */
 .widget-dnd {
   margin: 6px 8px 12px 8px;
   font-size: 1rem;
@@ -210,28 +209,27 @@
 .widget-dnd > switch {
   font-size: initial;
   border-radius: 17px;
-  background: rgba(21, 46, 80, 0.50);
-  border: 1px solid rgba(122, 162, 247, 0.40);
+  background: alpha(@noti-bg-hover, 0.72);
+  border: 1px solid alpha(@blue-secondary, 0.40);
   box-shadow: none;
   transition: all 0.2s ease-in-out;
 }
 
 .widget-dnd > switch:checked {
-  background: linear-gradient(45deg, #00f0ff, #7aa2f7);
-  border-color: #00f0ff;
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  background: linear-gradient(45deg, @cyan-primary, @blue-secondary);
+  border-color: @cyan-primary;
+  box-shadow: 0 0 10px alpha(@cyan-primary, 0.40);
 }
 
 .widget-dnd > switch slider {
-  background: #090727;
+  background: @noti-bg-darker;
   border-radius: 17px;
-  border: 1px solid rgba(0, 240, 255, 0.5);
+  border: 1px solid alpha(@cyan-primary, 0.50);
 }
 
-/* Widget MPRIS */
 .widget-mpris {
-  background: rgba(21, 46, 80, 0.40);
-  border: 1px solid rgba(0, 240, 255, 0.35);
+  background: alpha(@noti-bg-hover, 0.58);
+  border: 1px solid alpha(@cyan-primary, 0.35);
   border-radius: 17px;
   padding: 10px;
   margin: 8px 4px 12px 4px;
@@ -255,17 +253,17 @@
 
 /* Menu contextuel Popover (Blacklist / Fermer) */
 popover.swaync-context-popover {
-  background-color: rgba(10, 15, 30, 0.95);
-  border: 1.5px solid rgba(0, 240, 255, 0.65);
+  background-color: @noti-bg-darker;
+  border: 2px solid @noti-border-color;
   border-radius: 17px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 14px rgba(0, 240, 255, 0.25);
+  box-shadow: 0 8px 24px alpha(black, 0.65), 0 0 14px alpha(@cyan-primary, 0.25);
   padding: 4px;
 }
 
 .swaync-context-popover button {
-  background: rgba(21, 46, 80, 0.50);
-  color: #e1e4f1;
-  border: 1px solid rgba(122, 162, 247, 0.35);
+  background: alpha(@noti-bg-hover, 0.72);
+  color: @text-color;
+  border: 1px solid alpha(@blue-secondary, 0.35);
   border-radius: 10px;
   padding: 6px 14px;
   font-size: 0.9rem;
@@ -274,16 +272,15 @@ popover.swaync-context-popover {
 }
 
 .swaync-context-popover button:hover {
-  background: rgba(0, 240, 255, 0.20);
-  border-color: #00f0ff;
-  color: #00f0ff;
-  box-shadow: 0 0 8px rgba(0, 240, 255, 0.35);
+  background: alpha(@cyan-primary, 0.20);
+  border-color: @cyan-primary;
+  color: @cyan-primary;
+  box-shadow: 0 0 8px alpha(@cyan-primary, 0.35);
 }
 
 .swaync-context-popover button.popover-btn-blacklist:hover {
-  background: rgba(244, 63, 94, 0.20);
-  border-color: #f43f5e;
-  color: #f43f5e;
-  box-shadow: 0 0 8px rgba(244, 63, 94, 0.35);
+  background: alpha(@alert-red, 0.20);
+  border-color: @alert-red;
+  color: @alert-red;
+  box-shadow: 0 0 8px alpha(@alert-red, 0.35);
 }
-

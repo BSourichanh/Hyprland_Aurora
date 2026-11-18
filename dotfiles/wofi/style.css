@@ -15,7 +15,7 @@ window {
     border: 1px solid rgba(122, 162, 247, 0.5);
     border-radius: 12px;
     color: #e1e4f1;
-    background-color: rgba(21, 46, 80, 0.6);
+    background-color: rgba(21, 46, 80, 0.60);
     font-size: 14px;
 }
 
@@ -54,7 +54,7 @@ window {
 
 #entry:hover,
 #unselected:hover {
-    background-color: rgba(0, 240, 255, 0.15);
+    background-color: rgba(0, 240, 255, 0.20);
     border: 1px solid rgba(0, 240, 255, 0.50);
 }
 
@@ -77,8 +77,8 @@ window {
 }
 
 #entry:selected:hover {
-    background: linear-gradient(45deg, #33f3ff, #8ab2f8, #ab8ee0);
-    border: 1px solid #33f3ff;
+    background: linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
+    border: 1px solid #00f0ff;
     box-shadow: 0 0 14px rgba(0, 240, 255, 0.60);
 }
 
@@ -86,4 +86,3 @@ window {
     color: #090727;
     font-weight: bold;
 }
-

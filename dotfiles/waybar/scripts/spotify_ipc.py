@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 """
 Hyprland IPC & UNIX Domain Command Socket Handler for Spotify Card.
-Manages compositor IPC queries, window positioning, and socket commands.
-
-Design Patterns:
-- Service Pattern: HyprlandIPCService for compositor interaction via UNIX socket.
-- Command Pattern: IPCCommandHandler dispatches named commands to window callbacks.
+Manages compositor IPC queries, dynamic monitor bounds, window positioning, and socket commands.
 """
 
 import fcntl
@@ -15,64 +11,89 @@ import socket
 import subprocess
 import sys
 import threading
-from typing import Callable, Dict, Optional, Tuple
+import time
+from typing import Callable, Dict, List, Optional, Tuple
 
-# Ensure module directory is on sys.path for direct CLI execution
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+HYPR_SCRIPTS_DIR = SCRIPT_DIR.parent.parent / "hypr" / "scripts"
+for p in (SCRIPT_DIR, HYPR_SCRIPTS_DIR):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
-COMMAND_SOCK = "/tmp/spotify_card.sock"
-LOCK_FILE = "/tmp/spotify_card.lock"
+from hypr_ipc import (
+    get_aurora_runtime_dir,
+    get_cursor_position as ipc_get_cursor_position,
+    get_hypr_sockets,
+    hypr_json,
+    move_window_pixel as ipc_move_window_pixel,
+)
+
+RUNTIME_DIR = get_aurora_runtime_dir()
+COMMAND_SOCK = str(RUNTIME_DIR / "spotify_card.sock")
+LOCK_FILE = str(RUNTIME_DIR / "spotify_card.lock")
 _lock_fd = None
 
 
 class HyprlandIPCService:
-    """Service handling Hyprland UNIX socket IPC queries and dispatches."""
+    """Service handling Hyprland UNIX socket IPC queries and dynamic monitor geometry."""
 
     def __init__(self):
-        self._cached_sock: Optional[str] = None
+        self._monitors_cache: List[Tuple[int, int, int, int]] = []
+        self._monitors_cache_ts = 0.0
 
     def get_socket_path(self) -> Optional[str]:
-        if self._cached_sock and os.path.exists(self._cached_sock):
-            return self._cached_sock
-        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-        xdg = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-        if sig:
-            sock = f"{xdg}/hypr/{sig}/.socket.sock"
-            if os.path.exists(sock):
-                self._cached_sock = sock
-                return sock
-        return None
+        cmd_sock, _ = get_hypr_sockets()
+        return cmd_sock
 
     def get_cursor_position(self) -> Tuple[Optional[int], Optional[int]]:
-        sock_path = self.get_socket_path()
-        if not sock_path:
-            return None, None
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-                s.settimeout(0.04)
-                s.connect(sock_path)
-                s.sendall(b"cursorpos")
-                res = s.recv(1024).decode().strip()
-                parts = res.split(",")
-                return int(parts[0].strip()), int(parts[1].strip())
-        except (socket.error, OSError, TimeoutError, ValueError, IndexError):
-            return None, None
+        return ipc_get_cursor_position(timeout=0.04)
 
     def move_window_pixel(self, x: int, y: int, window_class: str = "spotify-card"):
-        sock_path = self.get_socket_path()
-        if not sock_path:
-            return
-        cmd = f"dispatch movewindowpixel exact {x} {y},class:{window_class}"
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-                s.settimeout(0.05)
-                s.connect(sock_path)
-                s.sendall(cmd.encode())
-                s.recv(1024)
-        except (socket.error, OSError, TimeoutError):
-            pass
+        ipc_move_window_pixel(x, y, window_class=window_class, timeout=0.05)
+
+    def get_monitor_rects(self, max_age: float = 2.0) -> List[Tuple[int, int, int, int]]:
+        """Returns logical (x, y, width, height) rects for active monitors via hyprctl/socket."""
+        now = time.monotonic()
+        if self._monitors_cache and (now - self._monitors_cache_ts) <= max_age:
+            return self._monitors_cache
+
+        raw = hypr_json("j/monitors", timeout=0.2)
+        rects: List[Tuple[int, int, int, int]] = []
+        if isinstance(raw, list):
+            for m in raw:
+                if not isinstance(m, dict) or m.get("disabled"):
+                    continue
+                mx = int(m.get("x", 0))
+                my = int(m.get("y", 0))
+                scale = float(m.get("scale", 1.0) or 1.0)
+                w = int(m.get("width", 1920))
+                h = int(m.get("height", 1080))
+                if int(m.get("transform", 0)) % 2 == 1:
+                    w, h = h, w
+                lw = max(1, int(w / scale))
+                lh = max(1, int(h / scale))
+                rects.append((mx, my, lw, lh))
+        if rects:
+            self._monitors_cache = rects
+            self._monitors_cache_ts = now
+        return self._monitors_cache or [(0, 0, 1920, 1080)]
+
+    def get_monitor_rect_at(self, x: Optional[int], y: Optional[int]) -> Tuple[int, int, int, int]:
+        """Finds the monitor rect containing (x, y), defaulting to the first monitor."""
+        rects = self.get_monitor_rects()
+        if x is not None and y is not None:
+            for mx, my, mw, mh in rects:
+                if mx <= x < mx + mw and my <= y < my + mh:
+                    return mx, my, mw, mh
+        return rects[0]
+
+    def get_card_origin_for_cursor(self) -> Tuple[int, int]:
+        """Computes dynamic Spotify card anchor (x, y) on the monitor under the cursor."""
+        cx, cy = self.get_cursor_position()
+        mx, my, mw, _ = self.get_monitor_rect_at(cx, cy)
+        card_w = 465
+        target_x = mx + max(10, min(mw - card_w - 10, int(round(mw * 0.3125))))
+        return target_x, my + 44
 
 
 class IPCCommandHandler:
@@ -99,6 +120,7 @@ class CommandSocketThread(threading.Thread):
         self.sock_path = sock_path
 
     def run(self):
+        Path(self.sock_path).parent.mkdir(parents=True, exist_ok=True)
         if os.path.exists(self.sock_path):
             try:
                 os.remove(self.sock_path)
@@ -106,26 +128,50 @@ class CommandSocketThread(threading.Thread):
                 pass
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         server.bind(self.sock_path)
+        try:
+            os.chmod(self.sock_path, 0o600)
+        except OSError:
+            pass
         server.listen(5)
         while True:
+            conn = None
             try:
                 conn, _ = server.accept()
-                data = conn.recv(1024).decode().strip()
+                conn.settimeout(1.0)
+                data = conn.recv(1024).decode("utf-8", errors="replace").strip()
                 conn.sendall(b"OK\n")
                 conn.close()
+                conn = None
                 self.handler.handle(data)
             except (socket.error, OSError, TimeoutError, UnicodeDecodeError):
-                pass
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
 
 
 def acquire_singleton_lock(lock_path: str = LOCK_FILE) -> bool:
-    """Acquires a non-blocking flock to guarantee a singleton daemon instance."""
+    """Acquires a non-blocking flock with 0600 permissions inside $AURORA_RUNTIME_DIR."""
     global _lock_fd
+    Path(lock_path).parent.mkdir(parents=True, exist_ok=True)
+    fd_obj = None
     try:
-        _lock_fd = open(lock_path, "w")
-        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        raw_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fd_obj = os.fdopen(raw_fd, "r+", encoding="utf-8")
+        fcntl.flock(fd_obj, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fd_obj.seek(0)
+        fd_obj.truncate()
+        fd_obj.write(str(os.getpid()))
+        fd_obj.flush()
+        _lock_fd = fd_obj
         return True
-    except (IOError, BlockingIOError):
+    except (IOError, BlockingIOError, OSError):
+        if fd_obj is not None:
+            try:
+                fd_obj.close()
+            except OSError:
+                pass
         return False
 
 
@@ -135,7 +181,7 @@ def send_client_cmd(cmd: str, sock_path: str = COMMAND_SOCK) -> bool:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             s.settimeout(0.5)
             s.connect(sock_path)
-            s.sendall(cmd.encode())
+            s.sendall(cmd.encode("utf-8"))
             s.recv(1024)
             return True
     except (socket.error, OSError, TimeoutError):
@@ -193,7 +239,6 @@ def main():
             except (OSError, ValueError, TimeoutError, AttributeError):
                 pass
     else:
-        # Client commands to running daemon (toggle, show, hide, like, masquer)
         send_client_cmd(cmd)
 
 

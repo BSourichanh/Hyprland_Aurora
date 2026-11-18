@@ -15,14 +15,17 @@ import sys
 import time
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+HYPR_SCRIPTS_DIR = SCRIPT_DIR.parent.parent / "hypr" / "scripts"
+for p in (SCRIPT_DIR, HYPR_SCRIPTS_DIR):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
 import gi
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
+from hypr_ipc import is_session_locked
 from spotify_mpris import (
     TrackMetadata,
     TrackRepository,
@@ -37,7 +40,12 @@ from spotify_ipc import (
     acquire_singleton_lock,
     send_client_cmd,
 )
-from spotify_hover import HoverMonitorThread, CoverArtManager, AURORA_CARD_CSS
+from spotify_hover import (
+    HoverMonitorThread,
+    CoverArtManager,
+    AURORA_CARD_CSS,
+    compute_hover_zones,
+)
 
 
 class SpotifyCardWindow(Gtk.Window):
@@ -70,7 +78,8 @@ class SpotifyCardWindow(Gtk.Window):
         self.loaded_cover_url = None
         self.is_liked = False
         self.is_card_visible = False
-        self.active_monitor = 0
+        self.is_player_active = self.player.is_running()
+        self.active_monitor_rect = None
         self.hide_timer = None
 
         self._apply_theme_css()
@@ -78,6 +87,13 @@ class SpotifyCardWindow(Gtk.Window):
 
         self.connect("enter-notify-event", self._on_enter)
         self.connect("leave-notify-event", self._on_leave)
+
+    def refresh_player_state(self) -> bool:
+        """Runs on GTK main thread to keep D-Bus access strictly thread-safe."""
+        self.is_player_active = self.player.is_running()
+        if not self.is_player_active and self.is_card_visible:
+            self.hide_card()
+        return False
 
     def _apply_theme_css(self):
         provider = Gtk.CssProvider()
@@ -217,10 +233,13 @@ class SpotifyCardWindow(Gtk.Window):
             self.hide_timer = None
 
     def show_at(self, target_x: int, target_y: int):
-        if not self.player.is_running():
+        if is_session_locked():
+            return
+        self.is_player_active = self.player.is_running()
+        if not self.is_player_active:
             return
         self.cancel_hide_timer()
-        self.active_monitor = 1 if target_x >= 1920 else 0
+        self.active_monitor_rect = self.hypr.get_monitor_rect_at(target_x, target_y)
         self.update_metadata()
         self.show_all()
         self.is_card_visible = True
@@ -247,14 +266,13 @@ class SpotifyCardWindow(Gtk.Window):
 
     def _check_and_hide(self):
         self.hide_timer = None
-        x, y = self.hypr.get_cursor_position()
-        if x is not None and y is not None:
-            if self.active_monitor == 0:
-                in_active_zone = (580 <= x <= 980) and (0 <= y <= 210)
-            else:
-                in_active_zone = (2500 <= x <= 2900) and (0 <= y <= 210)
-            if in_active_zone:
-                return False
+        if not is_session_locked():
+            x, y = self.hypr.get_cursor_position()
+            if x is not None and y is not None:
+                rect = self.active_monitor_rect or self.hypr.get_monitor_rect_at(x, y)
+                _, card_zone, _ = compute_hover_zones(rect)
+                if card_zone[0] <= x <= card_zone[1] and card_zone[2] <= y <= card_zone[3]:
+                    return False
         self.hide_card()
         return False
 
@@ -264,6 +282,8 @@ def main():
 
     if arg in ["toggle", "show", "hide", "like", "masquer"]:
         if send_client_cmd(arg):
+            sys.exit(0)
+        if arg in ["hide", "masquer", "like"]:
             sys.exit(0)
         if not acquire_singleton_lock():
             for _ in range(10):
@@ -308,19 +328,20 @@ def main():
     # MPRIS Observer
     setup_mpris_observer(
         on_metadata_changed=lambda: GLib.idle_add(window.update_metadata) if window.is_card_visible else None,
-        player=player
+        player=player,
+        on_playback_status=lambda: GLib.idle_add(window.refresh_player_state),
     )
 
     # Background Threads
     HoverMonitorThread(window, hypr).start()
 
+    def show_on_cursor_monitor():
+        tx, ty = hypr.get_card_origin_for_cursor()
+        window.show_at(tx, ty)
+
     cmd_handler = IPCCommandHandler({
         "toggle": lambda: GLib.idle_add(window.hide_card) if window.is_card_visible else cmd_handler.handle("show"),
-        "show": lambda: GLib.idle_add(
-            window.show_at,
-            2520 if (hypr.get_cursor_position()[0] and hypr.get_cursor_position()[0] >= 1920) else 600,
-            44
-        ),
+        "show": lambda: GLib.idle_add(show_on_cursor_monitor),
         "hide": lambda: GLib.idle_add(window.hide_card),
         "like": lambda: GLib.idle_add(window._on_like_clicked, None),
         "masquer": lambda: GLib.idle_add(window._on_hide_clicked, None),

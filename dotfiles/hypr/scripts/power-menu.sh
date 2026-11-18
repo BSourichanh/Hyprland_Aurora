@@ -33,7 +33,7 @@ case "$CHOICE" in
         "$HOME/.config/hypr/lock.sh"
         ;;
     *"Fermer la session"*)
-        hyprctl dispatch exit
+        hyprctl dispatch 'hl.dsp.exit()' 2>/dev/null || hyprctl dispatch exit
         ;;
     *"Mettre en veille"*)
         systemctl suspend
