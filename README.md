@@ -122,7 +122,7 @@ cd Hyprland_Aurora
   - **Extinction d'écran (DPMS off 330s) et Dimming (150s) inhibés sous verrou** : Les Paliers 1 (`150s`, baisse de luminosité) et 3 (`330s`, `dpms off`) de `hypridle.conf` sont inhibés dès le verrouillage via la garde atomique :
     `[ ! -f "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/aurora/hypr_locked" ] && ! pgrep -x hyprlock >/dev/null`.
   - **Mise en veille PC (`systemctl suspend` à 1800s) bloquée sous verrou** : Palier 4 protégé par la même double garde runtime.
-  - **Réveil forcé DPMS et inhibition sleep/idle dans `lock.sh`** : `lock.sh` force immédiatement `hyprctl dispatch dpms on` avant verrouillage et encapsule `hyprlock` sous `systemd-inhibit --what=sleep:idle --who="Aurora Lock" --why="Session verrouillée : veille PC et écran noir désactivés" --mode=block hyprlock 9>&-`.
+  - **Réveil conditionnel DPMS et inhibition sleep/idle dans `lock.sh`** : `lock.sh` exécute `hyprctl dispatch 'hl.dsp.dpms({ action = "on" })'` si un moniteur est en `dpmsStatus: 0` et encapsule `hyprlock --immediate-render` sous `systemd-inhibit --what=sleep:idle --who="Aurora Lock" --why="Session verrouillée : veille PC et écran noir désactivés" --mode=block hyprlock --immediate-render 9>&-`.
   - **Écran de veille actif & Cadence 60 FPS (Choix Utilisateur)** : Le fond animé Lucy et l'horloge restent allumés en permanence sans aucun écran noir sous verrou. Par choix explicite de l'utilisateur pour une fluidité visuelle maximale sur `hyprlock`, le framerate de l'écran de verrouillage est maintenu à 60 FPS (16 ms), alors que la session de travail normale est cadencée à 30 FPS (33 ms). En session déverrouillée, la cascade normale (dim 150s, lock 300s, DPMS 330s, suspend 1800s) est active. Section `general {}` configurée avec `inhibit_sleep = 3`.
 - **Masquage Dynamique & Protection Hotplug v2** : Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` prenant en charge la spécification Hyprland (`monitoraddedv2` / `monitorremovedv2`). Bascule instantanée vers les espaces vides réservés (`98` sur DP-2, `99` sur DP-1).
 - **Isolation Totale de Waybar** : Arrêt complet de Waybar pendant le verrouillage pour éliminer les réapparitions intempestives lors du hotplug d'écrans, et relance propre à la saisie du mot de passe.
@@ -153,8 +153,8 @@ cd Hyprland_Aurora
 ### 7. Centre de Notifications & Contrôle Aurora (SwayNC)
 - **Thématisation Aurora GTK3** :
   - Rayon de courbure strict à **`17px`** sur les conteneurs de notification et sur le volet de contrôle (`.control-center`).
-  - Bordures néon cyan `2px` (`#00f0ff` / `rgba(0, 240, 255, 0.60)`) et arrière-plan glassmorphism fumé `rgba(10, 15, 30, 0.80)`.
-  - Flou matériel Hyprland et animations dédiées (`hl.layer_rule` `swaync_blur` et `swaync_notif_blur`, `layersIn` `popin 92%` / `layersOut` `fade`).
+  - Bordures néon cyan `2px` (`#00f0ff` / `rgba(0, 240, 255, 0.60)`) et arrière-plan glassmorphism fumé `rgba(10, 15, 30, 0.50)`.
+  - Flou matériel Hyprland et animations dédiées (`hl.layer_rule` `swaync_blur` et `swaync_notif_blur` avec `animation = "slide right"`, `layersIn` `popin 92%` / `layersOut` `fade`).
 - **Widgets Intégrés & Contrôles** :
   - Volet latéral rétractable déclenché par le raccourci <kbd>SUPER</kbd> + <kbd>N</kbd> (`swaync-client -t -sw`).
   - Menu contextuel au clic droit via patch natif Vala ([`swaync-blacklist.patch`](dotfiles/swaync/swaync-blacklist.patch)) ouvrant un Popover GTK Aurora :
@@ -189,11 +189,11 @@ cd Hyprland_Aurora
 - **Plugins C++ `0.57.2` & Couches animées** : `Hyprspace.so` (patch multi-écrans `wsID < 1 || wsID >= 90`), `hyprglass.so` v1.2.0 (`hl.plugin.hyprglass`), animations `layersIn`/`layersOut` et `slide right` sur SwayNC (`swaync_blur`, `swaync_notif_blur`).
 - **OSD Natif Aurora (`scripts/aurora_osd.py` ➔ `~/.local/bin/aurora-osd`)** : Overlay GTK3 `gtk-layer-shell` (17px, 2px `#00f0ff`, `0.50`), détection `capsLock` temps réel via `j/devices` (`main` prioritaire) avec badge ON/OFF, overdrive audio `> 100%` (`.osd-overdrive`), synchronisation dynamique de palette (`theme_switcher.py`).
 - **Terminal Scratchpad (`special:scratchpad`)** : Fenêtre flottante centrée `1100x650` (`focus_on_activate = true`, `slide top`), basculée via <kbd>SUPER</kbd> + <kbd>²</kbd> (`code:49`) / <kbd>SUPER</kbd> + <kbd>F12</kbd>, envoi de fenêtre active via <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>²</kbd> / <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>F12</kbd>.
-- **Migration Socket1 Lua des Scripts & Lock** : `workspace-autocompact.py` et `hypr_ipc.py` émettent exclusivement `hl.dsp.window.move` et `hl.dsp.focus` (écoute `closewindow`, `destroyworkspacev2`, etc.). `lock.sh` pilote `misc:disable_autoreload` via `eval 'hl.config(...)'` ; `hyprlock.conf` applique `blur_passes = 0` et fond `rgba(0, 0, 0, 0.30)` (zéro surcoût GPU sous verrou).
+- **Migration Socket1 Lua des Scripts & Lock** : `workspace-autocompact.py`, `hypr_ipc.py` et `hyprlock_state.py` émettent exclusivement `hl.dsp.window.move`, `hl.dsp.focus` et `hl.dsp.window.pin` (`window = "address:..."`). `lock.sh` pilote `misc:disable_autoreload` et `animations:enabled` via `eval 'hl.config(...)'` ; `hyprland.lua` fixe `misc.session_lock_blur = false` et `hyprlock.conf` applique `blur_passes = 0`, `fadeIn` (`1.5, fast`) et fond `rgba(0, 0, 0, 0.30)` (fond animé 100 % net, zéro surcoût GPU).
 
 ### 11. Bilan des Optimisations Système (OPT-1 à OPT-9) & Performances Réelles
 
-Les 9 optimisations issues de l'audit sont **implémentées et vérifiées** (`./scripts/verify_aurora.sh --read-only` : **8/8 étapes PASS**, **25/25 tests fonctionnels PASS** en `~2.9s`, et `./tests/benchmark_optimizations.py` : **3 passages PASS**) :
+Les 9 optimisations issues de l'audit sont **implémentées et vérifiées** (`./scripts/verify_aurora.sh --read-only` : **8/8 étapes PASS**, **26/26 tests fonctionnels PASS** en `~3.3s`, et `./tests/benchmark_optimizations.py` : **3 passages PASS**) :
 
 | ID | Domaine | Description & Implémentation | Métrique & Gain Réel Mesuré |
 | :--- | :--- | :--- | :--- |
@@ -254,7 +254,7 @@ hyprland_project/
 │   │   └── wofi-hover-select.patch # Patch GTK3 de sélection fluide au survol de souris
 │   ├── swaync/
 │   │   ├── config.json        # Structure des widgets (DND, MPRIS, liste) et dimensions (420px)
-│   │   ├── style.css          # Feuille de style GTK3 (glassmorphism 0.80, coins 17px, bordures cyan 2px)
+│   │   ├── style.css          # Feuille de style GTK3 (glassmorphism 0.50, coins 17px, bordures cyan 2px)
 │   │   ├── swaync-blacklist.patch # Patch natif Vala pour menu contextuel clic droit
 │   │   ├── scripts/
 │   │   │   └── blacklist-app.py # Insertion in-place dans notification-visibility (respect hardlinks)
@@ -273,7 +273,7 @@ hyprland_project/
 │   ├── wallpaper_daemon.py    # Démon d'écoute IPC Hyprland (.socket2.sock)
 │   ├── theme_switcher.py      # Sélecteur de thèmes dynamique (CSS + active/inactive_border dans hyprland.lua)
 │   ├── aurora_runtime.py      # Contrat runtime sécurisé $AURORA_RUNTIME_DIR (0700)
-│   ├── verify_aurora.sh       # Harnais 8 étapes / 25 tests fonctionnels (supporte --read-only)
+│   ├── verify_aurora.sh       # Harnais 8 étapes / 26 tests fonctionnels (supporte --read-only)
 │   ├── aurora_mcp_server.py   # Serveur MCP local FastMCP (13 outils réels)
 │   └── setup/compile.sh       # Compilation C99, vérification plugins 775 et liens aurora-osd / hyprbar
 ├── hooks/
@@ -370,10 +370,10 @@ hyprbar status   # Vérifier l'état et les PIDs actifs
 # Sélecteur de thèmes d'ambiance visuelle (aurora, tokyo-night, blackwall-red, cyberpunk-amber)
 python3 scripts/theme_switcher.py list
 python3 scripts/theme_switcher.py status
-# Appliquer un thème (met aussi à jour active/inactive_border dans hyprland.lua en place)
+# Appliquer un thème (synchronise CSS, aurora-osd et active/inactive_border dans hyprland.lua en place)
 python3 scripts/theme_switcher.py apply tokyo-night
 
-# Harnais de test unifié zéro-régression (8 étapes, 25/25 tests fonctionnels PASS, mode lecture seule)
+# Harnais de test unifié zéro-régression (8 étapes, 26/26 tests fonctionnels PASS, mode lecture seule)
 ./scripts/verify_aurora.sh --read-only
 ```
 

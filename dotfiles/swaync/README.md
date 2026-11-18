@@ -9,7 +9,7 @@ Configuration et thématisation du centre de notifications **SwayNC** (*Sway Not
 ```
 dotfiles/swaync/
 ├── config.json             # Structure des widgets (titre, DND, mpris, liste), géométrie (largeur 420px, marges)
-├── style.css               # Feuille de style GTK3 (glassmorphism rgba(10, 15, 30, 0.80), coins 17px, bordures cyan 2px)
+├── style.css               # Feuille de style GTK3 (glassmorphism rgba(10, 15, 30, 0.50), coins 17px, bordures cyan 2px)
 ├── swaync-blacklist.patch  # Patch natif Vala pour menu contextuel au clic droit (Blacklist / Fermer)
 ├── scripts/
 │   └── blacklist-app.py   # Helper Python pour insertion in-place dans notification-visibility (respect hardlinks)
@@ -33,7 +33,7 @@ Par défaut sous SwayNC, un clic droit ferme la notification sans action supplé
 
 - **Coins arrondis** : **`17px`** obligatoires sur le panneau de contrôle (`.control-center`), les conteneurs de notifications individuelles (`.notification`) et les boutons d'action.
 - **Bordures & Lueur** : **`2px`** cyan néon (`#00f0ff` / `rgba(0, 240, 255, 0.60)`) avec ombres portées douces sur le panneau actif.
-- **Glassmorphism** : Arrière-plan sombre translucide `rgba(10, 15, 30, 0.80)` enrichi par le flou de composition matériel Hyprland (`layerrule = blur, swaync-control-center` et `layerrule = blur, swaync-notification-window`).
+- **Glassmorphism** : Arrière-plan sombre translucide `rgba(10, 15, 30, 0.50)` enrichi par le flou de composition matériel Hyprland (`hl.layer_rule` `swaync_blur` et `swaync_notif_blur` avec `blur = true, ignore_alpha = 0.1, animation = "slide right"`).
 - **Niveaux d'Urgence** :
   - *Faible / Normal* : Accent cyan `#00f0ff` et fond sombre uniforme.
   - *Critique* : Bordure et bouton d'action rouge/rose néon (`#f43f5e` / `#f87171`) pour une identification immédiate.

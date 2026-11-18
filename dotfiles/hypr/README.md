@@ -41,7 +41,7 @@ dotfiles/hypr/
 - **Hooks & Directives Core `0.57.2`** :
   - Remplacement de `on_created_empty` par l'écouteur d'événements `hl.on("workspace.created", function(ws) ... end)` avec auto-spawning déterministe de `kitty --class scratchpad-term`.
   - Directives de performance et focus : `render = { use_fp16 = 0 }` (gain bande passante GPU sur dalles SDR 8-bit), `layers = { allow_new_top_layers_over_existing_fullscreen = true, layers_hog_keyboard_focus = true }`.
-  - Environnement & silence : `misc = { bell_sound = "", ... }`, `ecosystem = { no_update_news = true, no_donation_nag = true }`.
+  - Environnement & silence : `misc = { session_lock_xray = true, session_lock_blur = false, bell_sound = "", ... }`, `ecosystem = { no_update_news = true, no_donation_nag = true }`.
 - **Plugins C++ `0.57.2` sous gardes Lua** :
   - `Hyprspace.so` (`13 711 552` o, mode `775`) : configuré dans `if hl.plugin.overview then ... end` (`hl.config({ plugin = { overview = ... } })` + `hl.plugin.overview.toggle`).
   - `hyprglass.so` (`32 587 120` o, `v1.2.0`, mode `775`) : configuré via `hl.plugin.hyprglass` (`hg.config(...)` + `hg.layer("hyprlock", { preset = "clear" })`), avec exclusion de la fenêtre compagnon `Paros` (`paros-companion`, `tag = "+hyprglass_disabled"`).
@@ -51,7 +51,7 @@ dotfiles/hypr/
 - **Migration Socket1 Lua dans les scripts** :
   - `workspace-autocompact.py` : émission exclusive des dispatchers `hl.dsp.window.move({ workspace = ..., window = "address:..." })` et `hl.dsp.focus({ monitor = ... / workspace = ... })`, écoute des événements `closewindow`, `destroyworkspace`, `destroyworkspacev2`, `movewindow`, `movewindowv2`.
   - `hypr_ipc.py` : repositionnement au pixel de la carte Spotify via `dispatch hl.dsp.window.move({ x = ..., y = ..., window = "class:spotify-card" })`.
-- **Écran de verrouillage optimisé (`hyprlock.conf`)** : Fond sombre `rgba(0, 0, 0, 0.30)`, `blur_passes = 0` pour zéro charge GPU idle sous verrou, horloge asservie au noyau (`timerfd`, `cmd[update:1000] date +"%H:%M"`).
+- **Écran de verrouillage optimisé (`hyprlock.conf`)** : `path =` vide (fond animé en direct via `session_lock_xray = true` et `session_lock_blur = false`), voile sombre `rgba(0, 0, 0, 0.30)`, `blur_passes = 0` (zéro flou, 100 % net), `animation = fadeIn, 1, 1.5, fast` et horloge asservie au noyau (`timerfd`, `cmd[update:1000] date +"%H:%M"`).
 
 ---
 
@@ -76,7 +76,7 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
      ```bash
      [ ! -f "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/aurora/hypr_locked" ] && ! pgrep -x hyprlock >/dev/null
      ```
-   - **Réveil DPMS & inhibition `sleep:idle`** : `lock.sh` exécute `hyprctl dispatch 'hl.dsp.dpms({ action = "on" })'` avant le verrouillage et encapsule `hyprlock` sous `systemd-inhibit --what=sleep:idle --who="Aurora Lock" --why="Session verrouillée : veille PC et écran noir désactivés" --mode=block hyprlock 9>&-`.
+   - **Réveil DPMS & inhibition `sleep:idle`** : si `hyprctl monitors` rapporte `dpmsStatus: 0`, `lock.sh` exécute `hyprctl dispatch 'hl.dsp.dpms({ action = "on" })'`, puis encapsule `hyprlock --immediate-render` sous `systemd-inhibit --what=sleep:idle --who="Aurora Lock" --why="Session verrouillée : veille PC et écran noir désactivés" --mode=block hyprlock --immediate-render 9>&-`.
    - `inhibit_sleep = 3` configuré dans `general {}` de `hypridle.conf`. En session déverrouillée, la cascade complète (150s, 300s, 330s, 1800s) reste active.
 2. **Masquage Dynamique & Protection Hotplug** :
    - Démon d'écoute IPC d'arrière-plan sur `.socket2.sock` actif durant toute la session verrouillée.
@@ -101,7 +101,7 @@ Le script [`lock.sh`](file:///home/user/Documents/antigravity/hyprland_project/d
    - Patch PAM natif amont (PR #1059) neutralisant le blocage récurrent du thread PAM (`std::thread::join()`) lors de la sortie de session.
    - Détection de verrouillage fiabilisée par `pgrep -x hyprlock`, acquisition non-bloquante `flock` sur `$AURORA_RUNTIME_DIR/hypr_lock_instance.lock` et présence de `$AURORA_RUNTIME_DIR/hypr_locked` (remplaçant les anciens contrôles fragiles par layer namespace).
 8. **Adaptation IPC `Hyprland 0.57.2` (`lock.sh` & `hyprlock_state.py`)** :
-   - La commande `keyword` ayant été retirée de l'IPC Socket1 sous `Hyprland 0.57.2`, `lock.sh` et `hyprlock_state.py` pilotent `misc:disable_autoreload` directement via `eval 'hl.config({ misc = { disable_autoreload = ... } })'`. De plus, `hyprlock_state.py` emploie la syntaxe de ciblage `hl.dsp.window.pin({ window = "address:..." })` pour épingler et détacher fidèlement les fenêtres.
+   - La commande `keyword` ayant été retirée de l'IPC Socket1 sous `Hyprland 0.57.2`, `lock.sh` et `hyprlock_state.py` pilotent `misc:disable_autoreload` et `animations:enabled` directement via `eval 'hl.config(...)'` (bascule instantanée vers `98`/`99` sans transition ni fondu au noir). De plus, `hyprlock_state.py` emploie `hl.dsp.window.pin({ window = "address:..." })` pour épingler et détacher fidèlement les fenêtres.
 
 ---
 

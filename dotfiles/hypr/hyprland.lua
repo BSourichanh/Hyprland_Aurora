@@ -91,7 +91,7 @@ hl.config({
         force_default_wallpaper    = 0,
         disable_hyprland_logo      = true,
         session_lock_xray          = true,
-        session_lock_blur          = true,
+        session_lock_blur          = false,
         allow_session_lock_restore = true,
         mouse_move_enables_dpms    = true,
         key_press_enables_dpms     = true,

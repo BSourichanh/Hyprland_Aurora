@@ -69,7 +69,7 @@ python3 scripts/theme_switcher.py list
 # Afficher l'état et la palette du thème actif
 python3 scripts/theme_switcher.py status
 
-# Appliquer un thème et synchroniser Waybar, Wofi, SwayNC, Kitty et Hyprland
+# Appliquer un thème et synchroniser Waybar, Wofi, SwayNC, Kitty, aurora-osd et Hyprland
 python3 scripts/theme_switcher.py apply tokyo-night
 ```
 

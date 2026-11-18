@@ -1,9 +1,9 @@
 # Rapport d'Audit de Performance & Bilan d'Implémentation — Hyprland / Aurora
 
-**Date** : mar. 17 nov. 2026 17:01:30 CET  
-**Auteurs** : Équipe Zygos (Lots O1–O4 optimisations & Lots U1–U4 mise à niveau Hyprland `0.57.2` / Lua)  
+**Date** : mer. 18 nov. 2026  
+**Auteurs** : Équipe Zygos (Lots O1–O4 optimisations, U1–U4 mise à niveau Hyprland `0.57.2` / Lua & C1–C5 ré-adaptations post-changelog)  
 **Périmètre** : Rendu GPU C99/GLSL (`src/aurora_wallpaper/`), Compositeur Hyprland `0.57.2` Lua (`dotfiles/hypr/hyprland.lua`, `dotfiles/hypr/hyprviz.lua`, `dotfiles/hypr/plugins/`), Démons, OSD & IPC (`scripts/aurora_osd.py`, `scripts/theme_switcher.py`, `scripts/setup/compile.sh`, `dotfiles/hypr/scripts/`), Waybar/Spotify (`dotfiles/waybar/`), Micro-serveur MCP (`scripts/aurora_mcp_server.py`, `scripts/aurora_mcp/`), Tests & Benchmarks (`tests/`)  
-**Outils de preuve reproductible** : `./tests/benchmark_optimizations.py` (`3` passages PASS) et `./scripts/verify_aurora.sh --read-only` (`8/8` étapes PASS, `25/25` tests fonctionnels PASS)
+**Outils de preuve reproductible** : `./tests/benchmark_optimizations.py` (`3` passages PASS) et `./scripts/verify_aurora.sh --read-only` (`8/8` étapes PASS, `26/26` tests fonctionnels PASS)
 
 ---
 
@@ -38,7 +38,7 @@ Tableau de référence historique (avant vs après déploiement OPT-1 à OPT-9, 
 | **Latence `compact_workspaces`** | 33.77 ms (bloqué sans `--once`) | **0.33 ms** (in-process + cache) | **-99.0%** | -33.44 ms (gain x102) |
 | **Latence `get_aurora_status` (complet)** | 89.52 ms (12 forks séquentiels) | **20.08 ms** (parallélisé 4 threads) | **-77.6%** | -69.44 ms (gain x4.5) |
 | **Collecte socket + `/proc` unifié** | 89.52 ms | **8.44 ms** | **-90.6%** | -81.08 ms (gain x10.6) |
-| **Validation suite complète tests** | 18/19 tests (fragilité mock) | **25/25 tests fonctionnels PASS** | **100%** | 8/8 étapes (`~2.9s`, 0 échec) |
+| **Validation suite complète tests** | 18/19 tests (fragilité mock) | **26/26 tests fonctionnels PASS** | **100%** | 8/8 étapes (`~3.3s`, 0 échec) |
 
 ### Mesure live post-migration `Hyprland 0.57.2` via `./tests/benchmark_optimizations.py` (3 passages, sous session verrouillée `hyprlock` `PID 499147`) :
 ```text
@@ -130,8 +130,8 @@ L'utilisateur a formulé une exigence ergonomique explicite : **l'écran ne doit
    - Palier 3 (`330s` / 5m30, DPMS off) : ajout de la même garde runtime bloquante, empêchant l'envoi de `hyprctl dispatch dpms off` tant que `hyprlock` ou le drapeau de verrouillage existe.
    - Palier 4 (`1800s` / 30 min, suspend) : maintien de la garde runtime empêchant toute mise en veille machine sous verrou.
 2. **Réveil d'écran immédiat et inhibition systemd dans `lock.sh`** :
-   - Exécution inconditionnelle de `hyprctl dispatch dpms on >/dev/null 2>&1 || true` avant l'affichage du verrou pour rallumer immédiatement les dalles si elles étaient coupées en session active.
-   - Encapsulation de `hyprlock` sous `systemd-inhibit --what=sleep:idle --who="Aurora Lock" --why="Session verrouillée : veille PC et écran noir désactivés" --mode=block hyprlock 9>&-`.
+   - Si `hyprctl monitors` rapporte `dpmsStatus: 0`, exécution de `hyprctl dispatch 'hl.dsp.dpms({ action = "on" })' &>/dev/null || hyprctl dispatch dpms on &>/dev/null || true` avant l'affichage du verrou pour rallumer immédiatement les dalles coupées.
+   - Encapsulation de `hyprlock --immediate-render` sous `systemd-inhibit --what=sleep:idle --who="Aurora Lock" --why="Session verrouillée : veille PC et écran noir désactivés" --mode=block hyprlock --immediate-render 9>&-`.
 3. **Fluidité visuelle maximale à 60 FPS sous verrou (Arbitrage Utilisateur)** :
    - `aurora-wallpaper` bascule à **60 FPS (16 ms)** sous écran de verrouillage via `$AURORA_RUNTIME_DIR/hypr_locked` (`target_ms = 16ULL` vs 33ULL en session active) par choix explicite de l'utilisateur pour préserver une animation ultra-fluide sous `hyprlock`.
 4. **Validation par tests hermétiques (`tests/test_functional_lock_policy.py`)** :
@@ -139,7 +139,7 @@ L'utilisateur a formulé une exigence ergonomique explicite : **l'écran ne doit
 
 ---
 
-## 5. Architecture Hyprland `0.57.2`, Migration Lua & Ré-adaptations (Lots U1–U4 & C1–C4)
+## 5. Architecture Hyprland `0.57.2`, Migration Lua & Ré-adaptations (Lots U1–U4 & C1–C5)
 
 1. **Compositeur `0.57.2` actif en RAM & API Lua exclusive** :
    - Environnement compositeur opérant sous `Hyprland 0.57.2-1ppa1` (commit `11cbc6c5...`, ABI `0.57.2`). Zéro fichier `.conf` obsolète pour le compositeur.
@@ -159,11 +159,11 @@ L'utilisateur a formulé une exigence ergonomique explicite : **l'écran ne doit
    - `dotfiles/hypr/plugins/hyprspace-multimonitor.patch` (`< 400` L) : condensé à 392 L avec conservation de la garde d'isolation multi-écrans `if (wsID < 1 || wsID >= 90) return false;` et vérification stricte des hunks (`git apply --stat`).
 
 4. **Écran de Verrouillage & Veille (`hyprlock.conf` / `lock.sh`)** :
-   - `dotfiles/hypr/hyprlock.conf` : fond sombre `rgba(0, 0, 0, 0.30)`, désactivation du flou GPU lourd `blur_passes = 0` pour préserver le GPU tout en maintenant 60 FPS (16 ms) fluides sous verrou sans écran noir. Horloge asservie au noyau via `timerfd` (`cmd[update:1000] date +"%H:%M"`).
+   - `dotfiles/hypr/hyprlock.conf` & `hyprland.lua` : fond animé 100 % net (`misc.session_lock_blur = false`, `misc.session_lock_xray = true`), voile sombre `rgba(0, 0, 0, 0.30)`, `blur_passes = 0`, `animation = fadeIn, 1, 1.5, fast` (zéro surcoût GPU à 60 FPS) et horloge asservie au noyau via `timerfd` (`cmd[update:1000] date +"%H:%M"`).
    - Invariant Zéro Écran Noir : Paliers DPMS et veille inhibés sous verrou, relance immédiate DPMS on à l'armement.
 
 5. **Recette & Couverture de Tests Zéro-Régression** :
-   - `./scripts/verify_aurora.sh --read-only` : `8/8` étapes PASS (`8/8` syntaxe dont `Hyprland --verify-config`, `42/42` hardlinks, `25/25` tests fonctionnels PASS en `~2.9s`).
+   - `./scripts/verify_aurora.sh --read-only` : `8/8` étapes PASS (`8/8` syntaxe dont `Hyprland --verify-config`, `42/42` hardlinks, `26/26` tests fonctionnels PASS en `~3.3s`).
    - `./tests/benchmark_optimizations.py` : `3` passages consécutifs PASS.
 
 ---
@@ -179,7 +179,7 @@ Hyprland --config dotfiles/hypr/hyprland.lua --verify-config
 # 2. Benchmark consolidé des 9 optimisations (3 passages consécutifs, lecture seule)
 ./tests/benchmark_optimizations.py
 
-# 3. Harnais complet zéro-régression (8 étapes, 25/25 tests fonctionnels PASS)
+# 3. Harnais complet zéro-régression (8 étapes, 26/26 tests fonctionnels PASS)
 ./scripts/verify_aurora.sh --read-only
 
 # 4. Diagnostic temps réel du micro-serveur FastMCP Aurora
