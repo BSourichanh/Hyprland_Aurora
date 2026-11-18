@@ -71,6 +71,18 @@
     "blacklist-app-antigravity-ide-snap": {
       "state": "ignored",
       "app-name": "^(?i)antigravity\\-ide\\-snap$"
+    },
+    "blacklist-entry-firmware-updater_firmware-updater": {
+      "state": "ignored",
+      "desktop-entry": "^(?i)firmware\\-updater_firmware\\-updater$"
+    },
+    "blacklist-app-firmware-updater": {
+      "state": "ignored",
+      "app-name": "^(?i)Firmware\\ Updater$"
+    },
+    "blacklist-app-actualiseur-de-micrologiciel": {
+      "state": "ignored",
+      "app-name": "^(?i)Actualiseur\\ de\\ micrologiciel$"
     }
   }
 }

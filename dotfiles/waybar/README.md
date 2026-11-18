@@ -32,17 +32,11 @@ Le moteur CSS de GTK3 désactive systématiquement `border-radius` dès qu'un `b
 - **Isolation de la translucidité (0.50)** : Le tracé vectoriel `stroke` limite strictement le dégradé aux 2px de bordure, empêchant tout saignement de couleur opaque sous le fond verre fumé `rgba(10, 15, 30, 0.50)`.
 
 ### 2. Modules & Capsules Internes
-Les modules internes (`#workspaces`, `#custom-audio`, `#clock`, etc.) exploitent la technique du double arrière-plan :
-```css
-background-image: 
-    linear-gradient(rgba(10, 15, 30, 0.70), rgba(10, 15, 30, 0.70)),
-    linear-gradient(45deg, #00f0ff, #7aa2f7, #9778d0);
-background-origin: padding-box, border-box;
-background-clip: padding-box, border-box;
-border: 2px solid transparent;
-border-radius: 17px;
-```
-Cette méthode CSS est privilégiée sur les modules car elle s'adapte dynamiquement et en temps réel aux variations de longueur du texte sans déformer les rayons d'arrondis (contrairement à un SVG étiré en `100% 100%` sous GTK3 qui déforme les angles en ovales étirés).
+Les modules internes (`#workspaces`, `#pulseaudio`, `#clock`, etc.) et les capsules de statut exploitent la charte Aurora :
+- Les pilules internes (`#custom-gpu`, `#cpu`, `#memory`, `#pulseaudio`, `#network`, `#custom-notification`, `#tray`) appliquent un rayon d'arrondi de **`10px`** avec bordure cyan translucide `1.5px solid rgba(0, 240, 255, 0.60)` et fond verre fumé `rgba(10, 15, 30, 0.50)`.
+- Les extrémités du mini-lecteur Spotify adoptent également le rayon de **`10px`** (`#mpris` à `10px 0 0 10px`, `#custom-spotify-next` à `0 10px 10px 0`).
+- Le conteneur principal `window#waybar` conserve les arrondis extérieurs maîtres à **`17px`** via `bar-bg.svg`.
+Cette méthode CSS garantit une adaptation dynamique en temps réel aux variations de contenu sans déformation des angles.
 
 ### 3. Hiérarchie Visuelle des Workspaces
 - **Actif (`#workspaces button.active`)** : Dégradé plein 45° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`), texte sombre `#090727`, ombre portée cyan (`0 0 10px rgba(0, 240, 255, 0.55)`).

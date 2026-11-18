@@ -8,6 +8,7 @@ Boîte à outils centralisée pour l'administration de l'environnement Hyprland 
 
 ```
 scripts/
+├── aurora_osd.py        # OSD natif GTK3 gtk-layer-shell (son, micro, Verr. Maj -> ~/.local/bin/aurora-osd)
 ├── hyprbar              # Gestionnaire CLI Waybar et carte Spotify (anti-fuite de processus)
 ├── wallpaper_tool.py    # CLI unifié d'administration du fond d'écran (status, mask, check-links, restart, daemon, ensure)
 ├── wallpaper_daemon.py  # Démon d'écoute IPC Hyprland (.socket2.sock) pour hotplug et réveil DPMS
@@ -55,7 +56,7 @@ Le script `wallpaper_tool.py` s'exécute depuis la racine du dépôt :
 Supervise le socket événementiel Hyprland (`.socket2.sock`). Détecte instantanément les événements `monitoradded`, `monitorremoved`, `configreloaded` et les changements d'état DPMS.
 - Applique une temporisation anti-rebond (*debounce* de 0.4s).
 - Vérifie l'état de verrouillage via `$AURORA_RUNTIME_DIR/hypr_locked` avant ré-application.
-- Exécuté automatiquement en arrière-plan via `dotfiles/hypr/scripts/wallpaper_daemon.sh` au démarrage d'Hyprland (`exec-once`).
+- Exécuté automatiquement en arrière-plan via `dotfiles/hypr/scripts/wallpaper_daemon.sh` au démarrage d'Hyprland (`hl.on("hyprland.start")`).
 
 ### 3. Sélecteur de Thèmes Dynamique (`theme_switcher.py`)
 
@@ -93,11 +94,11 @@ aurora-mcp reload
 #### Catalogue des 13 Outils MCP :
 1. `get_aurora_status` : Diagnostic temps réel exhaustif (moteur EGL, PIDs, GPU, Waybar, SwayNC, Spotify, verrou, écrans, 42 hardlinks).
 2. `system_tools.manage_wallpaper` : Pilotage du moteur de fond d'écran (`restart`, `ensure`, `status`).
-3. `system_tools.manage_hyprbar` : Pilotage de Waybar (`restart`, `reload`, `toggle`, `stop`, `status`).
+3. `system_tools.manage_hyprbar` : Pilotage de Waybar (`restart`, `reload`, `toggle`, `status`).
 4. `system_tools.lock_session` : Déclenchement du protocole de verrouillage sécurisé.
 5. `system_tools.reload_all` : Rechargement global de tous les composants de session.
 6. `system_tools.audit_hardlinks` : Audit physique strict des 42 hardlinks individuels.
-7. `system_tools.wofi_launch` : Lancement contrôlé de Wofi (mode `drun` ou `run`).
+7. `system_tools.wofi_launch` : Lancement contrôlé de Wofi (mode `drun` ou `power`).
 8. `system_tools.compact_workspaces` : Déclenchement de l'auto-compactage multi-écrans des espaces.
 9. `system_tools.switch_theme` : Bascule de thème d'ambiance visuelle via `theme_switcher`.
 10. `media_tools.manage_swaync` : Contrôle du volet SwayNC (`toggle`, `dnd_toggle`, `clear_all`).
@@ -109,7 +110,7 @@ aurora-mcp reload
 
 ### 5. Validation Zéro-Régression (`verify_aurora.sh`)
 
-Harnais de test unifié validant en 7 étapes la conformité complète du système :
+Harnais de test unifié validant en 8 étapes la conformité complète du système :
 ```bash
 # Validation complète en mode lecture seule (n'invoque pas l'étape mutante aurora-mcp reload)
 ./scripts/verify_aurora.sh --read-only
@@ -149,7 +150,7 @@ Tous les démons et scripts d'administration partagent l'arborescence runtime s�
 
 ## 🏛️ Architecture & Bonnes Pratiques
 
-- **Single-Pass GLSL & FBO Partagé** : Rendu exécuté 1 seule fois dans un buffer hors-écran $1920 \times 1080$, blitté simultanément sur chaque écran à 30 FPS nominaux (~72 Mo RAM sous EGL natif) et régulé à 1 FPS monotone sous verrouillage.
+- **Single-Pass GLSL & FBO Partagé** : Rendu exécuté 1 seule fois dans un buffer hors-écran $1920 \times 1080$, blitté simultanément sur chaque écran à 30 FPS (33 ms) en session normale (~72 Mo RAM sous EGL natif) et maintenu à 60 FPS (16 ms) sous verrouillage (choix utilisateur, au lieu de 1 FPS).
 - **Gestionnaire RAII & Mutex Sécurisés** : Utilisation stricte de verrous non-bloquants `flock` libérés déterministement (`try...finally`) prévenant tout interblocage.
 - **Zéro Polling** : Événements IPC socket UNIX Hyprland captés par `select()` non-bloquant.
 - **Intégrité des 42 Hardlinks** : Écriture systématique *in-place* préservant rigoureusement les numéros d'inodes entre le dépôt et `~/.config/`.

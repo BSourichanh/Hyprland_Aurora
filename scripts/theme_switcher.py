@@ -10,6 +10,7 @@ import contextlib
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
@@ -20,11 +21,8 @@ if str(SCRIPT_DIR) not in sys.path:
 from aurora_runtime import get_lock_state  # noqa: E402
 from theme_models import ThemeProfile, get_available_themes, get_theme  # noqa: E402
 from theme_templates import (  # noqa: E402
-    render_bar_svg,
-    render_waybar_css,
-    render_waybar_palette_block,
-    render_wofi_css,
-    render_wofi_palette_block,
+    render_bar_svg, render_waybar_css, render_waybar_palette_block,
+    render_wofi_css, render_wofi_palette_block,
 )
 
 PROJECT_DIR = SCRIPT_DIR.parent
@@ -57,27 +55,14 @@ def _replace_sentinel_block(text: str, start_marker: str, end_marker: str, block
 
 
 def _update_css_with_palette(
-    css_path: Path,
-    palette_token: str,
-    render_palette: Callable[[ThemeProfile], str],
-    render_full: Callable[[ThemeProfile], str],
-    profile: ThemeProfile,
+    css_path: Path, palette_token: str, render_palette: Callable[[ThemeProfile], str],
+    render_full: Callable[[ThemeProfile], str], profile: ThemeProfile,
 ) -> None:
     """Updates sentinel palette block when rules consume @define-color tokens, else regenerates CSS."""
     if css_path.exists():
         text = css_path.read_text(encoding="utf-8")
-        if (
-            "/* AURORA_PALETTE_START */" in text
-            and "/* AURORA_PALETTE_END */" in text
-            and palette_token in text
-        ):
-            new_text = _replace_sentinel_block(
-                text,
-                "/* AURORA_PALETTE_START */",
-                "/* AURORA_PALETTE_END */",
-                render_palette(profile),
-            )
-            write_inplace(css_path, new_text)
+        if "/* AURORA_PALETTE_START */" in text and "/* AURORA_PALETTE_END */" in text and palette_token in text:
+            write_inplace(css_path, _replace_sentinel_block(text, "/* AURORA_PALETTE_START */", "/* AURORA_PALETTE_END */", render_palette(profile)))
             return
     write_inplace(css_path, render_full(profile))
 
@@ -89,13 +74,7 @@ def update_bar_svg(profile: ThemeProfile) -> None:
 
 def update_waybar_css(profile: ThemeProfile) -> None:
     """Updates Waybar stylesheet in-place (preserves local rules when @waybar-* tokens are used)."""
-    _update_css_with_palette(
-        DOTFILES_DIR / "waybar" / "style.css",
-        "@waybar-primary",
-        render_waybar_palette_block,
-        render_waybar_css,
-        profile,
-    )
+    _update_css_with_palette(DOTFILES_DIR / "waybar" / "style.css", "@waybar-primary", render_waybar_palette_block, render_waybar_css, profile)
 
 
 def update_swaync_css(profile: ThemeProfile) -> None:
@@ -130,13 +109,7 @@ def update_swaync_css(profile: ThemeProfile) -> None:
 
 def update_wofi_css(profile: ThemeProfile) -> None:
     """Updates Wofi stylesheet in-place (preserves local rules when @wofi-* tokens are used)."""
-    _update_css_with_palette(
-        DOTFILES_DIR / "wofi" / "style.css",
-        "@wofi-primary",
-        render_wofi_palette_block,
-        render_wofi_css,
-        profile,
-    )
+    _update_css_with_palette(DOTFILES_DIR / "wofi" / "style.css", "@wofi-primary", render_wofi_palette_block, render_wofi_css, profile)
 
 
 def update_kitty_conf(profile: ThemeProfile) -> None:
@@ -193,8 +166,8 @@ color15 {profile.kitty.fg}
 
 
 def update_hyprland_conf(profile: ThemeProfile) -> bool:
-    """Updates Hyprland active and inactive window border gradient in-place."""
-    path = DOTFILES_DIR / "hypr" / "hyprland.conf"
+    """Updates Hyprland Lua active and inactive window border colors in-place."""
+    path = DOTFILES_DIR / "hypr" / "hyprland.lua"
     text = path.read_text(encoding="utf-8")
 
     hp = profile.primary_color.lstrip("#").upper()
@@ -209,16 +182,57 @@ def update_hyprland_conf(profile: ThemeProfile) -> bool:
     }
     inact = inactive_map.get(profile.name, f"{hs[:6]}aa")
 
-    new_active = f"col.active_border = rgba({hp}FF) rgba({hs}FF) rgba({ha}FF) rgba({hp}FF) 45deg"
-    new_inactive = f"col.inactive_border = rgba({inact})"
+    new_active = (
+        f'active_border = {{ colors = {{ "rgba({hp}FF)", "rgba({hs}FF)", '
+        f'"rgba({ha}FF)", "rgba({hp}FF)" }}, angle = 45 }},'
+    )
+    new_inactive = f'inactive_border = "rgba({inact})",'
 
-    text_mod = re.sub(r"col\.active_border\s*=.*", lambda _: new_active, text)
-    text_mod = re.sub(r"col\.inactive_border\s*=.*", lambda _: new_inactive, text_mod)
+    text_mod = re.sub(
+        r"^([ \t]*)active_border\s*=.*",
+        lambda m: f"{m.group(1)}{new_active}",
+        text,
+        flags=re.MULTILINE,
+    )
+    text_mod = re.sub(
+        r"^([ \t]*)inactive_border\s*=.*",
+        lambda m: f"{m.group(1)}{new_inactive}",
+        text_mod,
+        flags=re.MULTILINE,
+    )
 
     if text_mod != text:
         write_inplace(path, text_mod)
         return True
     return False
+
+
+update_hyprland_lua = update_hyprland_conf
+
+
+def update_aurora_osd(profile: ThemeProfile) -> None:
+    """Updates Aurora OSD CSS palette block in-place preserving hardlinks."""
+    path = SCRIPT_DIR / "aurora_osd.py"
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    if "# AURORA_PALETTE_START" not in text or "# AURORA_PALETTE_END" not in text:
+        return
+    p, s, a, bg = profile.primary_color, profile.secondary_color, profile.accent_color, profile.background_color
+    block = (
+        f"# AURORA_PALETTE_START\nAURORA_OSD_CSS = (\n"
+        f'    b"window {{ background-color: transparent; }}\\n"\n'
+        f'    b".osd-pill {{ background-color: {bg}; border: 2px solid {p}; border-radius: 17px; padding: 12px 20px; }}\\n"\n'
+        f'    b".osd-icon {{ color: {p}; font-family: \'JetBrainsMono Nerd Font\', \'Symbols Nerd Font\', sans-serif; font-size: 20px; min-width: 28px; }}\\n"\n'
+        f'    b".osd-label {{ color: #e1e4f1; font-family: \'Noto Sans\', sans-serif; font-size: 14px; font-weight: bold; min-width: 118px; }}\\n"\n'
+        f'    b".osd-muted .osd-icon, .osd-muted .osd-label {{ color: #94a3b8; }}\\n"\n'
+        f'    b"progressbar trough {{ background-color: rgba(148, 163, 184, 0.22); border-radius: 6px; min-height: 8px; min-width: 150px; }}\\n"\n'
+        f'    b"progressbar progress {{ background-image: linear-gradient(45deg, {p}, {s}, {a}); border-radius: 6px; min-height: 8px; }}\\n"\n'
+        f'    b".osd-overdrive progressbar progress {{ background-image: linear-gradient(45deg, #f7768e, #ff9e64, #e0af68); }}\\n"\n'
+        f'    b".osd-muted progressbar progress {{ background-image: none; background-color: #64748b; }}\\n"\n'
+        f")\n# AURORA_PALETTE_END"
+    )
+    write_inplace(path, _replace_sentinel_block(text, "# AURORA_PALETTE_START", "# AURORA_PALETTE_END", block))
 
 
 def _run_reload_cmd(cmd: List[str], timeout: float) -> bool:
@@ -263,6 +277,25 @@ def reload_subsystems(hypr_reload: bool = True) -> Dict[str, Any]:
     elif hypr_reload and locked:
         results["hyprland"] = "skipped_locked"
 
+    with contextlib.suppress(Exception):
+        pat = r"aurora[-_]osd.* daemon"
+        has_osd = subprocess.run(["pgrep", "-f", pat], stdin=subprocess.DEVNULL, capture_output=True, timeout=2)
+        if has_osd.returncode == 0:
+            subprocess.run(["pkill", "-TERM", "-f", pat], stdin=subprocess.DEVNULL, capture_output=True, timeout=2)
+            for _ in range(10):
+                if subprocess.run(["pgrep", "-f", pat], stdin=subprocess.DEVNULL, capture_output=True, timeout=2).returncode != 0:
+                    break
+                time.sleep(0.05)
+            osd_bin = Path.home() / ".local" / "bin" / "aurora-osd"
+            osd_target = osd_bin if osd_bin.exists() else (SCRIPT_DIR / "aurora_osd.py")
+            if not locked and osd_target.exists():
+                subprocess.Popen([sys.executable, "-B", str(osd_target), "daemon"],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                time.sleep(0.05)
+            results["aurora_osd"] = True
+        else:
+            results["aurora_osd"] = "skipped_not_running"
+
     return results
 
 
@@ -279,16 +312,8 @@ def send_theme_notification(profile: ThemeProfile, reloads: Dict[str, Any]) -> b
         f"Palette : {profile.primary_color} | {profile.secondary_color} | {profile.accent_color}\n"
         f"Composants rechargés ({ok_count}/{total}) : {synced_names}"
     )
-    cmd = [
-        "notify-send",
-        "-a", "Aurora Theme",
-        "-u", "normal",
-        "-c", "system",
-        "-t", "3500",
-        "-i", "preferences-desktop-theme",
-        title,
-        body,
-    ]
+    cmd = ["notify-send", "-a", "Aurora Theme", "-u", "normal", "-c", "system",
+           "-t", "3500", "-i", "preferences-desktop-theme", title, body]
     with contextlib.suppress(Exception):
         res = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=2.0)
         return res.returncode == 0
@@ -306,6 +331,7 @@ def apply_theme(theme_name: str) -> Dict[str, Any]:
     update_swaync_css(profile)
     update_wofi_css(profile)
     update_kitty_conf(profile)
+    update_aurora_osd(profile)
     hypr_changed = update_hyprland_conf(profile)
 
     reloads = reload_subsystems(hypr_reload=hypr_changed)
@@ -313,17 +339,10 @@ def apply_theme(theme_name: str) -> Dict[str, Any]:
     notif_sent = send_theme_notification(profile, reloads)
 
     return {
-        "ok": True,
-        "theme": profile.name,
-        "display_name": profile.display_name,
-        "palette": {
-            "primary": profile.primary_color,
-            "secondary": profile.secondary_color,
-            "accent": profile.accent_color,
-            "background": profile.background_color,
-        },
-        "reloads": reloads,
-        "notification": notif_sent,
+        "ok": True, "theme": profile.name, "display_name": profile.display_name,
+        "palette": {"primary": profile.primary_color, "secondary": profile.secondary_color,
+                    "accent": profile.accent_color, "background": profile.background_color},
+        "reloads": reloads, "notification": notif_sent,
     }
 
 

@@ -11,6 +11,7 @@ Verifies:
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -32,18 +33,24 @@ class TestThemeSwitcherDoubleSwitch(unittest.TestCase):
         self.tmp_path = Path(self.tmpdir.name)
         self.tmp_dotfiles = self.tmp_path / "dotfiles"
         shutil.copytree(DOTFILES, self.tmp_dotfiles)
+        self.tmp_scripts = self.tmp_path / "scripts"
+        self.tmp_scripts.mkdir()
+        shutil.copy2(SCRIPTS / "aurora_osd.py", self.tmp_scripts / "aurora_osd.py")
         self.tmp_state = self.tmp_path / ".theme_state"
         self.tmp_state.write_text("aurora\n", encoding="utf-8")
 
         # Redirect theme_switcher module targets to temporary directory
         self.orig_dotfiles = theme_switcher.DOTFILES_DIR
         self.orig_state = theme_switcher.THEME_STATE_FILE
+        self.orig_script_dir = theme_switcher.SCRIPT_DIR
         theme_switcher.DOTFILES_DIR = self.tmp_dotfiles
         theme_switcher.THEME_STATE_FILE = self.tmp_state
+        theme_switcher.SCRIPT_DIR = self.tmp_scripts
 
     def tearDown(self):
         theme_switcher.DOTFILES_DIR = self.orig_dotfiles
         theme_switcher.THEME_STATE_FILE = self.orig_state
+        theme_switcher.SCRIPT_DIR = self.orig_script_dir
         self.tmpdir.cleanup()
 
     def test_double_successive_theme_switch(self):
@@ -114,6 +121,80 @@ class TestThemeSwitcherDoubleSwitch(unittest.TestCase):
         wb_text3 = wb_css.read_text(encoding="utf-8")
         self.assertIn("@define-color waybar-primary #00f0ff;", wb_text3)
         self.assertEqual(wb_text3.count("/* AURORA_PALETTE_START */"), 1)
+
+    def test_hyprland_lua_theme_switch_and_verify(self):
+        """Validates hyprland.lua theme round-trip (aurora -> tokyo-night -> aurora), hardlink inode, and Hyprland --verify-config."""
+        lua_path = self.tmp_dotfiles / "hypr" / "hyprland.lua"
+        hardlink_peer = self.tmp_path / "hyprland_hardlink.lua"
+        os.link(lua_path, hardlink_peer)
+
+        orig_text = lua_path.read_text(encoding="utf-8")
+        orig_ino = lua_path.stat().st_ino
+        self.assertEqual(lua_path.stat().st_nlink, 2)
+        self.assertEqual(hardlink_peer.stat().st_ino, orig_ino)
+        self.assertIs(theme_switcher.update_hyprland_lua, theme_switcher.update_hyprland_conf)
+
+        aurora = theme_models.get_theme("aurora")
+        tokyo = theme_models.get_theme("tokyo-night")
+        self.assertIsNotNone(aurora)
+        self.assertIsNotNone(tokyo)
+
+        # Baseline aurora should already match repository defaults
+        self.assertFalse(theme_switcher.update_hyprland_conf(aurora))
+
+        # Switch aurora -> tokyo-night
+        self.assertTrue(theme_switcher.update_hyprland_conf(tokyo))
+        self.assertEqual(lua_path.stat().st_ino, orig_ino, "Inode changed on tokyo-night switch")
+        self.assertEqual(lua_path.stat().st_nlink, 2, "Hardlink count changed on tokyo-night switch")
+        self.assertEqual(hardlink_peer.stat().st_ino, orig_ino)
+
+        tn_text = lua_path.read_text(encoding="utf-8")
+        self.assertEqual(tn_text, hardlink_peer.read_text(encoding="utf-8"))
+        self.assertIn(
+            '            active_border = { colors = { "rgba(7AA2F7FF)", "rgba(7DCFFFFF)", "rgba(BB9AF7FF)", "rgba(7AA2F7FF)" }, angle = 45 },',
+            tn_text,
+        )
+        self.assertIn('            inactive_border = "rgba(1F2335aa)",', tn_text)
+        self.assertFalse(theme_switcher.update_hyprland_conf(tokyo), "Idempotent tokyo-night call must return False")
+
+        res_tn = subprocess.run(
+            ["Hyprland", "--config", str(lua_path), "--verify-config"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(res_tn.returncode, 0, f"Hyprland --verify-config failed (tokyo-night):\n{res_tn.stdout}\n{res_tn.stderr}")
+        self.assertIn("config ok", res_tn.stdout + res_tn.stderr)
+
+        # Switch back tokyo-night -> aurora (identical round-trip)
+        self.assertTrue(theme_switcher.update_hyprland_conf(aurora))
+        self.assertEqual(lua_path.stat().st_ino, orig_ino, "Inode changed on aurora revert")
+        self.assertEqual(lua_path.stat().st_nlink, 2, "Hardlink count changed on aurora revert")
+        self.assertEqual(hardlink_peer.stat().st_ino, orig_ino)
+        self.assertEqual(lua_path.read_text(encoding="utf-8"), orig_text)
+        self.assertEqual(hardlink_peer.read_text(encoding="utf-8"), orig_text)
+
+        res_au = subprocess.run(
+            ["Hyprland", "--config", str(lua_path), "--verify-config"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(res_au.returncode, 0, f"Hyprland --verify-config failed (aurora):\n{res_au.stdout}\n{res_au.stderr}")
+        self.assertIn("config ok", res_au.stdout + res_au.stderr)
+
+    def test_aurora_osd_palette_update_and_inode(self):
+        """Validates update_aurora_osd() preserves hardlink inode and updates palette sentinel."""
+        osd_path, osd_peer = self.tmp_scripts / "aurora_osd.py", self.tmp_path / "aurora_osd_hardlink.py"
+        os.link(osd_path, osd_peer)
+        orig_ino = osd_path.stat().st_ino
+        self.assertEqual(osd_path.stat().st_nlink, 2)
+
+        theme_switcher.update_aurora_osd(theme_models.get_theme("tokyo-night"))
+        self.assertEqual((osd_path.stat().st_ino, osd_path.stat().st_nlink, osd_peer.stat().st_ino), (orig_ino, 2, orig_ino))
+        tn_text = osd_path.read_text(encoding="utf-8")
+        self.assertEqual(tn_text, osd_peer.read_text(encoding="utf-8"))
+        self.assertTrue("#7aa2f7" in tn_text and ".osd-overdrive" in tn_text and tn_text.count("# AURORA_PALETTE_START") == 1)
+
+        theme_switcher.update_aurora_osd(theme_models.get_theme("aurora"))
+        self.assertEqual(osd_path.stat().st_ino, orig_ino)
+        self.assertIn("#00f0ff", osd_path.read_text(encoding="utf-8"))
 
 
 def main():

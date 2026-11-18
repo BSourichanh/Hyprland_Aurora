@@ -174,15 +174,17 @@ def compact_workspaces() -> bool:
             if old_ws == target_ws:
                 continue
             for addr in ws_dict[old_ws]:
-                all_dispatches.append(f"dispatch movetoworkspacesilent {target_ws},address:{addr}")
+                all_dispatches.append(
+                    f'dispatch hl.dsp.window.move({{ workspace = {target_ws}, window = "address:{addr}", silent = true }})'
+                )
 
         if new_active_ws != active_ws:
-            all_dispatches.append(f"dispatch focusmonitor {m_name}")
-            all_dispatches.append(f"dispatch workspace {new_active_ws}")
+            all_dispatches.append(f'dispatch hl.dsp.focus({{ monitor = "{m_name}" }})')
+            all_dispatches.append(f'dispatch hl.dsp.focus({{ workspace = {new_active_ws} }})')
 
     if all_dispatches:
         if focused_mon:
-            all_dispatches.append(f"dispatch focusmonitor {focused_mon}")
+            all_dispatches.append(f'dispatch hl.dsp.focus({{ monitor = "{focused_mon}" }})')
         hypr_batch(all_dispatches)
         return True
 
@@ -258,7 +260,7 @@ def run_daemon():
                         event_name = line.split(">>")[0]
                         if event_name == "configreloaded" or event_name.startswith(("monitoradded", "monitorremoved")):
                             get_monitor_configs(force_refresh=True)
-                        if not is_compacting and event_name in ("closewindow", "destroyworkspace", "movewindow"):
+                        if not is_compacting and event_name in ("closewindow", "destroyworkspace", "destroyworkspacev2", "movewindow", "movewindowv2"):
                             pending_compact_time = time.time() + debounce_delay
 
                 if pending_compact_time is not None and time.time() >= pending_compact_time:

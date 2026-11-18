@@ -1,9 +1,9 @@
 # Aurora — Hyprland Desktop Environment & Dotfiles 🌌
 
-Configuration complète, moderne et haute performance pour **Hyprland** sous Linux / Wayland, propulsée par le thème **Aurora**.
+Configuration complète, moderne et haute performance pour **Hyprland 0.57.2** sous Linux / Wayland (configuration **Lua**), propulsée par le thème **Aurora**.
 
-- **Style Visuel** : Esthétique néon *glassmorphism* combinant des surfaces en verre fumé translucide (`rgba(10, 15, 30, 0.50)`), des bordures en dégradé vectoriel continu 45°/135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`) animées par rotation 360° matérielle sous GPU, et une courbure géométrique stricte à `17px` sur tous les conteneurs.
-- **Fonctionnement & Architecture** : Écosystème Wayland hautement réactif articulé autour d'une architecture événementielle zéro-polling (signaux D-Bus MPRIS, sockets IPC Hyprland). Il intègre une barre d'état Waybar dynamique avec mini-lecteur Spotify synchrone, un lanceur d'applications Wofi translucide patché souris/clavier, un moteur de fond d'écran animé Wallpaper Engine multimoniteur avec démon IPC de reconnexion à chaud (hotplug), un auto-compactage déterministe des workspaces multi-écrans, un protocole de verrouillage sécurisé avec masquage atomique des surfaces et une passerelle MCP native pour l'automatisation IA.
+- **Style Visuel** : Esthétique néon *glassmorphism* combinant des surfaces en verre fumé translucide (`rgba(10, 15, 30, 0.50)`), des bordures en dégradé vectoriel continu 45°/135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`, animation `borderangle` désactivée pour VFR et zéro charge GPU idle), et une courbure géométrique stricte à `17px` sur tous les conteneurs.
+- **Fonctionnement & Architecture** : Écosystème Wayland hautement réactif articulé autour d'une architecture événementielle zéro-polling (signaux D-Bus MPRIS, sockets IPC Hyprland). Il intègre une barre d'état Waybar dynamique avec mini-lecteur Spotify synchrone, un lanceur Wofi et centre SwayNC animés (`layersIn`/`layersOut`), un OSD natif GTK3 `gtk-layer-shell` (`aurora-osd`), un terminal Scratchpad déroulant (`special:scratchpad`), un moteur de fond d'écran animé multimoniteur C99 avec démon IPC hotplug, un auto-compactage déterministe multi-écrans, un verrouillage sécurisé sans écran noir et une passerelle MCP native.
 
 <p align="center">
   <img src="assets/desktop_preview.png" alt="Aperçu du bureau Hyprland" width="100%" />
@@ -25,10 +25,10 @@ Le thème **Aurora** est un environnement visuel et ergonomique sur-mesure :
   - Violet néon (accent) : `#9778d0`
   - Fond verre translucide : `rgba(10, 15, 30, 0.50)` (hyprbar, cartes, modules, popups et Wofi)
 - **Géométrie & Harmonie** :
-  - Rayon d'angle arrondi : **`17px`** obligatoire sur tous les conteneurs (fenêtres Hyprland, Hyprbar, Wofi et la carte Spotify).
+  - Rayon d'angle arrondi : **`17px`** obligatoire sur tous les conteneurs (fenêtres Hyprland, Hyprbar, Wofi, SwayNC, `aurora-osd` et carte Spotify).
   - Épaisseur de bordure : **`2px`** uniforme sur tout l'environnement.
-  - Dégradé vectoriel continu à 45° / 135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`) avec rotation continue matérielle GPU 360° sous Hyprland.
-  - Invariant Ergonomique Utilisateur (`input:follow_mouse = 0`) : Mode Click-to-Focus strict scrupuleusement préservé, garantissant une étanchéité totale du focus lors des déplacements de curseur en multi-écrans (`DP-2` / `DP-1`).
+  - Dégradé vectoriel continu à 45° / 135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`) défini dans `general.col.active_border` (`angle = 45` ; `borderangle` commenté dans `hyprland.lua` pour VFR et zéro charge GPU idle).
+  - Invariants Utilisateur (`input` dans `hyprland.lua`) : `follow_mouse = 0` (Click-to-Focus strict garantissant l'étanchéité du focus sur `DP-2` / `DP-1`), `kb_layout = "fr"` et `kb_variant = ""`.
 
 ---
 
@@ -49,7 +49,7 @@ cd Hyprland_Aurora
 1. **Dépendances système** : Détecte votre gestionnaire de paquets (`apt`, `pacman`) et installe les composants Wayland, polices, polkit et bibliothèques Python requises (saut possible via `./setup.sh --no-deps` ; configuration Nautilus isolée via `./scripts/setup/packages.sh --nautilus-only`).
 2. **Sauvegarde préventive** : Archive automatiquement vos configurations existantes dans `~/.config/aurora_backup_<date>/`.
 3. **Hard Links stricts** : Établit les **42 hard links physiques nominaux** (mêmes inodes) entre `dotfiles/` et `~/.config/` garantissant la synchronisation bidirectionnelle immédiate.
-4. **Permissions & Exécutables** : Règle les permissions `chmod +x` sur tous les scripts et déploie l'utilitaire `hyprbar` et le wrapper `aurora-mcp` dans `~/.local/bin/`.
+4. **Compilation, Plugins & Exécutables** : `scripts/setup/compile.sh` (`240` L) compile `aurora-wallpaper`, vérifie les plugins `0.57.2` (`Hyprspace.so` et `hyprglass.so` en mode `775`), règle les permissions `chmod +x` et lie par hardlink `aurora-osd` (`aurora_osd.py`) et `hyprbar` dans `~/.local/bin/`, plus le wrapper `aurora-mcp`.
 5. **Masques Blackwall & Caches** : Régénère le masque vectoriel haute fidélité `blackwall_mask.png` et configure le dossier runtime sécurisé `$AURORA_RUNTIME_DIR`.
 6. **Audit d'intégrité** : Valide la conformité complète des liaisons via `./scripts/wallpaper_tool.py check-links`.
 
@@ -80,7 +80,7 @@ cd Hyprland_Aurora
   - Badge numérique en exposant rose néon `{icon}<span foreground='#f43f5e'><sup>{text}</sup></span>` : masqué si 0 alerte, visible dès la première notification reçue.
 - **Architecture Événementielle Zéro-Polling (`signal: 11`)** :
   - Élimination stricte des forks répétitifs de sous-processus Python (`custom/spotify-prev`, `custom/spotify-play-pause`, `custom/spotify-next`).
-  - Configuration de `signal: 11` avec `interval: 30` (filet de sécurité passif) dans `config.jsonc`.
+  - Configuration de `signal: 11` avec `interval: "once"` (exécution unique initiale, zéro polling périodique) dans `config.jsonc`.
   - Rafraîchissement instantané via signal POSIX temps réel `pkill -RTMIN+11 waybar` lors des clics et sur réception du signal D-Bus `PlaybackStatus`.
 - **Helper MPRIS modulaire (`spotify.py`)** :
   - **Command Pattern & Dispatcher** : Séparation stricte des commandes (`--prev`, `--next`, `--play-pause`, `--progress`).
@@ -115,7 +115,7 @@ cd Hyprland_Aurora
   - Patch natif GTK3 ([`wofi-hover-select.patch`](dotfiles/wofi/wofi-hover-select.patch)) : synchronise dynamiquement la sélection active (`#entry:selected`) au survol du curseur de la souris sans jamais voler le focus clavier de la barre de recherche (`#input`).
   - Correction géométrique GTK3 : écoute exclusive sur `inner_box` avec coordonnées locales directes, évitant tout décalage d'index lié à la hauteur du champ de recherche.
 - **Détection de clic extérieur événementielle** : Utilisation de `wait -n` au niveau du noyau Linux (0% de CPU pendant l'ouverture).
-- **Style assorti** : Bordure en dégradé continu 135deg avec coins arrondis à 17px et ombre portée cyan néon.
+- **Style & Animations** : Bordure en dégradé continu 135deg avec coins arrondis à 17px, ombre portée cyan néon et animations `layersIn` (`popin 92%`) / `layersOut` (`fade`) dans `hyprland.lua`.
 
 ### 4. Écran de Verrouillage Sécurisé & Politique Veille / DPMS (`lock.sh` & Demande Utilisateur)
 - **Politique Énergétique & Veille (Zéro Écran Noir sous Verrou — Demande Utilisateur)** :
@@ -145,7 +145,7 @@ cd Hyprland_Aurora
 ### 6. Outil de Capture d'Écran Aurora (`screenshot.sh`)
 - **Intégration native sur Impr écran** : Déclenché par la touche <kbd>Print</kbd> ou <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>S</kbd>.
 - **Gel Instantané de l'Affichage (Freeze Screen)** : Utilisation de `hyprpicker -r -z` figeant immédiatement l'ensemble des moniteurs dès l'ouverture du mode sélection. Zéro décalage temporel ou animation en mouvement (Lucy, vidéos, Spotify) pendant la sélection rectangulaire.
-- **Élimination Définitive des Bordures Résiduelles** : Règles de calque déclaratives Hyprland (`selection_noanim` et `hyprpicker_noanim`) désactivant toute animation de sortie sur les couches de sélection, empêchant `grim` de photographier l'estompement du cadre `slurp`.
+- **Élimination Définitive des Bordures Résiduelles** : Règles de calques Lua (`hl.layer_rule` `selection_noanim` et `hyprpicker_noanim` avec `no_anim = true`) désactivant toute animation de sortie sur les couches de sélection, empêchant `grim` de photographier l'estompement du cadre `slurp`.
 - **Réticule Aurora affiné** : Outil `slurp` assorti avec bordures cyan 1px (`#00f0ff`) et fond Tokyo Night semi-transparent.
 - **Multi-modes** : Sélection rectangulaire gelée, plein écran du moniteur actif (<kbd>SHIFT</kbd> + <kbd>Print</kbd>), fenêtre active (<kbd>SUPER</kbd> + <kbd>Print</kbd>) ou multi-écrans intégral (<kbd>CTRL</kbd> + <kbd>Print</kbd>).
 - **Presse-papiers & Notifications** : Copie immédiate dans le presse-papiers Wayland (`wl-copy`), libération déterministe RAII (`trap`) et notification avec vignette miniature.
@@ -154,7 +154,7 @@ cd Hyprland_Aurora
 - **Thématisation Aurora GTK3** :
   - Rayon de courbure strict à **`17px`** sur les conteneurs de notification et sur le volet de contrôle (`.control-center`).
   - Bordures néon cyan `2px` (`#00f0ff` / `rgba(0, 240, 255, 0.60)`) et arrière-plan glassmorphism fumé `rgba(10, 15, 30, 0.80)`.
-  - Flou matériel Hyprland avec règles dédiées (`layerrule = blur, swaync-control-center` et `layerrule = blur, swaync-notification-window`).
+  - Flou matériel Hyprland et animations dédiées (`hl.layer_rule` `swaync_blur` et `swaync_notif_blur`, `layersIn` `popin 92%` / `layersOut` `fade`).
 - **Widgets Intégrés & Contrôles** :
   - Volet latéral rétractable déclenché par le raccourci <kbd>SUPER</kbd> + <kbd>N</kbd> (`swaync-client -t -sw`).
   - Menu contextuel au clic droit via patch natif Vala ([`swaync-blacklist.patch`](dotfiles/swaync/swaync-blacklist.patch)) ouvrant un Popover GTK Aurora :
@@ -184,16 +184,23 @@ cd Hyprland_Aurora
   - Garde-fou d'authentification active (`HYPRUSE_AUTH_GUARD=1`) bloquant toute interaction involontaire avec les invites de mot de passe Polkit / Sudo.
   - Coupure d'urgence matérielle sous Hyprland via <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>BackSpace</kbd> (`hypruse stop`).
 
-### 10. Bilan des Optimisations Système (OPT-1 à OPT-9) & Performances Réelles
+### 10. Architecture Hyprland 0.57.2 (Lua), OSD Natif & Scratchpad
+- **Compositeur Hyprland `0.57.2` actif en RAM** : Migration intégrale vers **Lua** (`dotfiles/hypr/hyprland.lua` `298` L + `hyprviz.lua` `26` L), zéro dépréciation (`hyprctl deprecated-config: all good!`). Directives `render.use_fp16 = 0` (gain SDR), `layers = { allow_new_top_layers_over_existing_fullscreen = true, layers_hog_keyboard_focus = true }`, `misc.bell_sound = ""`, `ecosystem`. Remplacement de `on_created_empty` par l'écouteur `hl.on("workspace.created")`.
+- **Plugins C++ `0.57.2` & Couches animées** : `Hyprspace.so` (patch multi-écrans `wsID < 1 || wsID >= 90`), `hyprglass.so` v1.2.0 (`hl.plugin.hyprglass`), animations `layersIn`/`layersOut` et `slide right` sur SwayNC (`swaync_blur`, `swaync_notif_blur`).
+- **OSD Natif Aurora (`scripts/aurora_osd.py` ➔ `~/.local/bin/aurora-osd`)** : Overlay GTK3 `gtk-layer-shell` (17px, 2px `#00f0ff`, `0.50`), détection `capsLock` temps réel via `j/devices` (`main` prioritaire) avec badge ON/OFF, overdrive audio `> 100%` (`.osd-overdrive`), synchronisation dynamique de palette (`theme_switcher.py`).
+- **Terminal Scratchpad (`special:scratchpad`)** : Fenêtre flottante centrée `1100x650` (`focus_on_activate = true`, `slide top`), basculée via <kbd>SUPER</kbd> + <kbd>²</kbd> (`code:49`) / <kbd>SUPER</kbd> + <kbd>F12</kbd>, envoi de fenêtre active via <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>²</kbd> / <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>F12</kbd>.
+- **Migration Socket1 Lua des Scripts & Lock** : `workspace-autocompact.py` et `hypr_ipc.py` émettent exclusivement `hl.dsp.window.move` et `hl.dsp.focus` (écoute `closewindow`, `destroyworkspacev2`, etc.). `lock.sh` pilote `misc:disable_autoreload` via `eval 'hl.config(...)'` ; `hyprlock.conf` applique `blur_passes = 0` et fond `rgba(0, 0, 0, 0.30)` (zéro surcoût GPU sous verrou).
 
-Les 9 optimisations issues de l'audit sont **implémentées et vérifiées** (suite zéro-régression : **20/20 tests PASS** via `./scripts/verify_aurora.sh --read-only`) :
+### 11. Bilan des Optimisations Système (OPT-1 à OPT-9) & Performances Réelles
+
+Les 9 optimisations issues de l'audit sont **implémentées et vérifiées** (`./scripts/verify_aurora.sh --read-only` : **8/8 étapes PASS**, **25/25 tests fonctionnels PASS** en `~2.9s`, et `./tests/benchmark_optimizations.py` : **3 passages PASS**) :
 
 | ID | Domaine | Description & Implémentation | Métrique & Gain Réel Mesuré |
 | :--- | :--- | :--- | :--- |
 | **OPT-1** | GPU / Wayland | Région opaque (`wl_surface_set_opaque_region`), FBO `GL_RGB`, arrêt auto `swaybg` | **0 swaybg** (layer 0 libéré), zéro blending sur 2x 1080p |
 | **OPT-2** | Binaire C99 | Binaire `aurora-wallpaper` C99 optimisé, VBO statique, cache verrou 250 ms | **98360 octets** (-57.3%), 60 FPS (16 ms) sous verrou (choix utilisateur), -92% syscalls |
 | **OPT-3** | Shader GLSL | Uniforme `u_TimeParams` précalculé CPU, `pow()` transcendants éliminés | ~12 ops invariantes/pixel supprimées, 4 multiplications natives |
-| **OPT-4** | Compositeur | Flou Kawase natif unique (`plugin:hyprglass` restreint à `hyprlock`), VFR actif | Double flou éliminé sur Waybar/Wofi, `debug:vfr = true` actif |
+| **OPT-4** | Compositeur | Flou Kawase natif (`hl.plugin.hyprglass` v1.2.0 / `hyprlock`, `paros-companion` exclu), VFR actif | Double flou éliminé sur Waybar/Wofi, `debug.vfr = true` et `borderangle` désactivé |
 | **OPT-5** | Watchdog IPC | Sockets UNIX directs (`j/layers`, `j/monitors`) et détection `/proc` sans fork | **0.41 ms** (vs 19.34 ms, **-97.8%**, x47), 0 fork / 10s |
 | **OPT-6** | IPC Hover | Caches runtime dir et socket Hyprland dans `hypr_ipc.py` (boucle 20 Hz) | **3.38 ms** / 50 req (vs 7.34 ms, **-54.0%**), 0 syscall redondant |
 | **OPT-7** | MCP Workspaces | Exécution *in-process* de `compact_workspaces` et cache `_MONITOR_CONFIGS_CACHE` | **0.33 ms** (vs 33.77 ms bloqué, **-99.0%**), verrou débloqué |
@@ -208,15 +215,16 @@ Les 9 optimisations issues de l'audit sont **implémentées et vérifiées** (su
 hyprland_project/
 ├── dotfiles/
 │   ├── hypr/
-│   │   ├── hyprland.conf      # Configuration maîtresse d'Hyprland (moniteurs, règles, follow_mouse=0)
-│   │   ├── hyprviz.conf       # Paramètres d'apparence complémentaires harmonisés (border_size = 2)
+│   │   ├── hyprland.lua       # Configuration Lua maîtresse 0.57.2 (moniteurs, règles, follow_mouse=0)
+│   │   ├── hyprviz.lua        # Paramètres d'apparence Lua harmonisés (require("hyprviz"), border_size=2)
 │   │   ├── hypridle.conf      # Démon d'inactivité (DPMS 330s, garde suspend 1800s, inhibit_sleep = 3)
 │   │   ├── hyprlock.conf      # Écran de verrouillage stylisé avec champ de mot de passe dégradé
 │   │   ├── hyprlock-pam-deadlock.patch # Patch C++ anti-deadlock PAM (PR #1059)
 │   │   ├── lock.sh            # Script de verrouillage sécurisé avec Safe Cleanup RAII
 │   │   ├── plugins/
-│   │   │   ├── Hyprspace.so   # Plugin Mission Control (SUPER + TAB)
-│   │   │   └── hyprspace-multimonitor.patch # Patch natif filtrant les workspaces par écran
+│   │   │   ├── Hyprspace.so   # Plugin Mission Control 0.57.2 (KZdkm/Hyprspace, SUPER + TAB)
+│   │   │   ├── hyprglass.so   # Plugin glassmorphism v1.2.0 recompilé 0.57.2 (hl.plugin.hyprglass)
+│   │   │   └── hyprspace-multimonitor.patch # Patch multi-écrans (wsID < 1 || wsID >= 90 exclu)
 │   │   ├── scripts/
 │   │   │   ├── hypr_ipc.py    # Client/serveur IPC événementiel Hyprland (.socket.sock / .socket2.sock)
 │   │   │   ├── hyprlock_state.py # Gestionnaire d'état et masquage d'espaces (98 DP-2 / 99 DP-1)
@@ -259,13 +267,15 @@ hyprland_project/
 ├── src/
 │   └── aurora_wallpaper/      # Micro-moteur Wayland C99 natif (Single-Pass GLSL + FBO 30 FPS session / 60 FPS lock)
 ├── scripts/
+│   ├── aurora_osd.py          # OSD natif GTK3 gtk-layer-shell (son, micro, Verr. Maj -> ~/.local/bin/aurora-osd)
 │   ├── hyprbar                # Gestionnaire CLI Waybar et carte Spotify (anti-fuite de processus)
 │   ├── wallpaper_tool.py      # Outils CLI (moteur natif, mask, audit 42 hardlinks, daemon, ensure)
 │   ├── wallpaper_daemon.py    # Démon d'écoute IPC Hyprland (.socket2.sock)
-│   ├── theme_switcher.py      # Sélecteur de thèmes dynamique (apply, list, status)
+│   ├── theme_switcher.py      # Sélecteur de thèmes dynamique (CSS + active/inactive_border dans hyprland.lua)
 │   ├── aurora_runtime.py      # Contrat runtime sécurisé $AURORA_RUNTIME_DIR (0700)
-│   ├── verify_aurora.sh       # Harnais de test unifié zéro-régression (supporte --read-only)
-│   └── aurora_mcp_server.py   # Serveur MCP local FastMCP (13 outils réels)
+│   ├── verify_aurora.sh       # Harnais 8 étapes / 25 tests fonctionnels (supporte --read-only)
+│   ├── aurora_mcp_server.py   # Serveur MCP local FastMCP (13 outils réels)
+│   └── setup/compile.sh       # Compilation C99, vérification plugins 775 et liens aurora-osd / hyprbar
 ├── hooks/
 │   └── pre-commit             # Hook Git garantissant les 42 hardlinks et la volumétrie < 500L
 ├── setup.sh                   # Script d'installation modulaire et validation des 42 hardlinks
@@ -278,7 +288,7 @@ Chaque sous-système dispose de sa propre documentation technique dédiée :
 
 | Composant | Description | Documentation |
 | :--- | :--- | :--- |
-| **Hyprland** | Compositeur Wayland, règles d'affichage, raccourcis, protocole `lock.sh` | [`dotfiles/hypr/README.md`](dotfiles/hypr/README.md) |
+| **Hyprland** | Compositeur `0.57.2`, Lua (`hyprland.lua` / `hyprviz.lua`), plugins, protocole `lock.sh` | [`dotfiles/hypr/README.md`](dotfiles/hypr/README.md) |
 | **Waybar & Spotify** | Barre d'état glassmorphism, architecture événementielle `signal: 11` et carte GTK3 | [`dotfiles/waybar/README.md`](dotfiles/waybar/README.md) |
 | **Wofi** | Lanceur d'applications, patch souris single-click/hover et style CSS 17px | [`dotfiles/wofi/README.md`](dotfiles/wofi/README.md) |
 | **SwayNC** | Centre de notifications, thème Aurora glassmorphism 17px et mode DND | [`dotfiles/swaync/README.md`](dotfiles/swaync/README.md) |
@@ -309,6 +319,8 @@ Les fichiers de configuration réels de votre compte utilisateur dans `~/.config
 | Raccourci | Action |
 | :--- | :--- |
 | <kbd>SUPER</kbd> + <kbd>Return</kbd> / <kbd>SUPER</kbd> + <kbd>Q</kbd> | Ouvrir le terminal Kitty |
+| <kbd>SUPER</kbd> + <kbd>²</kbd> (`code:49`) / <kbd>SUPER</kbd> + <kbd>F12</kbd> | Afficher / Masquer le terminal Scratchpad déroulant |
+| <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>²</kbd> (`code:49`) / <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>F12</kbd> | Envoyer la fenêtre active vers le Scratchpad |
 | <kbd>SUPER</kbd> + <kbd>R</kbd> | Ouvrir / Fermer le lanceur d'applications (Wofi) |
 | <kbd>SUPER</kbd> + <kbd>N</kbd> | Ouvrir / Fermer le centre de notifications (SwayNC) |
 | <kbd>SUPER</kbd> + <kbd>S</kbd> | Menu de session & alimentation Aurora (Verrouiller, Veille, Éteindre, ...) |
@@ -326,10 +338,9 @@ Les fichiers de configuration réels de votre compte utilisateur dans `~/.config
 | <kbd>SUPER</kbd> + <kbd>&</kbd> à <kbd>à</kbd> (1-10) | Changer d'espace de travail (AZERTY) |
 | <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>&</kbd> à <kbd>à</kbd> | Déplacer la fenêtre active vers un espace de travail |
 
-### Contrôles Audio & Multimédia
-- **Molette volume / Touches multimédia** : Contrôle natif du volume et lecture/pause (`wpctl`, `playerctl`).
-- **Survol de la barre Spotify** : Déroulement automatique de la carte Spotify.
-- **Molette sur la barre de progression Spotify** : Avancer / Reculer de 5 secondes dans le morceau.
+### Contrôles Audio, OSD & Multimédia
+- **Volume, Micro & Verr. Maj (`aurora-osd`)** : Touches volume/muet/micro et `Caps_Lock` pilotées via `aurora-osd` (`wpctl` + `j/devices` `capsLock` avec repli sysfs, overlay `gtk-layer-shell`), et médias via `playerctl`.
+- **Survol & Navigation Spotify** : Déroulement automatique de la carte Spotify au survol et saut temporel (+/- 5 s) à la molette sur la progression.
 
 ---
 
@@ -359,9 +370,10 @@ hyprbar status   # Vérifier l'état et les PIDs actifs
 # Sélecteur de thèmes d'ambiance visuelle (aurora, tokyo-night, blackwall-red, cyberpunk-amber)
 python3 scripts/theme_switcher.py list
 python3 scripts/theme_switcher.py status
+# Appliquer un thème (met aussi à jour active/inactive_border dans hyprland.lua en place)
 python3 scripts/theme_switcher.py apply tokyo-night
 
-# Harnais de test unifié zéro-régression (mode lecture seule sans réarmement runtime)
+# Harnais de test unifié zéro-régression (8 étapes, 25/25 tests fonctionnels PASS, mode lecture seule)
 ./scripts/verify_aurora.sh --read-only
 ```
 
@@ -377,10 +389,8 @@ aurora-mcp reload  # Rechargement unifié de l'ensemble de la session
 
 ## 📦 Dépendances Requises
 
-Pour faire fonctionner l'ensemble de ces fonctionnalités :
-
-- **Composants système** : `hyprland`, `waybar`, `wofi`, `sway-notification-center` (`swaync`), `kitty`, `hyprlock`, `hypridle`, `swaybg`, `hyprpolkitagent`.
+- **Composants système** : `hyprland` (`0.57.2`, API Lua), `waybar`, `wofi`, `sway-notification-center` (`swaync`), `kitty`, `hyprlock`, `hypridle`, `swaybg`, `hyprpolkitagent`.
 - **Moteur de fond d'écran dynamique** : `aurora-wallpaper` (Micro-moteur natif C99 / Wayland `wlr-layer-shell` + EGL/GLES2).
 - **Utilitaires Wayland** : `slurp`, `grim`, `wl-clipboard` (`wl-copy`), `playerctl`, `pavucontrol`, `jq`, `wireplumber` (`wpctl`), `xrandr`, `wtype`.
-- **Python & Bibliothèques** : `python3`, `python3-gi`, `python3-dbus`, `python3-pil` (Pillow).
-- **Polices recommandées** : `Noto Sans`, `FontAwesome` (pour les icônes de la barre et du popup).
+- **Python & Bibliothèques** : `python3`, `python3-gi`, `gtk-layer-shell` (`GtkLayerShell`), `python3-dbus`, `python3-pil` (Pillow).
+- **Polices recommandées** : `'JetBrainsMono Nerd Font'` / `'Symbols Nerd Font'` + `'Noto Sans'` (`aurora-osd`), et `Noto Sans` / `JetBrainsMono Nerd Font` / `FontAwesome` (icônes Waybar et carte Spotify).

@@ -283,6 +283,8 @@ def main():
     if arg in ["toggle", "show", "hide", "like", "masquer"]:
         if send_client_cmd(arg):
             sys.exit(0)
+        if arg in ["hide", "masquer", "like"]:
+            sys.exit(0)
         if not acquire_singleton_lock():
             for _ in range(10):
                 time.sleep(0.1)

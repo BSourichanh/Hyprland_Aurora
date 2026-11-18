@@ -1,6 +1,6 @@
 # Assets & Shaders du Thème Lucy (`ressource/`) 🌌
 
-Ressources graphiques, shaders GLSL natifs et masques subpixel pour le fond d'écran animé **Lucy (Cyberpunk: Edgerunners)**, exploités par le micro-moteur Wayland C99 natif `aurora-wallpaper` (~72 Mo RAM sous EGL natif, 30 FPS nominaux et boucle monotone 1 FPS sous verrouillage).
+Ressources graphiques, shaders GLSL natifs et masques subpixel pour le fond d'écran animé **Lucy (Cyberpunk: Edgerunners)**, exploités par le micro-moteur Wayland C99 natif `aurora-wallpaper` (~72 Mo RAM sous EGL natif, 30 FPS (33 ms) en session normale et 60 FPS (16 ms) sous verrouillage par choix utilisateur, au lieu de 1 FPS).
 
 > 📖 **Spécification Complète & Exhaustive** : Consultez [`LUCY_MODEL.md`](file:///home/user/Documents/antigravity/hyprland_project/ressource/LUCY_MODEL.md) pour la documentation intégrale (architecture de la scène, GLSL, passes post-processing, FBO partagé multi-écrans et détourage analytique).
 

@@ -35,8 +35,8 @@ else
     fi
     rm -f "$AURORA_RUNTIME_DIR/spotify_card.sock" 2>/dev/null || true
 
-    hyprctl dispatch exec waybar >/dev/null 2>&1
-    hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" >/dev/null 2>&1
+    hyprctl dispatch 'hl.dsp.exec_cmd("waybar")' >/dev/null 2>&1 || hyprctl dispatch exec waybar >/dev/null 2>&1
+    hyprctl dispatch 'hl.dsp.exec_cmd("'"$HOME"'/.config/waybar/scripts/spotify-card.py daemon")' >/dev/null 2>&1 || hyprctl dispatch exec "$HOME/.config/waybar/scripts/spotify-card.py daemon" >/dev/null 2>&1
 fi
 
 swaync-client -R >/dev/null 2>&1 || true

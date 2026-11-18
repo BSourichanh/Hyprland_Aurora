@@ -41,6 +41,15 @@ def is_reserved_ws(ws_id) -> bool:
     return isinstance(ws_id, int) and RESERVED_WS_MIN <= ws_id <= RESERVED_WS_MAX
 
 
+def set_disable_autoreload(enabled: bool = True) -> None:
+    """Sets misc:disable_autoreload via 0.57.2 Lua eval with 0.56.2 keyword fallback."""
+    flag = "true" if enabled else "false"
+    resp = hypr_cmd(f"eval hl.config({{ misc = {{ disable_autoreload = {flag} }} }})")
+    resp_lower = (resp or "").lower()
+    if "lua config manager" in resp_lower or "unknown request" in resp_lower:
+        hypr_cmd(f"keyword misc:disable_autoreload {flag}")
+
+
 def default_user_ws(mon_name: str) -> int:
     if mon_name == "DP-1":
         return 6
@@ -123,6 +132,14 @@ def save_state():
         pass
 
 
+def _dsp_focus_mon(name: str) -> str:
+    return f'dispatch hl.dsp.focus({{ monitor = "{name}" }})'
+
+
+def _dsp_focus_ws(ws: int) -> str:
+    return f'dispatch hl.dsp.focus({{ workspace = {ws} }})'
+
+
 def _special_ws_close_cmds(monitors: List[dict]) -> List[str]:
     cmds = []
     for m in monitors:
@@ -134,11 +151,9 @@ def _special_ws_close_cmds(monitors: List[dict]) -> List[str]:
             sp_name = str(sp.get("name", ""))
             if sp_name.startswith("special:"):
                 sp_name = sp_name[len("special:"):]
-            cmds.append(f"dispatch focusmonitor {name}")
-            if sp_name:
-                cmds.append(f"dispatch togglespecialworkspace {sp_name}")
-            else:
-                cmds.append("dispatch togglespecialworkspace")
+            cmds.append(_dsp_focus_mon(name))
+            arg = f'"{sp_name}"' if sp_name else ""
+            cmds.append(f"dispatch hl.dsp.workspace.toggle_special({arg})")
     return cmds
 
 
@@ -152,7 +167,7 @@ def switch_reserved():
     for m in monitors:
         name = m.get("name")
         if name in reserved_map:
-            cmds.append(f"dispatch focusmonitor {name};dispatch workspace {reserved_map[name]}")
+            cmds.extend([_dsp_focus_mon(name), _dsp_focus_ws(reserved_map[name])])
     if cmds:
         hypr_batch(cmds)
 
@@ -183,11 +198,11 @@ def _build_client_expel_cmds(clients: list, connected_names: set) -> tuple:
         if not is_pinned and not is_reserved_ws(ws_id) and not (is_sensitive and c.get("mapped")):
             continue
         if is_pinned:
-            cmds.append(f"dispatch pin address:{addr}")
+            cmds.append(f'dispatch hl.dsp.window.pin({{ window = "address:{addr}" }})')
             newly_unpinned.append(addr)
         if is_reserved_ws(ws_id) or is_pinned or (is_sensitive and c.get("mapped")):
             target_ws = _target_ws_for_expel(ws_id, connected_names)
-            cmds.append(f"dispatch movetoworkspacesilent {target_ws},address:{addr}")
+            cmds.append(f'dispatch hl.dsp.window.move({{ workspace = {target_ws}, window = "address:{addr}", silent = true }})')
     return cmds, newly_unpinned
 
 
@@ -222,7 +237,7 @@ def restore_state():
         orig_ws = orig.get(name)
         if not isinstance(orig_ws, int) or is_reserved_ws(orig_ws):
             orig_ws = default_user_ws(name)
-        cmds.append(f"dispatch focusmonitor {name};dispatch workspace {orig_ws}")
+        cmds.extend([_dsp_focus_mon(name), _dsp_focus_ws(orig_ws)])
 
     unpinned_addrs = orig.get("__unpinned__", [])
     if isinstance(unpinned_addrs, list) and unpinned_addrs:
@@ -232,10 +247,10 @@ def restore_state():
             for addr in unpinned_addrs:
                 c = by_addr.get(addr)
                 if c and not c.get("pinned"):
-                    cmds.append(f"dispatch pin address:{addr}")
+                    cmds.append(f'dispatch hl.dsp.window.pin({{ window = "address:{addr}" }})')
 
     if focused_mon and any(m.get("name") == focused_mon for m in monitors):
-        cmds.append(f"dispatch focusmonitor {focused_mon}")
+        cmds.append(_dsp_focus_mon(focused_mon))
     if cmds:
         hypr_batch(cmds)
 
@@ -257,7 +272,7 @@ def enforce_lock():
         act = m.get("activeWorkspace", {}).get("id")
         target_reserved = reserved_map.get(name)
         if target_reserved is not None and act != target_reserved:
-            cmds.append(f"dispatch focusmonitor {name};dispatch workspace {target_reserved}")
+            cmds.extend([_dsp_focus_mon(name), _dsp_focus_ws(target_reserved)])
 
     clients = hypr_json("j/clients")
     if isinstance(clients, list):
@@ -338,7 +353,7 @@ def run_watcher():
                         ):
                             subprocess.run(proc_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     elif ev == "configreloaded":
-                        hypr_cmd("keyword misc:disable_autoreload true")
+                        set_disable_autoreload(True)
                         time.sleep(0.2)
                         enforce_lock()
                     elif ev in ("workspace", "workspacev2", "focusedmon", "openwindow", "mapwindow", "activespecial"):

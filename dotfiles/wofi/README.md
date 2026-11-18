@@ -18,10 +18,10 @@ dotfiles/wofi/
 
 ## 🎨 Spécifications Visuelles (GTK3 CSS)
 
-- **Coins arrondis** : **`17px`** sur la fenêtre principale et le champ de recherche.
+- **Coins arrondis** : **`17px`** sur la fenêtre principale (`window`) et rayon de **`12px`** sur le champ de saisie (`#input`) et les entrées (`#entry`).
 - **Bordure en dégradé continu** : Angle 135° (`#00f0ff` ➔ `#7aa2f7` ➔ `#9778d0`) avec épaisseur de **2px**.
-- **Arrière-plan** : Fond sombre translucide `rgba(10, 15, 30, 0.88)` complété par le flou matériel Hyprland.
-- **Champ de saisie (`#input`)** : Curseur cyan, texte contrasté, bordure dégradée fine et ombre portée néon (`box-shadow: 0 0 12px rgba(0, 240, 255, 0.35)`).
+- **Arrière-plan** : Fond sombre translucide à opacité **`0.50`** (`rgba(10, 15, 30, 0.50)`) complété par le flou matériel Hyprland.
+- **Champ de saisie (`#input`)** : Curseur cyan, texte contrasté, fond `rgba(21, 46, 80, 0.60)`, rayon de courbure de **`12px`** et ombre portée néon (`box-shadow: 0 0 10px rgba(0, 240, 255, 0.6)`).
 - **Éléments sélectionnés (`#entry:selected`)** : Surlignage en dégradé cyan / violet avec texte sombre contrasté.
 
 ---

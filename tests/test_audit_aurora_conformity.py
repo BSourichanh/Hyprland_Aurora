@@ -3,7 +3,7 @@
 Test Suite: Strict Aurora Theme Conformity & Architectural Standards Audit
 Checks:
 1. 4 Design Pillars: 17px radius, 2px border, 45° gradient, translucidity 0.50
-2. Invariants: Strict input:follow_mouse = 0 in hyprland.conf
+2. Invariants: Strict input.follow_mouse = 0 in hyprland.lua & blur xray = false in hyprviz.lua
 3. Theme Engine & Palettes: Model definitions & @define-color templates
 4. MCP Architecture: Exactly 13 tools registered, zero obsolete renderer tools
 5. Runtime Security: $AURORA_RUNTIME_DIR contract enforcement across components
@@ -32,32 +32,62 @@ def check_component(name: str, checks: list) -> bool:
     return all_ok
 
 
+def _strip_lua_comments(text: str) -> str:
+    pat = re.compile(r'("(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\')|--\[(=*)\[[\s\S]*?\]\2\]|--[^\n]*')
+    return pat.sub(lambda m: m.group(1) if m.group(1) is not None else " ", text)
+
+
+def _extract_lua_table(text: str, key: str) -> str:
+    m = re.search(rf"\b{re.escape(key)}\s*=\s*\{{", text)
+    if not m:
+        return ""
+    depth, idx = 1, m.end()
+    while idx < len(text) and depth > 0:
+        depth += (text[idx] == "{") - (text[idx] == "}")
+        idx += 1
+    return text[m.start():idx]
+
+
 def audit_hyprland() -> bool:
-    conf = (DOTFILES / "hypr" / "hyprland.conf").read_text(encoding="utf-8")
+    lua_path = DOTFILES / "hypr" / "hyprland.lua"
+    viz_path = DOTFILES / "hypr" / "hyprviz.lua"
+    lua_clean = _strip_lua_comments(lua_path.read_text(encoding="utf-8"))
+    viz_clean = _strip_lua_comments(viz_path.read_text(encoding="utf-8")) if viz_path.exists() else ""
+
+    decor = _extract_lua_table(lua_clean, "decoration")
+    general = _extract_lua_table(lua_clean, "general")
+    input_tbl = _extract_lua_table(lua_clean, "input")
+    blur_main = _extract_lua_table(decor, "blur")
+    blur_viz = _extract_lua_table(_extract_lua_table(viz_clean, "decoration"), "blur")
+    active_tbl = _extract_lua_table(general, "active_border")
     checks = []
 
-    m_round = re.search(r"rounding\s*=\s*(\d+)", conf)
+    m_round = re.search(r"\brounding\s*=\s*(\d+)", decor)
     r_val = int(m_round.group(1)) if m_round else 0
     checks.append(("Radius 17px", r_val == 17, f"rounding = {r_val}"))
 
-    m_border = re.search(r"border_size\s*=\s*(\d+)", conf)
+    m_border = re.search(r"\bborder_size\s*=\s*(\d+)", general)
     b_val = int(m_border.group(1)) if m_border else 0
     checks.append(("Border 2px", b_val == 2, f"border_size = {b_val}"))
 
-    m_grad = re.search(r"col\.active_border\s*=\s*(.+)$", conf, re.M)
-    grad_str = m_grad.group(1) if m_grad else ""
-    grad_ok = "45deg" in grad_str and "00F0FF" in grad_str.upper() and "7AA2F7" in grad_str.upper()
-    checks.append(("Gradient 45°", grad_ok, grad_str.strip()))
+    grad_ok = (
+        re.search(r"\bangle\s*=\s*45\b", active_tbl) is not None
+        and "RGBA(00F0FFFF)" in active_tbl.upper()
+        and "RGBA(7AA2F7FF)" in active_tbl.upper()
+    )
+    checks.append(("Gradient 45°", grad_ok, active_tbl.strip() or "missing active_border"))
 
-    m_blur = "blur {" in conf and "enabled = true" in conf
-    checks.append(("Glassmorphism Blur", m_blur, "Enabled (size=6, passes=1)"))
+    has_viz = 'require("hyprviz")' in lua_clean or "require('hyprviz')" in lua_clean
+    blur_enabled = re.search(r"\benabled\s*=\s*true\b", blur_main) is not None
+    blur_xray_off = has_viz and re.search(r"\bxray\s*=\s*false\b", f"{blur_main}\n{blur_viz}") is not None
+    checks.append(("Glassmorphism Blur", blur_enabled and blur_xray_off, f"enabled={blur_enabled}, xray=false={blur_xray_off}"))
 
     # Strict invariant: follow_mouse must be 0
-    m_fm = re.search(r"follow_mouse\s*=\s*(\d+)", conf)
+    m_fm = re.search(r"\bfollow_mouse\s*=\s*(\d+)", input_tbl)
     fm_val = int(m_fm.group(1)) if m_fm else -1
     checks.append(("User Invariant follow_mouse=0", fm_val == 0, f"follow_mouse = {fm_val}"))
 
-    return check_component("Hyprland (hyprland.conf)", checks)
+    return check_component("Hyprland (hyprland.lua / hyprviz.lua)", checks)
 
 
 def audit_waybar() -> bool:

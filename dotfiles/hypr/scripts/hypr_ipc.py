@@ -181,5 +181,5 @@ def get_cursor_position(timeout: float = 0.04) -> Tuple[Optional[int], Optional[
         return None, None
 
 def move_window_pixel(x: int, y: int, window_class: str = "spotify-card", timeout: float = 0.05) -> None:
-    """Moves a floating window to exact pixel coordinates."""
-    hypr_cmd(f"dispatch movewindowpixel exact {x} {y},class:{window_class}", timeout=timeout)
+    """Moves a floating window to exact pixel coordinates via Hyprland 0.57.2 Lua dispatcher."""
+    hypr_cmd(f'dispatch hl.dsp.window.move({{ x = {int(x)}, y = {int(y)}, window = "class:{window_class}" }})', timeout=timeout)

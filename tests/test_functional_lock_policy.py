@@ -106,6 +106,18 @@ class TestLockAndIdlePolicy(unittest.TestCase):
         self.assertIn("flock -n 9", self.lock_content)
         self.assertIn('rm -f "$LOCK_FLAG"', self.lock_content)
 
+    def test_lua_0572_dpms_and_window_pin_syntax(self):
+        """Validates Hyprland 0.57.2 table syntax for hl.dsp.dpms and hl.dsp.window.pin."""
+        self.assertIn("hl.dsp.dpms({ action =", self.idle_content)
+        self.assertIn("hl.dsp.dpms({ action =", self.lock_content)
+        self.assertNotIn('hl.dsp.dpms("', self.idle_content)
+        self.assertNotIn('hl.dsp.dpms("', self.lock_content)
+
+        state_src = (HYPR_DIR / "scripts" / "hyprlock_state.py").read_text(encoding="utf-8")
+        self.assertIn('hl.dsp.window.pin({{ window = "address:', state_src)
+        self.assertNotIn("pin({ address =", state_src)
+        self.assertNotIn("pin({{ address =", state_src)
+
 
 def main():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestLockAndIdlePolicy)

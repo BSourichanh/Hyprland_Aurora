@@ -72,11 +72,52 @@ compile_aurora_wallpaper() {
 
 check_hyprspace() {
     for plugin in "Hyprspace.so" "hyprglass.so"; do
-        if [ -f "$DOTFILES_DIR/hypr/plugins/$plugin" ]; then
-            chmod +x "$DOTFILES_DIR/hypr/plugins/$plugin"
-            log_success "Plugin $plugin validé et exécutable."
+        local plugin_path="$DOTFILES_DIR/hypr/plugins/$plugin"
+        if [ -f "$plugin_path" ]; then
+            if [ "$(stat -c %a "$plugin_path" 2>/dev/null || true)" != "775" ]; then
+                chmod 775 "$plugin_path"
+            fi
+            if [ -r "$plugin_path" ] && [ -x "$plugin_path" ]; then
+                log_success "Plugin $plugin validé et exécutable ($plugin_path)."
+            else
+                log_error "Permissions invalides sur le plugin $plugin_path."
+                return 1
+            fi
+        else
+            log_warn "Plugin $plugin absent dans $DOTFILES_DIR/hypr/plugins (recompilation requise contre les en-têtes Hyprland)."
         fi
     done
+}
+
+link_local_cli() {
+    local src_path="$1"
+    local bin_name="$2"
+    local dst_path="$LOCAL_BIN/$bin_name"
+
+    if [ ! -f "$src_path" ]; then
+        log_warn "Utilitaire source absent : $src_path"
+        return 0
+    fi
+    [ -x "$src_path" ] || chmod 755 "$src_path"
+
+    if [ "$(stat -c %d "$(dirname "$src_path")")" = "$(stat -c %d "$LOCAL_BIN")" ]; then
+        if [ -f "$dst_path" ] && [ ! -L "$dst_path" ] && [ "$(stat -c %i "$src_path")" = "$(stat -c %i "$dst_path")" ]; then
+            log_success "Utilitaire '$bin_name' déjà lié par hardlink dans $dst_path."
+        else
+            rm -f "$dst_path"
+            ln "$src_path" "$dst_path"
+            log_success "Utilitaire '$bin_name' déployé par hardlink dans $dst_path."
+        fi
+    else
+        ln -sf "$src_path" "$dst_path"
+        log_success "Utilitaire '$bin_name' déployé par symlink dans $dst_path."
+    fi
+}
+
+sync_cli_tools() {
+    log_step "Vérification et liaison des utilitaires CLI dans $LOCAL_BIN..."
+    link_local_cli "$SCRIPT_DIR/scripts/aurora_osd.py" "aurora-osd"
+    link_local_cli "$SCRIPT_DIR/scripts/hyprbar" "hyprbar"
 }
 
 patch_wofi() {
@@ -188,6 +229,7 @@ patch_hyprlock() {
 main() {
     compile_aurora_wallpaper
     check_hyprspace
+    sync_cli_tools
     patch_wofi
     patch_swaync
     patch_hyprlock

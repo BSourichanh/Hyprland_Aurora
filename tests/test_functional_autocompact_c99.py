@@ -14,10 +14,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(os.environ.get("AURORA_PROJECT_DIR", Path(__file__).resolve().parent.parent))
 DOTFILES = PROJECT_ROOT / "dotfiles"
 HYPR_SCRIPTS = DOTFILES / "hypr" / "scripts"
+SCRIPTS = PROJECT_ROOT / "scripts"
 SRC_C99 = PROJECT_ROOT / "src" / "aurora_wallpaper"
 
 
@@ -125,6 +127,70 @@ class TestAutocompactAndC99(unittest.TestCase):
             self.assertEqual(link.returncode, 0, f"Linking failed:\n{link.stderr}")
             out_bin = tmp_path / "aurora-wallpaper"
             self.assertTrue(out_bin.exists() and os.access(out_bin, os.X_OK), "Executable not generated or not executable")
+
+    def test_autocompact_emits_lua_0572_dispatchers(self):
+        """Validates exclusive emission of 0.57.2 Lua dispatchers without legacy commands."""
+        captured = []
+        monitors = [{"name": "DP-2", "focused": True, "activeWorkspace": {"id": 3}}]
+        clients = [{"mapped": True, "pinned": False, "workspace": {"id": 3}, "address": "0xabc"}]
+        workspaces = [{"id": 3, "monitor": "DP-2"}]
+
+        def fake_json(query, timeout=1.0):
+            return {"j/monitors": monitors, "j/clients": clients, "j/workspaces": workspaces}.get(query, [])
+
+        with patch.object(self.compact_mod, "is_session_locked", return_value=False), \
+             patch.object(self.compact_mod, "get_monitor_configs", return_value={"DP-2": {"base": 1, "max": 5}, "DP-1": {"base": 6, "max": 10}}), \
+             patch.object(self.compact_mod, "hypr_json", side_effect=fake_json), \
+             patch.object(self.compact_mod, "hypr_batch", side_effect=lambda d: captured.extend(d) or "ok"):
+            self.assertTrue(self.compact_mod.compact_workspaces())
+
+        self.assertTrue(captured, "Expected non-empty Lua dispatches")
+        for cmd in captured:
+            self.assertTrue(cmd.startswith("dispatch hl.dsp.window.move(") or cmd.startswith("dispatch hl.dsp.focus("), f"Unexpected dispatch: {cmd}")
+            self.assertNotIn("movetoworkspacesilent", cmd)
+            self.assertNotIn("focusmonitor", cmd)
+
+    def test_hypr_ipc_move_window_pixel_lua_0572(self):
+        """Validates move_window_pixel emits Hyprland 0.57.2 hl.dsp.window.move syntax."""
+        if str(HYPR_SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(HYPR_SCRIPTS))
+        import hypr_ipc
+        with patch.object(hypr_ipc, "hypr_cmd") as mock_cmd:
+            hypr_ipc.move_window_pixel(600, 44, "spotify-card")
+            mock_cmd.assert_called_once_with(
+                'dispatch hl.dsp.window.move({ x = 600, y = 44, window = "class:spotify-card" })',
+                timeout=0.05,
+            )
+
+    def test_aurora_osd_caps_and_overdrive(self):
+        """Validates aurora_osd caps-lock j/devices query and >100% overdrive payload."""
+        spec = importlib.util.spec_from_file_location("aurora_osd", SCRIPTS / "aurora_osd.py")
+        osd_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(osd_mod)
+
+        with patch.object(osd_mod, "hypr_json", return_value={"keyboards": [{"main": True, "capsLock": True}]}):
+            caps = osd_mod.handle_action("caps-lock")
+        self.assertEqual(caps["kind"], "caps")
+        self.assertFalse(caps["muted"])
+        self.assertFalse(caps["overdrive"])
+        self.assertEqual(caps["fraction"], 1.0)
+        self.assertIn("activé", caps["label"])
+
+        with patch.object(osd_mod.subprocess, "run"), \
+             patch.object(osd_mod, "_parse_wpctl", return_value=(125, False)):
+            vol = osd_mod.handle_action("volume-up")
+        self.assertEqual(vol["kind"], "volume")
+        self.assertTrue(vol["overdrive"])
+        self.assertFalse(vol["muted"])
+        self.assertEqual(vol["fraction"], 1.0)
+        self.assertEqual(vol["label"], "125%")
+
+        osd_src = (SCRIPTS / "aurora_osd.py").read_text(encoding="utf-8")
+        self.assertIn("bar.set_no_show_all(True)", osd_src)
+        self.assertLess(
+            osd_src.index("win.show_all()"),
+            osd_src.index('bar.set_visible(payload.get("kind") != "caps")'),
+        )
 
 
 def main():
