@@ -342,17 +342,17 @@ void aurora_render_frame(struct App *app) {
         }
     }
 
-    float t = (float)((double)(aurora_get_time_ms() - app->start_time_ms) / 1000.0);
+    float t = (float)(fmod((double)(aurora_get_time_ms() - app->start_time_ms) / 1000.0, 3600.0));
     float breath_offset = sinf(t) * 0.01f;
     float bg_breath = sinf(t * 1.6f) * 0.5f + 0.5f;
     float g_time = t * 1.5f;
     float cycle = fmodf(g_time, 3.8f);
     float tick1 = (cycle >= 3.20f && cycle < 3.30f) ? 1.0f : 0.0f;
     float tick2 = (cycle >= 3.35f && cycle < 3.43f) ? 0.70f : 0.0f;
-    float twitch = (aurora_hash11(floorf(g_time * 10.0f)) >= 0.982f) ? 0.45f : 0.0f;
+    float twitch = (aurora_hash11(fmodf(floorf(g_time * 10.0f), 1000.0f)) >= 0.982f) ? 0.45f : 0.0f;
     float glitch_intensity = tick1 > tick2 ? tick1 : tick2;
     if (twitch > glitch_intensity) glitch_intensity = twitch;
-    float frame_seed = floorf(g_time * 20.0f) * 23.41f;
+    float frame_seed = fmodf(floorf(g_time * 20.0f) * 23.41f, 1000.0f);
 
     glBindFramebuffer(GL_FRAMEBUFFER, app->fbo);
     glViewport(0, 0, app->fbo_width, app->fbo_height);

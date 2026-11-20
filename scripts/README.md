@@ -35,8 +35,10 @@ Le script `wallpaper_tool.py` s'exécute depuis la racine du dépôt :
 # Surveillance du moteur aurora-wallpaper, PIDs, RAM (~72 Mo), CPU et couches Wayland
 ./scripts/wallpaper_tool.py status
 
-# Régénération du masque Blackwall vectoriel haute fidélité (blackwall_mask.png)
+# Régénération du masque composite Blackwall 4 canaux et chevelure
 ./scripts/wallpaper_tool.py mask
+# ou directement via le générateur multi-cibles :
+python3 scripts/mask_generator.py [all|hair|blackwall|eye-shine]
 
 # Audit d'intégrité physique des 42 hardlinks dotfiles <-> ~/.config/
 ./scripts/wallpaper_tool.py check-links

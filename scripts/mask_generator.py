@@ -17,6 +17,11 @@ except ImportError:
     Image = None
     ImageFilter = None
 
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 RESSOURCE_DIR = PROJECT_DIR / "ressource"
 
@@ -162,6 +167,117 @@ def generate_blackwall_mask(
     print(f"✓ Masque Blackwall 4-Canaux (Cutout + FlowMap + Ondulations) généré : {output_png} ({w}x{h})")
 
 
+def generate_hair_mask(
+    input_png: Optional[Path] = None,
+    output_png: Optional[Path] = None,
+):
+    """
+    Génère le masque complet d'ondulation des cheveux de Lucy avec adoucissement
+    sous-pixel C1, couvrant l'intégralité de la chevelure (frange, couronne,
+    mèche descendante, queue de cheval droite, cheveux gauches) et exclusion
+    stricte du visage, des yeux, du cyberware, des bijoux, des mains et du fond.
+    """
+    if Image is None or ImageFilter is None or np is None:
+        sys.exit("Erreur : Pillow (PIL) et NumPy sont requis pour générer le masque de cheveux.")
+
+    if input_png is None:
+        input_png = RESSOURCE_DIR / "lucy.png"
+    if output_png is None:
+        output_png = RESSOURCE_DIR / "waterwaves_mask.png"
+
+    lucy_img = Image.open(input_png).convert("RGB")
+    lucy = np.array(lucy_img)
+    h, w = lucy.shape[:2]
+
+    bw_mask_path = RESSOURCE_DIR / "blackwall" / "blackwall_mask.png"
+    if bw_mask_path.exists():
+        bw_mask = np.array(Image.open(bw_mask_path))
+        bg_mask = bw_mask[:, :, 0]
+    else:
+        bg_mask = np.zeros((h, w), dtype=np.uint8)
+
+    r = lucy[:, :, 0].astype(int)
+    g = lucy[:, :, 1].astype(int)
+    b = lucy[:, :, 2].astype(int)
+
+    fg = bg_mask < 20
+    bg_factor = np.clip(1.0 - (bg_mask.astype(float) / 8.0), 0.0, 1.0)
+    bg_factor = bg_factor * bg_factor * (3.0 - 2.0 * bg_factor)
+
+    # 1. Exclusion stricte des éléments non-cheveux
+    is_skin = fg & (r >= 115) & (g >= 115) & (np.abs(r - g) <= 8) & (b - r < 42)
+    face_zone = np.zeros((h, w), dtype=bool)
+    face_zone[200:750, 700:1350] = True
+    is_shaded_skin = fg & face_zone & (r >= 70) & (g >= 68) & (np.abs(r - g) <= 7) & (b - r < 35)
+
+    is_lips = fg & (r > 130) & (g < 105) & (b < 125) & (r > b)
+    is_red_cyber = fg & (r > 80) & (r - g > 20) & (r - b > 15)
+
+    eye_box = np.zeros((h, w), dtype=bool)
+    eye_box[240:460, 680:1220] = True
+    is_eye = fg & eye_box & (
+        ((b - r > 28) & (r < 115)) |
+        ((r - g > 25) & (b - g > 15) & (r > 85)) |
+        is_red_cyber |
+        ((r > 175) & (g > 175) & (b > 175))
+    )
+
+    earring_box = np.zeros((h, w), dtype=bool)
+    earring_box[335:450, 1440:1515] = True
+    is_earring = fg & earring_box & (r > 130) & (g > 95) & (b < 125)
+
+    hand_box = np.zeros((h, w), dtype=bool)
+    hand_box[640:1080, 550:1250] = True
+    is_hand = fg & hand_box & (is_skin | (r > 140))
+
+    clothes_box = np.zeros((h, w), dtype=bool)
+    clothes_box[680:1080, :] = True
+    strand_col = np.zeros((h, w), dtype=bool)
+    strand_col[:, 1280:1470] = True
+    front_strand = fg & strand_col & (b - r > 18) & (b > 100)
+    is_clothes = fg & clothes_box & ~front_strand & ~is_hand & (r < 75) & (g < 75) & (b < 95)
+
+    excluded = ~fg | is_skin | is_shaded_skin | is_lips | is_eye | is_red_cyber | is_earring | is_hand | is_clothes
+    excl_dilated = np.array(Image.fromarray(excluded.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(5))) > 0
+
+    # 2. Détection exhaustive de la chevelure
+    is_cyan_hair = fg & (
+        ((b - r > 16) & (b > 90)) |
+        ((g - r > 12) & (b > 110)) |
+        ((b > 150) & (b - r > 8))
+    )
+    pony_box = np.zeros((h, w), dtype=bool)
+    pony_box[50:620, 1490:1780] = True
+    is_pony = fg & pony_box & ~is_skin & ~is_earring
+
+    left_hair_box = np.zeros((h, w), dtype=bool)
+    left_hair_box[0:950, 0:700] = True
+    is_left_hair = fg & left_hair_box & (r < 75) & (g < 75) & (b < 105)
+
+    crown_box = np.zeros((h, w), dtype=bool)
+    crown_box[0:350, 250:1500] = True
+    is_crown = fg & crown_box & ~is_skin
+
+    hair_raw = (is_cyan_hair | is_pony | is_left_hair | is_crown) & ~excl_dilated
+
+    raw_mask_arr = np.zeros((h, w), dtype=np.uint8)
+    raw_mask_arr[hair_raw] = 255
+
+    # 3. Adoucissement sous-pixel et suppression des micro-vides
+    mask_im = Image.fromarray(raw_mask_arr)
+    mask_closed = mask_im.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    mask_blurred = np.array(mask_closed.filter(ImageFilter.GaussianBlur(radius=2.5)), dtype=float)
+
+    excl_soft = np.array(Image.fromarray(excl_dilated.astype(np.uint8) * 255).filter(ImageFilter.GaussianBlur(radius=2.0)), dtype=float) / 255.0
+    falloff = np.clip(1.0 - excl_soft * 1.6, 0.0, 1.0)
+    final_arr = mask_blurred * falloff * bg_factor
+    final = Image.fromarray(np.clip(final_arr, 0, 255).astype(np.uint8))
+
+    output_png.parent.mkdir(parents=True, exist_ok=True)
+    final.save(output_png)
+    print(f"✓ Masque complet d'ondulation des cheveux généré : {output_png} ({w}x{h})")
+
+
 def generate_eye_shine_mask(
     input_png: Optional[Path] = None,
     output_png: Optional[Path] = None,
@@ -227,9 +343,11 @@ def generate_eye_shine_mask(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Générateur de masques Blackwall et pupille Lucy")
-    parser.add_argument("target", nargs="?", default="all", choices=["blackwall", "eye-shine", "all"])
+    parser = argparse.ArgumentParser(description="Générateur de masques Blackwall, cheveux et pupille Lucy")
+    parser.add_argument("target", nargs="?", default="all", choices=["blackwall", "hair", "eye-shine", "all"])
     args = parser.parse_args()
+    if args.target in ("hair", "all"):
+        generate_hair_mask()
     if args.target in ("blackwall", "all"):
         generate_blackwall_mask()
     if args.target in ("eye-shine", "all"):

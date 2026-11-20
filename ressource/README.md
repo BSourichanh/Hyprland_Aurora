@@ -18,10 +18,12 @@ ressource/
 ├── lucy_material.json       # Descripteur du matériau principal et liaisons de textures
 ├── scene.json               # Configuration de la scène (passes de post-traitement, shine, bloom)
 ├── preview.gif              # Vignette animée officielle du Workshop
+├── waterwaves_mask.png      # Masque exhaustif de la chevelure (frange, mèche, queue de cheval, ombre)
+├── shake_flowmask.png       # FlowMap bidirectionnel de respiration
 ├── blackwall/               # Effet Blackwall natif GLSL (remplace les particules non supportées)
 │   ├── blackwall.frag       # Fragment shader optimisé (Fast-Path GPU, glyphes vectorisés)
 │   ├── blackwall.vert       # Vertex shader pour la projection 2D de la passe Blackwall
-│   ├── blackwall_mask.png   # Masque subpixel haute fidélité (isolation du gradient de fond)
+│   ├── blackwall_mask.png   # Masque composite 4 canaux (R: Cutout fond, G: Flow Y, B: Flow X, A: Masque chevelure 100% C1)
 │   ├── blackwall_mask.tex   # Masque compilé en conteneur binaire TEXV0005
 │   ├── blackwall.json       # Liaisons des propriétés et passes de rendu
 │   └── effect.json          # Descripteur de l'effet pour le moteur Wallpaper Engine
